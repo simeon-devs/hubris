@@ -43,6 +43,11 @@ class CostToServeMetric(Metric):
                 "transport_cost": round(transport_cost, 2),
                 "fixed_cost": round(fixed_cost, 2),
                 "total_cost": round(total_cost, 2),
+                "total_demand": round(total_demand, 2),
+                # Precomputed shares so an agent never has to divide these
+                # itself to answer "what's driving cost?".
+                "transport_cost_pct": round(transport_cost / total_cost * 100, 2) if total_cost else 0.0,
+                "fixed_cost_pct": round(fixed_cost / total_cost * 100, 2) if total_cost else 0.0,
                 "per_emirate_transport_cost": {
                     emirate: round(cost, 2) for emirate, cost in per_emirate_transport.items()
                 },

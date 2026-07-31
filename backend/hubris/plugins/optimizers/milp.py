@@ -105,6 +105,7 @@ class MILPOptimizer(OptimizerStrategy):
             rationale={
                 "hubs_open": sorted(open_hub_ids),
                 "hubs_open_count": len(open_hub_ids),
+                "hubs_total_count": len(model.hubs),
                 "hubs_closed_count": sum(1 for c in changes if c["action"] == "close_hub"),
                 "hubs_opened_count": sum(1 for c in changes if c["action"] == "open_hub"),
                 "solver_status": pulp.LpStatus[status],

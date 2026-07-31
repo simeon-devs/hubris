@@ -13,7 +13,9 @@ class GetKpisTool(AgentTool):
     name = "get_kpis"
     description = (
         "Compute the full KPI dashboard for a network model: cost-to-serve "
-        "(AED/parcel), utilization (%, network + per-hub), coverage (% demand "
+        "(AED/parcel, with transport_cost_pct/fixed_cost_pct shares already "
+        "computed — use those directly, never divide transport/fixed by total "
+        "yourself), utilization (%, network + per-hub), coverage (% demand "
         "served within SLA), and spare capacity (parcels, network + per-hub). "
         "Every value is computed by the deterministic engine, not estimated."
     )

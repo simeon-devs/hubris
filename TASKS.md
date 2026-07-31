@@ -45,7 +45,7 @@
 | T-09 | MILP recommender + greedy fallback | 1 Engine | A | DONE |
 | T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | DONE |
 | T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | REVIEW |
-| T-12 | Multi-agent workforce graph | 2 Agents | B | TODO |
+| T-12 | Multi-agent workforce graph | 2 Agents | B | REVIEW |
 | T-13 | Goal-driven optimisation loop | 2 Agents | B | TODO |
 | T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | TODO |
 | T-15 | FastAPI routers | 3 API/UI | B/C | TODO |
@@ -171,6 +171,8 @@ Log:
 Contract: LangGraph graph. Depends on: T-11.
 Done when: Network Analyst / Scenario Strategist / Optimizer / Cost Analyst / Risk agents collaborate to answer a question, every number traceable to a tool call.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/agents/workforce.py`: a genuine LangGraph `StateGraph` — a `route` node classifies the question into one of 5 roles (Network Analyst, Scenario Strategist, Optimizer, Cost Analyst, Risk/Devil's Advocate) via a small Claude Haiku call, then conditional edges dispatch to the matching specialist node, each built from T-11's `run_agent_query` with its own role-specific system prompt and a restricted tool subset (`ROLE_TOOLS`). Router is dependency-injectable (`classifier` param) so graph wiring/fallback is unit-testable without hitting the API; the real classification only runs in the live-gated tests. Running this live against real questions surfaced 3 more real gaps beyond T-11's, all fixed the same way (route the derivation through the engine instead of trusting the LLM not to compute it): Cost Analyst was dividing transport/fixed by total itself to answer "what's driving cost" (fixed: `cost_to_serve`'s breakdown now includes `transport_cost_pct`/`fixed_cost_pct` directly); the Optimizer specialist added `hubs_open_count + hubs_closed_count` in its head to state the original hub count (fixed: `hubs_total_count` added to both optimizers' rationale); and a KPI question re-derived total demand via `total_cost / cost_to_serve` again despite the earlier prompt tightening — LLMs don't perfectly self-police even a very explicit instruction every single time, which is exactly why the after-the-fact provenance check (not just a system prompt) is the real enforcement (fixed: `total_demand` added directly to `cost_to_serve`'s breakdown). To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_workforce.py -v"` → 4 non-live passed (role/tool wiring, router fallback-to-default, valid-classification passthrough) + 2 live passed (skipped without `ANTHROPIC_API_KEY`): a cost question correctly routes to `cost_analyst` and a hub-closure question to `optimizer`, both answers fully traceable to their tool calls. Full non-live suite → 61 passed (2 live-only deselected).
 
 **T-13 · Goal-driven optimisation loop**
 Contract: agent loop over T-09/T-08. Depends on: T-11.

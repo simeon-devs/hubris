@@ -15,8 +15,10 @@ class OptimiseNetworkTool(AgentTool):
         "{'type':'max_utilization','value':0.9}). Defaults to the MILP "
         "recommender, which falls back to a greedy heuristic on its own if it "
         "can't solve in time — always returns a result. Returns: changes, "
-        "objective_value (AED), delta_vs_baseline (% cost-to-serve change), "
-        "and rationale."
+        "objective_value (AED), delta_vs_baseline (% cost-to-serve change), and "
+        "rationale (includes hubs_total_count, hubs_open_count, "
+        "hubs_closed_count — use these directly, never add/subtract them "
+        "yourself to get a hub count)."
     )
     input_schema = {
         "type": "object",
