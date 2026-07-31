@@ -39,7 +39,7 @@
 | T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | DONE |
 | T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | DONE |
 | T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | DONE |
-| T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | TODO |
+| T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | REVIEW |
 | T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | TODO |
 | T-08 | Min-cost flow assignment + duals | 1 Engine | A | TODO |
 | T-09 | MILP recommender + greedy fallback | 1 Engine | A | TODO |
@@ -119,6 +119,8 @@ Log:
 Contract: `DataConnector`. Depends on: T-04, T-05.
 Done when: an Excel → canonical mapping runs with fuzzy + LLM-assisted column matching + low-confidence confirm; downstream reads only canonical tables (`SCHEMA.md §2`).
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — `backend/hubris/ingestion/excel_connector.py`: `ExcelDataConnector` (`DataConnector`, registered as `"excel"`). Sheet→table matching is by sheet NAME against synonyms (`hubris/ingestion/schema_mapper.py`'s `TABLE_SHEET_SYNONYMS`) — much more reliable than column overlap alone, since hubs/zones both have id/name/lat/lon/emirate-shaped columns. Column→field mapping is schema-agnostic fuzzy matching (rapidfuzz, `max(WRatio, token_set_ratio)`); fields still ambiguous after that get one LLM-assisted proposal attempt (Claude Haiku via `ANTHROPIC_API_KEY`, propose-only, never transforms data — silently no-ops with no key/on any failure, proven by a test with no key set); anything still unresolved raises `NeedsConfirmationError` naming the field and best guess, resolvable via a `column_overrides` param (stands in for the human-confirm UI, which is T-18). Missing `od_matrix`/`current_assignments` sheets are derived, not fatal: `hubris/engine/geo.py` (haversine × 1.3 road-factor) + the cost formula for OD, `hubris/engine/baseline.py`'s nearest-hub-with-capacity for the assignment baseline — both factored out of T-04's `synthetic.py` for reuse (refactored, re-verified against the existing synthetic-data tests). To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_excel_connector.py -v"` → 5 passed: extension-based `can_handle`, messy-column mapping + derivation of both missing tables (with geographic sanity checks and an exact demand-conservation check), graceful LLM no-op with no API key, and the `NeedsConfirmationError` → `column_overrides` resolution round-trip. Full suite (`pytest tests/ -v`, with `db` up + `alembic upgrade head` for `test_db.py`) → 18 passed, no regressions from the geo/baseline refactor.
 
 **T-07 · Cost/KPI calculator (Metric plugins)**
 Contract: `Metric`. Depends on: T-02, T-04.

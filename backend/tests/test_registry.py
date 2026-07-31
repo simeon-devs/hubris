@@ -1,12 +1,16 @@
 from hubris.core.contracts import MetricResult, NetworkModel
-from hubris.core.registry import METRIC, Registry, load_plugins, register_metric
+from hubris.core.registry import DATA_CONNECTOR, METRIC, Registry, load_plugins, register_metric
 from tests.fixtures.tiny_network import TINY_RAW_TABLES
 
 
-def test_load_plugins_does_not_error_on_empty_plugin_dirs():
-    # Phase 0: hubris/plugins/{metrics,scenarios,optimizers} have no plugins
-    # yet. Auto-discovery must be a no-op, not an error.
+def test_load_plugins_discovers_the_real_excel_connector():
+    from hubris.core.registry import registry as global_registry
+
+    # hubris/plugins/{metrics,scenarios,optimizers} still have no plugins in
+    # this phase — but hubris/ingestion now has a real one (T-06), and
+    # load_plugins() must pick it up with no changes to registry.py itself.
     load_plugins()
+    assert any(c.name == "excel" for c in global_registry.all(DATA_CONNECTOR))
 
 
 def test_dummy_plugin_self_registers_and_is_agent_usable():

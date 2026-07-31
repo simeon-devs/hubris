@@ -6,10 +6,11 @@ day, only the ingestion mapping (T-06) changes — everything downstream reads
 the same canonical shape this produces.
 """
 
-import math
 import random
 
 from hubris.core.models import RawTables
+from hubris.engine.baseline import build_nearest_hub_baseline
+from hubris.engine.geo import road_distance_km
 
 # Approximate emirate centroids (lat, lon), UAE.
 EMIRATE_CENTROIDS: dict[str, tuple[float, float]] = {
@@ -88,16 +89,6 @@ FLEET_TYPES = [
 ]
 
 AVG_SPEED_KMH = 40.0
-ROAD_FACTOR = 1.3  # haversine x ~1.3 fallback per SCHEMA.md §2, until T-19 wires real roads
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    r = 6371.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))
 
 
 def _jitter(rng: random.Random, center: tuple[float, float], spread_deg: float) -> tuple[float, float]:
@@ -150,9 +141,7 @@ def generate_synthetic_raw_tables(seed: int = 42) -> RawTables:
     distances: dict[tuple[str, str], float] = {}
     for hub in hubs:
         for zone in zones:
-            distance_km = round(
-                _haversine_km(hub["lat"], hub["lon"], zone["lat"], zone["lon"]) * ROAD_FACTOR, 2
-            )
+            distance_km = round(road_distance_km(hub["lat"], hub["lon"], zone["lat"], zone["lon"]), 2)
             time_min = round(distance_km / AVG_SPEED_KMH * 60, 1)
             # cost = distance x cost_per_km + handling_cost, per SCHEMA.md §2's
             # "no cost model given" derivation.
@@ -172,30 +161,7 @@ def generate_synthetic_raw_tables(seed: int = 42) -> RawTables:
     # zone's demand across hubs if the nearest doesn't have enough room left
     # (SCHEMA.md §2: "no current assignment -> reconstruct a nearest-open-hub
     # -with-capacity baseline").
-    remaining_capacity = {h["id"]: h["capacity"] for h in hubs}
-    current_assignments = []
-    for zone in zones:
-        nearest_hub_ids = sorted(
-            (h["id"] for h in hubs), key=lambda hub_id: distances[(hub_id, zone["id"])]
-        )
-        remaining_demand = zone["demand"]
-        for hub_id in nearest_hub_ids:
-            if remaining_demand <= 0:
-                break
-            available = remaining_capacity[hub_id]
-            if available <= 0:
-                continue
-            volume = min(available, remaining_demand)
-            current_assignments.append(
-                {"zone_id": zone["id"], "hub_id": hub_id, "volume": volume}
-            )
-            remaining_capacity[hub_id] -= volume
-            remaining_demand -= volume
-        if remaining_demand > 0:
-            raise RuntimeError(
-                f"Synthetic network under-capacity: zone {zone['id']} has "
-                f"{remaining_demand} unplaced demand. Increase hub capacities."
-            )
+    current_assignments = build_nearest_hub_baseline(hubs, zones, distances)
 
     return RawTables(
         hubs=hubs,

@@ -5,3 +5,10 @@ sqlalchemy==2.0.36
 alembic==1.14.0
 psycopg2-binary==2.9.10
 pytest==8.3.4
+pandas==2.2.3
+openpyxl==3.1.5
+rapidfuzz==3.11.0
+numpy==2.2.1
+scipy==1.14.1
+pulp==2.9.0
+anthropic==0.42.0
