@@ -52,6 +52,10 @@ class SimulateScenarioTool(AgentTool):
         delta = {}
         delta_pct = {}
         for metric_name in baseline_kpis:
+            # get_kpis also includes "network_summary", which isn't a
+            # {"value": ...}-shaped MetricResult — skip anything that isn't.
+            if not isinstance(baseline_kpis[metric_name], dict) or "value" not in baseline_kpis[metric_name]:
+                continue
             baseline_value = baseline_kpis[metric_name]["value"]
             scenario_value = scenario_kpis[metric_name]["value"]
             if not isinstance(baseline_value, (int, float)) or not isinstance(

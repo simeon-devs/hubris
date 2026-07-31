@@ -16,7 +16,10 @@ class GetKpisTool(AgentTool):
         "(AED/parcel, with transport_cost_pct/fixed_cost_pct shares already "
         "computed — use those directly, never divide transport/fixed by total "
         "yourself), utilization (%, network + per-hub), coverage (% demand "
-        "served within SLA), and spare capacity (parcels, network + per-hub). "
+        "served within SLA), spare capacity (parcels, network + per-hub), and "
+        "network_summary (hub_count, zone_count, emirate_count, total_demand "
+        "— use these directly, never count hub/zone/emirate entries in a "
+        "breakdown yourself). "
         "Every value is computed by the deterministic engine, not estimated."
     )
     input_schema = {
@@ -27,7 +30,15 @@ class GetKpisTool(AgentTool):
     }
 
     def run(self, *, model: NetworkModel, scenario_id: str | None = None, **_: object) -> dict:
-        return {
+        kpis = {
             metric.name: metric.compute(model, scenario_id).model_dump()
             for metric in global_registry.all(METRIC)
         }
+        kpis["network_summary"] = {
+            "hub_count": len(model.hubs),
+            "open_hub_count": sum(1 for hub in model.hubs if hub.status == "open"),
+            "zone_count": len(model.zones),
+            "emirate_count": len({hub.emirate for hub in model.hubs} | {zone.emirate for zone in model.zones}),
+            "total_demand": round(sum(model.demand.values()), 2),
+        }
+        return kpis

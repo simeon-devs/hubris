@@ -61,6 +61,10 @@ class CompareScenariosTool(AgentTool):
         delta = {}
         delta_pct = {}
         for metric_name in kpis_a:
+            # get_kpis also includes "network_summary", which isn't a
+            # {"value": ...}-shaped MetricResult — skip anything that isn't.
+            if not isinstance(kpis_a[metric_name], dict) or "value" not in kpis_a[metric_name]:
+                continue
             value_a = kpis_a[metric_name]["value"]
             value_b = kpis_b[metric_name]["value"]
             if not isinstance(value_a, (int, float)) or not isinstance(value_b, (int, float)):

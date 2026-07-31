@@ -19,6 +19,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg2://hubris:hubris@db:5432/hubris
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "8000:8000"
     depends_on:
