@@ -41,7 +41,7 @@
 | T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | DONE |
 | T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | REVIEW |
 | T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | REVIEW |
-| T-08 | Min-cost flow assignment + duals | 1 Engine | A | TODO |
+| T-08 | Min-cost flow assignment + duals | 1 Engine | A | REVIEW |
 | T-09 | MILP recommender + greedy fallback | 1 Engine | A | TODO |
 | T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | TODO |
 | T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | TODO |
@@ -133,6 +133,8 @@ Log:
 Contract: engine (`assign(model) -> Assignment(+duals)`). Depends on: T-04.
 Done when: optimal zone→hub for baseline/scenarios; always solves; returns shadow prices for T-23. Tiny 2-hub/3-zone test passes.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — `backend/hubris/engine/flow.py::solve_min_cost_flow(model) -> FlowResult`. Formulated as a capacitated transportation LP (demand = equality per zone, capacity = inequality per open hub, SLA-infeasible edges excluded per BUILD_SPEC §3's `x_ij=0 if t_ij>T_max`) and solved with `scipy.optimize.linprog(method="highs")`, which returns `eqlin.marginals`/`ineqlin.marginals` as `zone_duals`/`hub_duals` **for free — no extra work needed for T-23**. Always-solves guardrail: a heavily-penalised per-zone overflow slack variable keeps the LP feasible even when total open-hub capacity < total demand, so it returns a `FlowResult` with `feasible=False` and `unmet_demand` populated instead of raising. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_flow.py -v"` → 5 passed: (1) unconstrained tiny fixture picks each zone's cheapest hub, total_cost=700, both hub duals ~0; (2) dropping H1's capacity to 40 forces 10 units of Z1 (not Z2 — 200/unit beats 206/unit) onto H2, total_cost=2700, H1 dual nonzero/H2 dual~0; (3) **re-solving at capacity=41 empirically confirms the H1 dual (200) exactly equals the real cost delta (2700-2500=200)** — LP sensitivity verified against the actual solver output rather than a hand-remembered sign convention (caught a real arithmetic mistake in my own first hand-calc, which is exactly why I checked it this way); (4) under-capacity input still returns a feasible=False result with correct unmet_demand, doesn't raise; (5) an artificially tight SLA correctly excludes a zone's only routes. Full suite → 27 passed. Sanity vs the full synthetic dataset: solves in ~6ms, optimal transport cost 132,567 vs the nearest-hub baseline's 132,577 (~0.01% — expected, since T-04's baseline generator is already near-optimal for a pure flow problem; the real ~5% target improvement is the MILP's hub open/close decision in T-09).
 
 **T-09 · MILP recommender + greedy fallback**
 Contract: `OptimizerStrategy`. Depends on: T-08.
