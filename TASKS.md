@@ -35,7 +35,7 @@
 | ID | Ticket | Phase | Owner | Status |
 |----|--------|-------|:-----:|:------:|
 | T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | REVIEW |
-| T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | TODO |
+| T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | REVIEW |
 | T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | TODO |
 | T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | TODO |
 | T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | TODO |
@@ -84,6 +84,8 @@ Log:
 Contract: defines all of them (`DataConnector`, `Metric`, `ScenarioModule`, `OptimizerStrategy`, `AgentTool`) + `NetworkModel`, `MetricResult`, `Recommendation`. Depends on: T-01.
 Done when: the abstract interfaces from `CLAUDE.md §4` exist and import cleanly; `NetworkModel` hydrates from fixtures.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — `backend/hubris/core/models.py`: `Hub`, `Zone`, `FleetType`, `OD`, `RawTables` per `SCHEMA.md §1`. `backend/hubris/core/contracts.py`: the 5 ABCs + `NetworkModel`/`MetricResult`/`Recommendation` verbatim from `CLAUDE.md §4`, plus `NetworkModel.from_raw_tables()` to hydrate. Per the confirmed decision, `assignments` stays single dominant-hub-per-zone (`dict[str,str]`) even though `current_assignments` rows can split a zone across hubs — the dominant hub (largest volume) wins; full split volumes are preserved in the raw/DB layer, not in this field. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_contracts.py -v"` → 3 passed (contracts import cleanly; tiny 2-hub/3-zone fixture hydrates correctly, including dominant-hub resolution for a deliberately-split zone; MetricResult/Recommendation shapes valid).
 
 **T-03 · Core: plugin registry + agent auto-discovery**
 Contract: `Registry` (`CLAUDE.md §5`). Depends on: T-02.
