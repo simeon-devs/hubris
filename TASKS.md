@@ -43,7 +43,7 @@
 | T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | REVIEW |
 | T-08 | Min-cost flow assignment + duals | 1 Engine | A | REVIEW |
 | T-09 | MILP recommender + greedy fallback | 1 Engine | A | REVIEW |
-| T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | TODO |
+| T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | REVIEW |
 | T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | TODO |
 | T-12 | Multi-agent workforce graph | 2 Agents | B | TODO |
 | T-13 | Goal-driven optimisation loop | 2 Agents | B | TODO |
@@ -147,6 +147,10 @@ Log:
 Contract: `ScenarioModule` (one plugin each: `move_hub`, `close_hub`, `add_hub`, `change_fleet_mix`, `add_customer`, `demand_scale`). Depends on: T-02, T-07.
 Done when: each `apply()` returns a modified **copy**; each has a params schema; each registered; baseline + scenario coexist for diffing.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — 6 `ScenarioModule` plugins in `backend/hubris/plugins/scenarios/`, each self-registered: `move_hub`, `close_hub`, `add_hub`, `change_fleet_mix`, `add_customer`, `demand_scale` (optionally scoped to one emirate). Every `apply()` uses `model.model_copy(deep=True)` then mutates only the copy; `move_hub`/`add_hub`/`add_customer` recompute the affected OD entries (shared `hubris/engine/cost_model.py`, factored out for this + `hubris/engine/geo.py` from T-06, so a moved/added hub or a new zone is immediately usable by T-08/T-09 without a separate ingestion step). `close_hub` deliberately only flips status — reassigning the zones it carried is re-optimisation (T-08/T-09's job), not a structural scenario change, so it doesn't touch `assignments`. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_scenarios.py -v"` → 8 passed: one hand-checked test per scenario (e.g. `demand_scale` at factor 1.2 on the tiny fixture gives exactly 36/24/12 from 30/20/10; emirate-scoped scale at 2.0 leaves the non-matching zone untouched) plus a mutation-safety assertion in every single test (the original model's values are checked unchanged after `apply()` runs) — and one test confirming all 6 are picked up by `load_plugins()` and callable through `registry.as_agent_tools()`. Full suite → 41 passed (incl. `test_db.py` with `db` up + migrated). Demoed baseline/scenario coexistence end-to-end on the full synthetic dataset: `demand_scale(factor=1.3)` gives a scenario model with 5567.9 total demand while the baseline model still reports its original 4283 — same object graph, no cross-contamination, ready for a before/after diff.
+
+**This closes Phase 0 + Phase 1 (T-01–T-10).** Full engine chain works end-to-end on the synthetic dataset: ingestion (T-06) → cost/KPI metrics (T-07) → optimal flow with duals (T-08) → MILP recommender w/ greedy fallback (T-09) → what-if scenarios (T-10). See the phase summary message for the headline numbers.
 
 ### Phase 2 — Agents
 
