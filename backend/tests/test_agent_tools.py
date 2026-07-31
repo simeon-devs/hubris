@@ -1,0 +1,91 @@
+"""Hand-checkable tests for T-11's 5 named agent tools, using the tiny
+2-hub/3-zone fixture. No LLM involved here — these prove each tool's
+`run()` returns correct COMPUTED JSON on its own; the live no-fabrication
+check (which needs a real model in the loop) is in
+`test_agent_no_fabrication.py`.
+"""
+
+from hubris.core.contracts import NetworkModel
+from hubris.core.registry import AGENT_TOOL, load_plugins
+from hubris.core.registry import registry as global_registry
+from hubris.agents.tools.compare_scenarios import CompareScenariosTool
+from hubris.agents.tools.find_spare_capacity import FindSpareCapacityTool
+from hubris.agents.tools.get_kpis import GetKpisTool
+from hubris.agents.tools.optimise_network import OptimiseNetworkTool
+from hubris.agents.tools.simulate_scenario import SimulateScenarioTool
+from tests.fixtures.tiny_network import TINY_RAW_TABLES
+
+
+def _model() -> NetworkModel:
+    load_plugins()
+    return NetworkModel.from_raw_tables(TINY_RAW_TABLES)
+
+
+def test_get_kpis_matches_t07_hand_checked_values():
+    result = GetKpisTool().run(model=_model())
+    assert result["cost_to_serve"]["value"] == round(2600 / 60, 4)
+    assert result["utilization"]["value"] == 30.0
+    assert result["coverage"]["value"] == 100.0
+    assert result["spare_capacity"]["value"] == 140.0
+
+
+def test_find_spare_capacity_ranks_hubs_descending():
+    result = FindSpareCapacityTool().run(model=_model())
+    assert result["total_spare_capacity"] == 140.0
+    assert result["hubs_ranked"] == [
+        {"hub_id": "H2", "spare_capacity": 90.0},
+        {"hub_id": "H1", "spare_capacity": 50.0},
+    ]
+
+
+def test_find_spare_capacity_min_spare_filter():
+    result = FindSpareCapacityTool().run(model=_model(), min_spare=60.0)
+    assert result["hubs_ranked"] == [{"hub_id": "H2", "spare_capacity": 90.0}]
+
+
+def test_simulate_scenario_reoptimizes_flow_after_closing_a_hub():
+    # Regression test: closing H2 must NOT leave Z3 "assigned" to a hub
+    # that's now closed — the tool must re-solve flow so Z3 correctly
+    # reroutes to H1 (expensive, but the only open hub left).
+    result = SimulateScenarioTool().run(
+        model=_model(), scenario_name="close_hub", params={"hub_id": "H2"}
+    )
+    assert result["scenario_flow_feasible"] is True
+    assert result["scenario_kpis"]["cost_to_serve"]["breakdown"]["total_cost"] == 3780.0
+    assert result["scenario_kpis"]["cost_to_serve"]["value"] == 63.0
+    assert result["baseline_kpis"]["cost_to_serve"]["value"] == round(2600 / 60, 4)
+    assert result["delta"]["cost_to_serve"] == round(63.0 - 2600 / 60, 4)
+
+
+def test_optimise_network_matches_t09_hand_checked_result():
+    result = OptimiseNetworkTool().run(model=_model(), optimizer_name="milp_cflp")
+    assert result["changes"] == []
+    assert result["objective_value"] == 2600.0
+
+
+def test_compare_scenarios_against_baseline():
+    result = CompareScenariosTool().run(
+        model=_model(),
+        scenario_a_name="close_hub",
+        scenario_a_params={"hub_id": "H2"},
+    )
+    assert result["scenario_a"]["kpis"]["cost_to_serve"]["value"] == 63.0
+    assert result["scenario_b"]["name"] == "baseline"
+    assert result["scenario_b"]["kpis"]["cost_to_serve"]["value"] == round(2600 / 60, 4)
+    assert result["delta_a_minus_b"]["cost_to_serve"] == round(63.0 - 2600 / 60, 4)
+
+
+def test_all_five_tools_are_registered_and_agent_usable():
+    load_plugins()
+    registered_names = {t.name for t in global_registry.all(AGENT_TOOL)}
+    assert registered_names == {
+        "get_kpis",
+        "find_spare_capacity",
+        "simulate_scenario",
+        "optimise_network",
+        "compare_scenarios",
+    }
+
+    tools = global_registry.as_agent_tools()
+    names = {t.name for t in tools}
+    assert registered_names <= names

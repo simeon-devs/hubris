@@ -85,16 +85,17 @@ def register_data_connector(cls: type[DataConnectorT]) -> type[DataConnectorT]:
 
 
 def load_plugins() -> None:
-    """Import every module under `hubris.plugins.*` and `hubris.ingestion`
-    so self-registering decorators run. Dropping a new plugin file into one
-    of those packages is enough to make it agent-usable — nothing here
-    needs to change."""
+    """Import every module under `hubris.plugins.*`, `hubris.ingestion`, and
+    `hubris.agents.tools` so self-registering decorators run. Dropping a new
+    plugin file into one of those packages is enough to make it agent-usable
+    — nothing here needs to change."""
+    import hubris.agents.tools as agent_tools_pkg
     import hubris.ingestion as ingestion_pkg
     import hubris.plugins.metrics as metrics_pkg
     import hubris.plugins.optimizers as optimizers_pkg
     import hubris.plugins.scenarios as scenarios_pkg
 
-    for pkg in (metrics_pkg, scenarios_pkg, optimizers_pkg, ingestion_pkg):
+    for pkg in (metrics_pkg, scenarios_pkg, optimizers_pkg, ingestion_pkg, agent_tools_pkg):
         for _, module_name, _ in pkgutil.iter_modules(pkg.__path__, pkg.__name__ + "."):
             importlib.import_module(module_name)
 

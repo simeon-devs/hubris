@@ -102,5 +102,11 @@ class MILPOptimizer(OptimizerStrategy):
             changes=changes,
             objective_value=round(total_cost, 2),
             delta_vs_baseline={"cost_to_serve_pct": round(delta_pct, 2)},
-            rationale={"hubs_open": sorted(open_hub_ids), "solver_status": pulp.LpStatus[status]},
+            rationale={
+                "hubs_open": sorted(open_hub_ids),
+                "hubs_open_count": len(open_hub_ids),
+                "hubs_closed_count": sum(1 for c in changes if c["action"] == "close_hub"),
+                "hubs_opened_count": sum(1 for c in changes if c["action"] == "open_hub"),
+                "solver_status": pulp.LpStatus[status],
+            },
         )

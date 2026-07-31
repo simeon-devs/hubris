@@ -44,7 +44,7 @@
 | T-08 | Min-cost flow assignment + duals | 1 Engine | A | DONE |
 | T-09 | MILP recommender + greedy fallback | 1 Engine | A | DONE |
 | T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | DONE |
-| T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | TODO |
+| T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | REVIEW |
 | T-12 | Multi-agent workforce graph | 2 Agents | B | TODO |
 | T-13 | Goal-driven optimisation loop | 2 Agents | B | TODO |
 | T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | TODO |
@@ -163,6 +163,8 @@ Log:
 Contract: `AgentTool`. Depends on: T-07, T-08, T-09.
 Done when: tools (`get_kpis`, `find_spare_capacity`, `simulate_scenario`, `optimise_network`, `compare_scenarios`) return computed JSON only; wired from the registry.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — 5 named `AgentTool`s in `backend/hubris/agents/tools/`, self-registered (registry auto-discovery extended to scan `hubris.agents.tools` too). `hubris/agents/tool_adapter.py` binds each to a specific `NetworkModel` via closure and converts its `input_schema` into a LangChain `StructuredTool` (dynamic pydantic model) — the LLM only ever supplies the tool's own business params, never the network state itself. `hubris/agents/runner.py`: a single LangGraph `create_react_agent` (Claude Haiku) is the one building block T-12/13/14 all reuse — its system prompt is the first enforcement layer for "no agent ever invents a number," but a prompt is a request, not a guarantee, so `hubris/agents/provenance.py` checks the ACTUAL answer against ACTUAL tool results after the fact. Caught 3 real issues by actually running this live against Claude (with a session-scoped key): (1) `simulate_scenario`/`compare_scenarios` computed KPIs off the stale baseline `assignments` after a hub closed — demand looked like it was still being served by a closed hub; fixed by re-solving flow after every scenario apply (`hubris/agents/scenario_utils.py`). (2) the model guessed wrong param field names for `demand_scale` (`scale_factor` vs the real `factor`) because the tool description didn't say what fields each scenario needs — fixed by generating the description from each registered scenario's real `params_schema`. (3) the model computed a savings percentage itself from two tool-returned numbers (arithmetic on grounded inputs is still forbidden per this task's explicit instruction) — fixed by having `simulate_scenario`/`compare_scenarios` return `delta_pct` directly so there's never a reason to compute one. To test (non-live, always runs): `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_agent_tools.py tests/test_provenance.py -v"` → 14 passed (5 tools hand-checked against the tiny fixture incl. the reoptimization regression test; provenance canary tests prove the checker both accepts rounded/sign-framed/user-restated numbers and REJECTS a planted fabricated one). Live guardrail test (skipped without `ANTHROPIC_API_KEY`): `python -m pytest tests/test_agent_no_fabrication.py -v` → 3 passed against the real Claude API — see the phase-end message for a full worked transcript.
 
 **T-12 · Multi-agent workforce graph**
 Contract: LangGraph graph. Depends on: T-11.
