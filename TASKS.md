@@ -34,7 +34,7 @@
 
 | ID | Ticket | Phase | Owner | Status |
 |----|--------|-------|:-----:|:------:|
-| T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | TODO |
+| T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | REVIEW |
 | T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | TODO |
 | T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | TODO |
 | T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | TODO |
@@ -77,6 +77,8 @@
 Contract: n/a (infra). Depends on: none.
 Done when: `docker compose up` brings up Postgres + FastAPI (health route) + Next.js (blank page); repo layout matches `ARCHITECTURE.md §7`.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — Repo layout matches `ARCHITECTURE.md §7` (backend/hubris/{core,ingestion,engine,plugins/*,agents,api,data}, backend/tests, frontend/, docker-compose.yml). Backend: FastAPI app with `GET /health`. Frontend: Next.js (App Router, TS) with a literal blank page (`return null`). To test: `docker compose up -d --build` from repo root, then `curl http://localhost:8000/health` → `{"status":"ok"}`, and `curl -o /dev/null -w "%{http_code}" http://localhost:3000/` → `200`. Verified live in this session (all 3 containers up, db healthy, both endpoints returned expected results), then torn down with `docker compose down`.
 
 **T-02 · Core: NetworkModel + contracts.py**
 Contract: defines all of them (`DataConnector`, `Metric`, `ScenarioModule`, `OptimizerStrategy`, `AgentTool`) + `NetworkModel`, `MetricResult`, `Recommendation`. Depends on: T-01.
