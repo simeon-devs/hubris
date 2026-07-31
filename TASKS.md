@@ -37,7 +37,7 @@
 | T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | REVIEW |
 | T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | REVIEW |
 | T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | REVIEW |
-| T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | TODO |
+| T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | REVIEW |
 | T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | TODO |
 | T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | TODO |
 | T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | TODO |
@@ -98,6 +98,8 @@ Log:
 Contract: fills every canonical table (`SCHEMA.md §3`). Depends on: T-02.
 Done when: ~7–10 hubs, ~50–150 zones, 3–4 fleet types, demand, and a plausible current assignment load into `NetworkModel`.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — `backend/hubris/data/synthetic.py`: `generate_synthetic_raw_tables(seed=42)` deterministically builds 9 hubs (2 each in Dubai/Abu Dhabi, 1 in each of the other 5 emirates), 100 zones spread across all 7 emirates (weighted toward Dubai/Abu Dhabi), 4 fleet types (Bike/Van/Small Truck/Truck, network-wide not hub-pinned), a full hub×zone `od_matrix` (haversine × 1.3 road-factor fallback per `SCHEMA.md §2`, cost = distance × Van's cost_per_km + hub handling_cost), and a nearest-open-hub-with-capacity baseline `current_assignments` that splits a zone across hubs when the nearest one doesn't have room. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/ -v"` → 12 passed, incl. `test_synthetic_data.py`: counts in spec, hydrates into `NetworkModel`, deterministic per seed, every zone's demand fully assigned, no hub capacity exceeded, od_matrix covers every hub×zone pair.
 
 **T-05 · Canonical schema + Postgres migrations**
 Contract: `SCHEMA.md §1`. Depends on: T-01.
