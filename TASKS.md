@@ -46,7 +46,7 @@
 | T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | DONE |
 | T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | REVIEW |
 | T-12 | Multi-agent workforce graph | 2 Agents | B | REVIEW |
-| T-13 | Goal-driven optimisation loop | 2 Agents | B | TODO |
+| T-13 | Goal-driven optimisation loop | 2 Agents | B | REVIEW |
 | T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | TODO |
 | T-15 | FastAPI routers | 3 API/UI | B/C | TODO |
 | T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | TODO |
@@ -178,6 +178,8 @@ Log:
 Contract: agent loop over T-09/T-08. Depends on: T-11.
 Done when: a plain-English objective ("cut cost 5%, no hub >90%") drives simulate→optimise→evaluate iterations and returns the answer + the path explored.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/agents/goal_loop.py::run_goal_loop(model, objective_text, max_iterations=5)`. One Claude call parses the plain-English objective into `{target_cost_reduction_pct, max_utilization}`; the loop then repeatedly calls the real `optimise_network` tool (T-09's MILP) with a `max_utilization` constraint, relaxing it by 0.05 each round until the target is met or iterations run out — every number in every step comes from a real optimiser call, the LLM only sets the initial target and decides nothing about the search itself (that's pure Python). If no cap was ever given, the loop deliberately stops after one attempt instead of "iterating" on an identical input/output pair. `parse_objective` is dependency-injectable so the search logic is fully unit-testable without touching the API — only the parsing step is live-gated. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_goal_loop.py -v"` → 4 non-live passed against the real T-04 synthetic dataset (unconstrained 5% target met in 1 shot at the real 11.89%; an unreachable 90% target correctly gives up after 1 attempt with no cap to adjust; a genuinely multi-step search — tight 20% cap only allows closing 1 hub for 2.6%, relaxing to 25%/30% allows 2/3 hubs for 5.99%/10.47%, clearing a 10% target in exactly 3 iterations, captured by actually running it, not derived by hand; a max_iterations cutoff that still returns cleanly when the target's unreachable in the given budget). Live test (skipped without `ANTHROPIC_API_KEY`): a real "cut cost by at least 8%, no hub over 25%" objective is parsed correctly and drives a real search. Full non-live suite → 65 passed.
 
 **T-14 · Agent Builder (custom agents + templates)**
 Contract: agent = name + goal + allowed registry tools + autonomy mode. Depends on: T-11.
