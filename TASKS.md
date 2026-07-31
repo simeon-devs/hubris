@@ -42,7 +42,7 @@
 | T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | REVIEW |
 | T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | REVIEW |
 | T-08 | Min-cost flow assignment + duals | 1 Engine | A | REVIEW |
-| T-09 | MILP recommender + greedy fallback | 1 Engine | A | TODO |
+| T-09 | MILP recommender + greedy fallback | 1 Engine | A | REVIEW |
 | T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | TODO |
 | T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | TODO |
 | T-12 | Multi-agent workforce graph | 2 Agents | B | TODO |
@@ -140,6 +140,8 @@ Log:
 Contract: `OptimizerStrategy`. Depends on: T-08.
 Done when: binary hub open/close/move + fleet mix minimises cost; returns `Recommendation` with delta-vs-baseline; greedy fallback triggers if MILP slow/infeasible.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — Two `OptimizerStrategy` plugins in `backend/hubris/plugins/optimizers/`, both self-registered: `milp_cflp` (`milp.py`, PuLP+CBC, binary hub open/close `y_j` jointly with continuous flow `x_ij`, strict `time_limit_seconds` — default 20s) and `greedy` (`greedy.py`, best-improvement hill-climb over hub open/close using T-08's flow solver to score each candidate — bounded to O(hubs²) re-solves, each a few ms). **The greedy fallback is wired into `MILPOptimizer.optimize()` itself from the start**: any exception or non-"Optimal" CBC status is caught and delegates straight to `GreedyOptimizer`, labelling `rationale.solver="greedy"` + `fallback_reason` — never bolted on after the fact. Both read one constraint type so far (`{"type":"max_utilization","value":...}`, via the new `hubris/engine/constraints.py`); richer objective/constraint parsing is T-13's job. Caught my own bug during testing: an earlier *first*-improvement greedy (take the first hub whose closure helps, don't compare alternatives) chose the wrong hub to close on a fixture where two closures both "improved" but by very different amounts — fixed to *best*-improvement (evaluate every candidate each round, take the cheapest). To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_optimizers.py -v"` → 5 passed: (1) tiny 2-hub/3-zone fixture — both optimisers agree "keep both open" is already optimal (2600 = 700 transport + 1900 fixed, matches T-08); (2) a purpose-built fixture where H2's fixed cost (5000) dwarfs its per-unit transport edge (this is the case the first-improvement bug got wrong) — both optimisers correctly close H2, total=650; (3) MILP's rationale correctly reports itself when it solves; (4) forcing `time_limit_seconds=0.0` reliably makes CBC return "Not Solved" (verified empirically, not assumed) and the fallback returns the same correct answer as greedy alone, never raising; (5) both plugins discovered by `load_plugins()` and callable through `registry.as_agent_tools()`. Full suite → 32 passed. **Sanity vs the full synthetic dataset — both optimizers agree exactly**: close H1/H3/H5/H7 (the 4 lowest-utilization hubs), cost-to-serve drops from 57.09 → ~50 AED/parcel, **an 11.89% improvement**, comfortably past BUILD_SPEC's ~5% target. MILP solves in ~30ms, greedy in ~100ms — both trivially fast at this scale.
 
 **T-10 · Scenario modules**
 Contract: `ScenarioModule` (one plugin each: `move_hub`, `close_hub`, `add_hub`, `change_fleet_mix`, `add_customer`, `demand_scale`). Depends on: T-02, T-07.
