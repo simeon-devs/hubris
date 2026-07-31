@@ -47,7 +47,7 @@
 | T-11 | LangGraph agent tools wrapping the engine | 2 Agents | B | REVIEW |
 | T-12 | Multi-agent workforce graph | 2 Agents | B | REVIEW |
 | T-13 | Goal-driven optimisation loop | 2 Agents | B | REVIEW |
-| T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | TODO |
+| T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | REVIEW |
 | T-15 | FastAPI routers | 3 API/UI | B/C | TODO |
 | T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | TODO |
 | T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | TODO |
@@ -185,6 +185,8 @@ Log:
 Contract: agent = name + goal + allowed registry tools + autonomy mode. Depends on: T-11.
 Done when: a new agent can be created (2–3 seeded templates) and works immediately using registry tools; persists; can't answer with non-tool numbers.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/agents/builder.py`: `AgentBuilder` (`create/get/all/tools_for/run`) + `CustomAgentSpec` (name, goal, allowed_tools, autonomy). `create()` rejects any tool name not in `registry.as_agent_tools()` and any autonomy mode outside `{on-demand, monitoring}` — a custom agent structurally cannot be given a tool that doesn't exist, so it mechanically cannot answer with a number no tool could have produced. 3 seeded templates (`seed_default_templates()`): `capacity_watchdog` (monitoring), `cost_advisor`, `whatif_explorer` — all built from real T-11 tools, working immediately. In-memory store for now; same 4-method interface a DB-backed version would need, so T-15's API layer can swap the storage without touching callers. Running the seeded `cost_advisor` live surfaced one more real gap: it derived "new cost-to-serve per parcel" and "savings per parcel" itself from `objective_value / total_demand` and a subtraction (and got the division slightly wrong when eyeballing it) — fixed by having `optimise_network` return `cost_to_serve_before`/`cost_to_serve_after`/`cost_to_serve_savings_per_parcel` directly, closing the same class of gap found repeatedly this phase: whenever an agent reaches for arithmetic, that's a signal the engine should have computed and returned that figure itself. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_agent_builder.py -v"` → 4 non-live passed (unknown tool/autonomy rejected at creation; all 3 templates reference real tools; a custom agent restricted to `find_spare_capacity` mechanically cannot even see `get_kpis`/`optimise_network` — proven by inspecting `tools_for()`'s output directly, not by trusting the LLM to decline). Live test (skipped without `ANTHROPIC_API_KEY`): the seeded `cost_advisor` answers a real cost-savings question fully grounded. Full non-live suite → 69 passed. **All 19 live tests across T-11–T-14 pass together in one run** — see the phase-end message for a full worked transcript.
 
 ### Phase 3 — API + Frontend
 

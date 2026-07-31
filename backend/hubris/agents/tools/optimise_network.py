@@ -4,6 +4,7 @@ fallback) and return the Recommendation as computed JSON."""
 from hubris.core.contracts import AgentTool, NetworkModel
 from hubris.core.registry import OPTIMIZER, register_agent_tool
 from hubris.core.registry import registry as global_registry
+from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 
 
 @register_agent_tool
@@ -15,10 +16,13 @@ class OptimiseNetworkTool(AgentTool):
         "{'type':'max_utilization','value':0.9}). Defaults to the MILP "
         "recommender, which falls back to a greedy heuristic on its own if it "
         "can't solve in time — always returns a result. Returns: changes, "
-        "objective_value (AED), delta_vs_baseline (% cost-to-serve change), and "
-        "rationale (includes hubs_total_count, hubs_open_count, "
-        "hubs_closed_count — use these directly, never add/subtract them "
-        "yourself to get a hub count)."
+        "objective_value (total AED), cost_to_serve_before/cost_to_serve_after "
+        "(AED/parcel — use these directly, never divide objective_value by a "
+        "demand count yourself), cost_to_serve_savings_per_parcel (use "
+        "directly, never subtract the two cost_to_serve values yourself), "
+        "delta_vs_baseline (% cost-to-serve change), and rationale (includes "
+        "hubs_total_count, hubs_open_count, hubs_closed_count — use these "
+        "directly, never add/subtract them yourself to get a hub count)."
     )
     input_schema = {
         "type": "object",
@@ -40,4 +44,16 @@ class OptimiseNetworkTool(AgentTool):
     ) -> dict:
         optimizer = global_registry.get(OPTIMIZER, optimizer_name)
         recommendation = optimizer.optimize(model, objective or {}, constraints or [])
-        return recommendation.model_dump()
+        result = recommendation.model_dump()
+
+        total_demand = sum(model.demand.values())
+        cost_to_serve_before = CostToServeMetric().compute(model, None).value
+        cost_to_serve_after = (
+            round(recommendation.objective_value / total_demand, 4) if total_demand else 0.0
+        )
+        result["cost_to_serve_before"] = cost_to_serve_before
+        result["cost_to_serve_after"] = cost_to_serve_after
+        result["cost_to_serve_savings_per_parcel"] = round(
+            cost_to_serve_before - cost_to_serve_after, 4
+        )
+        return result
