@@ -15,8 +15,44 @@ dual IS that delta, so this is itself the hand-check.
 """
 
 from hubris.core.contracts import NetworkModel
-from hubris.engine.flow import solve_min_cost_flow
+from hubris.core.models import RawTables
+from hubris.engine.flow import OVERFLOW_PENALTY, solve_min_cost_flow
 from tests.fixtures.tiny_network import TINY_RAW_TABLES
+
+
+def _single_edge_model(capacity: float, cost: float, demand: float = 10.0) -> NetworkModel:
+    raw = RawTables(
+        hubs=[
+            {
+                "id": "H1",
+                "name": "Hub One",
+                "lat": 25.2,
+                "lon": 55.3,
+                "emirate": "Dubai",
+                "capacity": capacity,
+                "fixed_cost": 0.0,
+                "handling_cost": 0.0,
+                "status": "open",
+            }
+        ],
+        zones=[
+            {
+                "id": "Z1",
+                "name": "Zone One",
+                "lat": 25.1,
+                "lon": 55.2,
+                "emirate": "Dubai",
+                "demand": demand,
+                "sla_hours": 24.0,
+            }
+        ],
+        fleet_types=[],
+        od_matrix=[
+            {"from_id": "H1", "to_id": "Z1", "distance_km": 1.0, "time_min": 1.0, "cost": cost}
+        ],
+        current_assignments=[],
+    )
+    return NetworkModel.from_raw_tables(raw)
 
 
 def _model_with_h1_capacity(capacity: float) -> NetworkModel:
@@ -96,5 +132,38 @@ def test_sla_excludes_edges_that_would_arrive_too_late():
     result = solve_min_cost_flow(model)
 
     assert result.unmet_demand == {"Z3": 10.0}
+
+
+def test_overflow_penalty_prefers_an_expensive_real_route_over_reporting_unmet():
+    # cost=500,000/unit is half the overflow penalty (1,000,000) — a huge
+    # real-world cost by this domain's standards (typical edges are tens to
+    # low hundreds per unit), but still strictly cheaper than the overflow
+    # slack. The solver must route real demand through it rather than
+    # reporting it as unmet — proving the penalty can't be "cheated" by
+    # dumping expensive-but-serviceable demand into overflow.
+    assert 500_000.0 < OVERFLOW_PENALTY
+    model = _single_edge_model(capacity=10.0, cost=500_000.0, demand=10.0)
+
+    result = solve_min_cost_flow(model)
+
+    assert result.feasible is True
+    assert result.unmet_demand == {}
+    assert result.flows == {"H1": {"Z1": 10.0}}
+    assert result.total_cost == 5_000_000.0  # 10 units x 500,000/unit, a real (if painful) cost
+
+
+def test_overflow_penalty_still_flags_genuine_infeasibility_not_silently_absorbed():
+    # Same edge, but capacity can only cover half the demand — no route,
+    # however expensive, can place the other half. That shortfall must
+    # surface as unmet_demand/feasible=False, not be silently dropped or
+    # misreported as a fully-served result.
+    model = _single_edge_model(capacity=5.0, cost=500_000.0, demand=10.0)
+
+    result = solve_min_cost_flow(model)
+
+    assert result.feasible is False
+    assert result.unmet_demand == {"Z1": 5.0}
+    assert result.flows == {"H1": {"Z1": 5.0}}  # the 5 units that DO fit still route for real
+    assert result.total_cost == 2_500_000.0  # only the 5 real units are costed; overflow isn't
     assert "Z3" not in result.flows.get("H1", {})
     assert "Z3" not in result.flows.get("H2", {})
