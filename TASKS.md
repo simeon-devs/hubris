@@ -34,11 +34,11 @@
 
 | ID | Ticket | Phase | Owner | Status |
 |----|--------|-------|:-----:|:------:|
-| T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | REVIEW |
-| T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | REVIEW |
-| T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | REVIEW |
-| T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | REVIEW |
-| T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | REVIEW |
+| T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | DONE |
+| T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | DONE |
+| T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | DONE |
+| T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | DONE |
+| T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | DONE |
 | T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | TODO |
 | T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | TODO |
 | T-08 | Min-cost flow assignment + duals | 1 Engine | A | TODO |
@@ -79,6 +79,7 @@ Done when: `docker compose up` brings up Postgres + FastAPI (health route) + Nex
 Log:
 - WIP — Claude — 2026-07-31
 - REVIEW — Claude — 2026-07-31 — Repo layout matches `ARCHITECTURE.md §7` (backend/hubris/{core,ingestion,engine,plugins/*,agents,api,data}, backend/tests, frontend/, docker-compose.yml). Backend: FastAPI app with `GET /health`. Frontend: Next.js (App Router, TS) with a literal blank page (`return null`). To test: `docker compose up -d --build` from repo root, then `curl http://localhost:8000/health` → `{"status":"ok"}`, and `curl -o /dev/null -w "%{http_code}" http://localhost:3000/` → `200`. Verified live in this session (all 3 containers up, db healthy, both endpoints returned expected results), then torn down with `docker compose down`.
+- DONE — Sims — 2026-07-31
 
 **T-02 · Core: NetworkModel + contracts.py**
 Contract: defines all of them (`DataConnector`, `Metric`, `ScenarioModule`, `OptimizerStrategy`, `AgentTool`) + `NetworkModel`, `MetricResult`, `Recommendation`. Depends on: T-01.
@@ -86,6 +87,7 @@ Done when: the abstract interfaces from `CLAUDE.md §4` exist and import cleanly
 Log:
 - WIP — Claude — 2026-07-31
 - REVIEW — Claude — 2026-07-31 — `backend/hubris/core/models.py`: `Hub`, `Zone`, `FleetType`, `OD`, `RawTables` per `SCHEMA.md §1`. `backend/hubris/core/contracts.py`: the 5 ABCs + `NetworkModel`/`MetricResult`/`Recommendation` verbatim from `CLAUDE.md §4`, plus `NetworkModel.from_raw_tables()` to hydrate. Per the confirmed decision, `assignments` stays single dominant-hub-per-zone (`dict[str,str]`) even though `current_assignments` rows can split a zone across hubs — the dominant hub (largest volume) wins; full split volumes are preserved in the raw/DB layer, not in this field. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_contracts.py -v"` → 3 passed (contracts import cleanly; tiny 2-hub/3-zone fixture hydrates correctly, including dominant-hub resolution for a deliberately-split zone; MetricResult/Recommendation shapes valid).
+- DONE — Sims — 2026-07-31
 
 **T-03 · Core: plugin registry + agent auto-discovery**
 Contract: `Registry` (`CLAUDE.md §5`). Depends on: T-02.
@@ -93,6 +95,7 @@ Done when: plugins self-register at startup; `registry.as_agent_tools()` returns
 Log:
 - WIP — Claude — 2026-07-31
 - REVIEW — Claude — 2026-07-31 — `backend/hubris/core/registry.py`: `Registry` (`register/get/all/as_agent_tools`) + decorators (`register_metric/scenario/optimizer/agent_tool/data_connector`) for self-registration, and `load_plugins()` which walks `hubris.plugins.{metrics,scenarios,optimizers}` via `pkgutil` so dropping a new plugin file in is enough — no registry/agent code changes needed. `as_agent_tools()` wraps every registered `Metric`/`ScenarioModule`/`OptimizerStrategy` in a thin `AgentTool` adapter whose `run()` calls the real `compute`/`apply`/`optimize` and returns `.model_dump()` — computed JSON only. Proved the keystone property in `tests/test_registry.py`: a dummy `Metric` plugin registered only via `@register_metric` shows up in `registry.all("metric")` and as `as_agent_tools()`'s `"metric_dummy_spare_capacity"` tool, and calling it returns a number derived from `NetworkModel` data, not asserted independently. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/ -v"` → 6 passed.
+- DONE — Sims — 2026-07-31
 
 **T-04 · Synthetic EMX dataset fixtures**
 Contract: fills every canonical table (`SCHEMA.md §3`). Depends on: T-02.
@@ -100,6 +103,7 @@ Done when: ~7–10 hubs, ~50–150 zones, 3–4 fleet types, demand, and a plaus
 Log:
 - WIP — Claude — 2026-07-31
 - REVIEW — Claude — 2026-07-31 — `backend/hubris/data/synthetic.py`: `generate_synthetic_raw_tables(seed=42)` deterministically builds 9 hubs (2 each in Dubai/Abu Dhabi, 1 in each of the other 5 emirates), 100 zones spread across all 7 emirates (weighted toward Dubai/Abu Dhabi), 4 fleet types (Bike/Van/Small Truck/Truck, network-wide not hub-pinned), a full hub×zone `od_matrix` (haversine × 1.3 road-factor fallback per `SCHEMA.md §2`, cost = distance × Van's cost_per_km + hub handling_cost), and a nearest-open-hub-with-capacity baseline `current_assignments` that splits a zone across hubs when the nearest one doesn't have room. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/ -v"` → 12 passed, incl. `test_synthetic_data.py`: counts in spec, hydrates into `NetworkModel`, deterministic per seed, every zone's demand fully assigned, no hub capacity exceeded, od_matrix covers every hub×zone pair.
+- DONE — Sims — 2026-07-31
 
 **T-05 · Canonical schema + Postgres migrations**
 Contract: `SCHEMA.md §1`. Depends on: T-01.
@@ -107,6 +111,7 @@ Done when: all canonical tables migrate cleanly; ORM models match; synthetic dat
 Log:
 - WIP — Claude — 2026-07-31
 - REVIEW — Claude — 2026-07-31 — `backend/hubris/core/orm.py`: SQLAlchemy 2.0 ORM models for all 7 canonical tables from `SCHEMA.md §1` (`hubs, zones, fleet_types, od_matrix, current_assignments, scenarios, scenario_results`; skipped the optional stretch-only `demand_history`/`service_models`), matching column names/types/PKs/FKs exactly (incl. `status` server-side default, `created_at` server-side `now()`, JSONB for `params`/`kpis`/`flows`/`duals`). `backend/hubris/core/db.py`: engine/session, `DATABASE_URL` from env only. `backend/migrations/`: Alembic scaffold wired to `Base.metadata` and `DATABASE_URL`; one autogenerated revision (`61f30020dab4_canonical_schema.py`) creates all 7 tables. `backend/hubris/core/db_loader.py`: `load_raw_tables`/`read_raw_tables` round-trip `RawTables` through Postgres (hubs/zones flushed first since the unit-of-work has no `relationship()` to infer FK insert order on its own). To test: `docker compose up -d db` (wait healthy), `docker compose run --rm backend alembic upgrade head` (applies cleanly, verified via `psql \dt` — all 7 tables present), then `docker compose run --rm backend python -m pytest tests/ -v` → 13 passed, incl. `test_db.py::test_synthetic_data_persists_and_reloads` (generates the T-04 synthetic dataset, loads it into Postgres, reads it back, and asserts an exact match per table). Also re-verified `docker compose up -d --build` still brings up all 3 services and `/health` responds after the Dockerfile change (now also copies `migrations/` + `alembic.ini`).
+- DONE — Sims — 2026-07-31
 
 ### Phase 1 — Engine (critical path)
 
