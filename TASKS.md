@@ -40,7 +40,7 @@
 | T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | DONE |
 | T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | DONE |
 | T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | REVIEW |
-| T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | TODO |
+| T-07 | Cost/KPI calculator (Metric plugins) | 1 Engine | A | REVIEW |
 | T-08 | Min-cost flow assignment + duals | 1 Engine | A | TODO |
 | T-09 | MILP recommender + greedy fallback | 1 Engine | A | TODO |
 | T-10 | Scenario modules (move/close/add hub, fleet, demand) | 1 Engine | A | TODO |
@@ -126,6 +126,8 @@ Log:
 Contract: `Metric`. Depends on: T-02, T-04.
 Done when: cost-to-serve, utilisation, coverage, spare-capacity metrics compute for any config; each has a hand-checkable fixture; each registered and exposed as an agent tool.
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — 4 `Metric` plugins in `backend/hubris/plugins/metrics/`, each self-registered via `@register_metric`: `cost_to_serve` (`(Σ transport + Σ fixed-for-open-hubs) / Σ demand`, BUILD_SPEC §3), `utilization` (per-hub + capacity-weighted network average), `coverage` (% demand served within its zone's SLA), `spare_capacity` (capacity − assigned, per hub + network total). All read `NetworkModel.assignments` (dominant-hub-per-zone) + `od_matrix`/`demand` only — vectorised-in-spirit, instant, never fails, no solver involved (layer 1 of the 3-layer engine, BUILD_SPEC §4). Shared `hubris/engine/assignment.py::assigned_volume_by_hub()` factors out the per-hub aggregation used by 2 of the 4. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_metrics.py -v"` → 5 passed, all hand-computed against the tiny 2-hub/3-zone fixture (cost_to_serve=2600/60=43.3333 AED/parcel, utilization: network 30%/H1 50%/H2 10%, spare_capacity: H1 50/H2 90, coverage 100%), plus one test proving all 4 are picked up by `load_plugins()` and callable through `registry.as_agent_tools()`. Full suite → 22 passed. Sanity-checked against the full T-04 synthetic dataset too (not asserted, just eyeballed): baseline cost-to-serve ≈ **57.09 AED/parcel**, network utilization ≈ 15.9%, coverage 100%, spare capacity ≈ 22,667 parcels — numbers to sanity-check once T-08/T-09 land, since utilization this low signals plenty of room for the optimiser to consolidate.
 
 **T-08 · Min-cost flow assignment + duals**
 Contract: engine (`assign(model) -> Assignment(+duals)`). Depends on: T-04.
