@@ -36,7 +36,7 @@
 |----|--------|-------|:-----:|:------:|
 | T-01 | Repo scaffold + Docker Compose | 0 Scaffold | A | REVIEW |
 | T-02 | Core: NetworkModel + contracts.py | 0 Scaffold | A | REVIEW |
-| T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | TODO |
+| T-03 | Core: plugin registry + agent auto-discovery | 0 Scaffold | A | REVIEW |
 | T-04 | Synthetic EMX dataset fixtures | 0 Scaffold | A | TODO |
 | T-05 | Canonical schema + Postgres migrations | 0 Scaffold | A | TODO |
 | T-06 | Ingestion + schema mapper (DataConnector) | 1 Engine | A | TODO |
@@ -91,6 +91,8 @@ Log:
 Contract: `Registry` (`CLAUDE.md §5`). Depends on: T-02.
 Done when: plugins self-register at startup; `registry.as_agent_tools()` returns tools for all registered metrics/scenarios/optimisers; adding a plugin needs no agent change (prove with one dummy plugin).
 Log:
+- WIP — Claude — 2026-07-31
+- REVIEW — Claude — 2026-07-31 — `backend/hubris/core/registry.py`: `Registry` (`register/get/all/as_agent_tools`) + decorators (`register_metric/scenario/optimizer/agent_tool/data_connector`) for self-registration, and `load_plugins()` which walks `hubris.plugins.{metrics,scenarios,optimizers}` via `pkgutil` so dropping a new plugin file in is enough — no registry/agent code changes needed. `as_agent_tools()` wraps every registered `Metric`/`ScenarioModule`/`OptimizerStrategy` in a thin `AgentTool` adapter whose `run()` calls the real `compute`/`apply`/`optimize` and returns `.model_dump()` — computed JSON only. Proved the keystone property in `tests/test_registry.py`: a dummy `Metric` plugin registered only via `@register_metric` shows up in `registry.all("metric")` and as `as_agent_tools()`'s `"metric_dummy_spare_capacity"` tool, and calling it returns a number derived from `NetworkModel` data, not asserted independently. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/ -v"` → 6 passed.
 
 **T-04 · Synthetic EMX dataset fixtures**
 Contract: fills every canonical table (`SCHEMA.md §3`). Depends on: T-02.
