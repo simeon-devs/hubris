@@ -48,7 +48,7 @@
 | T-12 | Multi-agent workforce graph | 2 Agents | B | DONE |
 | T-13 | Goal-driven optimisation loop | 2 Agents | B | DONE |
 | T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | DONE |
-| T-15 | FastAPI routers | 3 API/UI | B/C | TODO |
+| T-15 | FastAPI routers | 3 API/UI | B/C | REVIEW |
 | T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | TODO |
 | T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | TODO |
 | T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | TODO |
@@ -199,6 +199,8 @@ Log:
 Contract: REST over engine + agents. Depends on: T-07–T-14 (progressively).
 Done when: `/ingest /kpis /simulate /optimize /agent/query /agents (CRUD) /scenarios` work against synthetic data.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/api/routers/`: `kpis.py` (`GET /kpis`), `simulate.py` (`POST /simulate`, `save_as` persists a named scenario), `optimize.py` (`POST /optimize`), `scenarios.py` (`GET /scenarios`), `ingest.py` (`POST /ingest`, Excel upload → replaces baseline), `agents.py` (`POST /agent/query` + full `/agents` CRUD), plus one addition beyond the literal endpoint list: `network.py` (`GET /network` — hubs/zones/flows with coordinates, since none of the named endpoints expose geography and T-16's map can't render without it). Every router is a thin pass-through to the already-tested T-11 agent tools / T-06-T-10 engine — the API layer adds no computation of its own, only HTTP plumbing, so "the engine computes" holds at this layer too. `hubris/api/state.py`: one process-wide `AppState` (baseline + named scenarios) — the right scope for BUILD_SPEC §12's single-demo-scenario framing, swappable for per-session/DB-backed state later without touching routers. Extended `AgentBuilder` with `update`/`delete` and made `create` reject duplicates (409) so `/agents` has real CRUD semantics, not just create+read. `/agent/query` and custom-agent responses preserve the full `tool_calls` trace (tool name, args, and the **parsed JSON** result, not a double-encoded string) so the frontend can tag each number with its source. To test: `docker build -t hubris-backend ./backend && docker run --rm -v $(pwd)/backend:/app -w /app hubris-backend sh -c "pip install -q pytest && python -m pytest tests/test_api.py -v"` → 12 non-live passed against the real synthetic dataset (kpis/simulate/optimize numbers match T-07/T-09's own hand-checked values exactly; save_as scenario round-trips through a fresh GET; ingest replaces the baseline with a 2-hub/3-zone Excel upload; full agents CRUD lifecycle incl. 409 on duplicate + 400 on unknown tool) + 2 live passed (skipped without `ANTHROPIC_API_KEY`): workforce and custom-agent queries both return parsed-JSON tool results. Full stack verified with a real `docker compose up` (not just TestClient) — server starts cleanly under the new lifespan hook, `/health` and `/kpis` respond over real HTTP. Full suite (`db` up + migrated) → 91 passed.
 
 **T-16 · Frontend shell + map**
 Contract: Next.js + deck.gl. Depends on: T-15 (kpis/scenarios).

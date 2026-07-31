@@ -27,24 +27,43 @@ class UnknownToolError(ValueError):
     pass
 
 
+class AgentAlreadyExistsError(ValueError):
+    pass
+
+
 class AgentBuilder:
     """In-memory registry of custom agents (Phase 2 scope). Swap for a
-    DB-backed store later without changing this interface — `create`,
-    `get`, `all`, `run` are the whole surface any caller (tests, or T-15's
-    API routes) needs."""
+    DB-backed store later without changing this interface — `create/get/
+    all/update/delete/tools_for/run` are the whole surface any caller
+    (tests, or T-15's API routes) needs."""
 
     def __init__(self) -> None:
         self._agents: dict[str, CustomAgentSpec] = {}
 
-    def create(self, spec: CustomAgentSpec) -> CustomAgentSpec:
+    def _validate(self, spec: CustomAgentSpec) -> None:
         if spec.autonomy not in AUTONOMY_MODES:
             raise ValueError(f"Unknown autonomy mode: {spec.autonomy!r}")
         available = {tool.name for tool in global_registry.as_agent_tools()}
         unknown = set(spec.allowed_tools) - available
         if unknown:
             raise UnknownToolError(f"Unknown tool(s) for agent {spec.name!r}: {sorted(unknown)}")
+
+    def create(self, spec: CustomAgentSpec) -> CustomAgentSpec:
+        if spec.name in self._agents:
+            raise AgentAlreadyExistsError(f"Agent already exists: {spec.name!r}")
+        self._validate(spec)
         self._agents[spec.name] = spec
         return spec
+
+    def update(self, name: str, spec: CustomAgentSpec) -> CustomAgentSpec:
+        if name not in self._agents:
+            raise KeyError(name)
+        self._validate(spec)
+        self._agents[name] = spec
+        return spec
+
+    def delete(self, name: str) -> None:
+        del self._agents[name]  # raises KeyError if missing
 
     def get(self, name: str) -> CustomAgentSpec:
         return self._agents[name]

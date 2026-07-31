@@ -14,3 +14,5 @@ pulp==2.9.0
 anthropic==0.120.2
 langgraph==1.2.10
 langchain-anthropic==1.5.3
+httpx==0.28.1
+python-multipart==0.0.20
