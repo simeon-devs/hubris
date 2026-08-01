@@ -19,7 +19,9 @@ from hubris.core.registry import AGENT_TOOL
 from hubris.core.registry import registry as global_registry
 
 ROLE_TOOLS: dict[str, set[str]] = {
-    "network_analyst": {"get_kpis", "find_spare_capacity"},
+    # T-21: opportunity scanning is exactly a Network Analyst question
+    # ("read current state, find bottlenecks"), so it gets the tool too.
+    "network_analyst": {"get_kpis", "find_spare_capacity", "scan_opportunities"},
     "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
     "optimizer": {"optimise_network"},
     "cost_analyst": {"get_kpis"},
@@ -58,7 +60,7 @@ DEFAULT_ROLE = "network_analyst"
 ROUTER_PROMPT = """Classify the planner's question into exactly one specialist role. Reply with ONLY the role name below, nothing else.
 
 Roles:
-- network_analyst: current state, bottlenecks, spare capacity, utilization questions
+- network_analyst: current state, bottlenecks, spare capacity, utilization questions, "any inefficiencies/opportunities?"
 - scenario_strategist: what-if questions (move/close/add a hub, change fleet, change demand) and comparisons
 - optimizer: "should we change the network", hub open/close recommendations, cost minimization
 - cost_analyst: cost-to-serve breakdown, what's driving cost

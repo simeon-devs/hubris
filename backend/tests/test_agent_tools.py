@@ -1,8 +1,8 @@
-"""Hand-checkable tests for T-11's 5 named agent tools, using the tiny
-2-hub/3-zone fixture. No LLM involved here — these prove each tool's
-`run()` returns correct COMPUTED JSON on its own; the live no-fabrication
-check (which needs a real model in the loop) is in
-`test_agent_no_fabrication.py`.
+"""Hand-checkable tests for T-11's named agent tools (plus T-21's
+`scan_opportunities`), using the tiny 2-hub/3-zone fixture. No LLM involved
+here — these prove each tool's `run()` returns correct COMPUTED JSON on its
+own; the live no-fabrication check (which needs a real model in the loop)
+is in `test_agent_no_fabrication.py`.
 """
 
 from hubris.core.contracts import NetworkModel
@@ -97,7 +97,7 @@ def test_compare_scenarios_against_baseline():
     assert result["delta_a_minus_b"]["cost_to_serve"] == round(63.0 - 2600 / 60, 4)
 
 
-def test_all_five_tools_are_registered_and_agent_usable():
+def test_all_registered_tools_are_agent_usable():
     load_plugins()
     registered_names = {t.name for t in global_registry.all(AGENT_TOOL)}
     assert registered_names == {
@@ -106,6 +106,7 @@ def test_all_five_tools_are_registered_and_agent_usable():
         "simulate_scenario",
         "optimise_network",
         "compare_scenarios",
+        "scan_opportunities",
     }
 
     tools = global_registry.as_agent_tools()

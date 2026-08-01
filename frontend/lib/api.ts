@@ -10,6 +10,7 @@ import type {
   IngestResponse,
   KpisResponse,
   NetworkMapResponse,
+  OpportunitiesResponse,
   OptimizeRequest,
   OptimizeResponse,
   RefreshDistancesResponse,
@@ -45,6 +46,11 @@ export function getNetwork(scenarioId?: string | null): Promise<NetworkMapRespon
 
 export function refreshDistances(): Promise<RefreshDistancesResponse> {
   return request("/network/refresh-distances", { method: "POST" });
+}
+
+export function getOpportunities(scenarioId?: string | null): Promise<OpportunitiesResponse> {
+  const query = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
+  return request(`/opportunities${query}`);
 }
 
 export function listScenarios(): Promise<ScenarioModuleInfo[]> {

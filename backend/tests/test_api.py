@@ -142,6 +142,31 @@ def test_refresh_distances_without_osrm_uses_fallback_and_updates_state(client):
     assert after["distance_mode"] == "haversine_fallback"
 
 
+def test_opportunities_returns_all_three_types(client):
+    response = client.get("/opportunities")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {
+        "overlapping_coverage",
+        "far_hub_service",
+        "idle_next_to_overload",
+        "total_opportunities",
+        "inefficiency_types_found",
+    }
+    # matches the live scan on the T-04 synthetic dataset: overlapping
+    # coverage (H1/H2 both busy Abu Dhabi hubs) and idle-next-to-overload
+    # both fire; far_hub_service is legitimately empty (the nearest-hub
+    # baseline is already near-cost-optimal on this seed).
+    assert len(body["overlapping_coverage"]) > 0
+    assert len(body["idle_next_to_overload"]) > 0
+    assert body["inefficiency_types_found"] >= 2
+
+
+def test_opportunities_unknown_scenario_id_is_404(client):
+    response = client.get("/opportunities", params={"scenario_id": "does-not-exist"})
+    assert response.status_code == 404
+
+
 def test_ingest_replaces_the_baseline(client):
     workbook = build_workbook({"Hubs": HUBS_ROWS, "Zones": ZONES_ROWS, "Fleet": FLEET_ROWS})
     response = client.post(

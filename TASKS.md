@@ -54,7 +54,7 @@
 | T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | DONE |
 | T-19 | Real road distances + H3 zoning | 4 Accuracy | D | DONE |
 | T-20 | Monte Carlo confidence bands | 4 Accuracy | D | DONE |
-| T-21 | Opportunity scanner | 5 Signature | B | TODO |
+| T-21 | Opportunity scanner | 5 Signature | B | REVIEW |
 | T-22 | Threshold / break-even finder | 5 Signature | B | TODO |
 | T-23 | Prescriptive bottleneck unlock (duals → action) | 5 Signature | B | TODO |
 | T-24 | Auto decision-brief | 5 Signature | B/C | TODO |
@@ -253,6 +253,8 @@ Log:
 Contract: agent over metrics/flow. Depends on: T-12.
 Done when: proactively surfaces ≥3 inefficiency types (overlapping coverage, far-hub service, idle-next-to-overload) unprompted, each with a computed figure.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/engine/opportunities.py` implements all three inefficiency types the ticket names, each with a computed figure and a plain-Python-formatted `why` string (never LLM-generated, so the scanner is trustworthy even with no agent in the loop): **overlapping_coverage** — two open hubs whose PRIMARY catchments (SLA-reachable AND within 15% of the cheapest cost for a zone — deliberately tighter than raw SLA reachability, which UAE's generous 24h SLA windows make nearly universal for any hub pair regardless of distance, discovered while tuning this against the real dataset) overlap on ≥3 zones; **far_hub_service** — zones in the CURRENT operational assignment (`model.assignments`) that aren't at their cheapest available hub, catching cases where a distance-nearest baseline picked a hub that isn't cost-cheapest once handling_cost differs; **idle_next_to_overload** — a hub running hot RELATIVE TO THE NETWORK'S OWN AVERAGE utilization (not a fixed absolute cutoff, so this still finds real imbalance on a lightly-loaded network) next to a nearby idle one. `find_displaced_zones` is shared with T-23's bottleneck unlock. Wrapped as `ScanOpportunitiesTool` (`scan_opportunities`), registered, added to `workforce.py`'s `network_analyst` role. New `GET /opportunities` endpoint + frontend `InsightsPanel.tsx` (new "Insights" sidebar tab). To test: `docker run --rm -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest backend/tests/ --ignore=backend/tests/test_db.py -v` → 109 passed, 9 skipped; `cd frontend && npx tsc --noEmit` clean. **Live scan on the full T-04 synthetic dataset** (see phase-end message for the full output): 2 of 3 types fire — 4 overlapping-coverage pairs (e.g. H5/H6 share 9 zones, 409 parcels/period, 6.1km apart) and 3 idle-next-to-overload findings (H5 at 36.76% utilization vs a 17.4% network average, with H4/H8/H9 sitting near-idle nearby); far_hub_service is honestly empty on this seed — the synthetic baseline's nearest-hub heuristic already happens to be near-cost-optimal (the one real near-miss, zone Z26 at a 0.68 AED/unit excess, is correctly filtered as noise below the 1.0 AED/unit materiality threshold) — verified the finder actually works via a dedicated fixture in `test_opportunities.py` that forces a large, obvious excess.
 
 **T-22 · Threshold / break-even finder**
 Contract: goal-loop variant. Depends on: T-13.

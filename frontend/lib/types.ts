@@ -162,6 +162,47 @@ export interface AgentSpec {
   autonomy: string;
 }
 
+export interface OverlappingCoverageFinding {
+  type: "overlapping_coverage";
+  hub_a_id: string;
+  hub_b_id: string;
+  overlap_zone_count: number;
+  overlap_zone_ids: string[];
+  overlap_demand: number;
+  distance_km: number;
+  why: string;
+}
+
+export interface FarHubServiceFinding {
+  type: "far_hub_service";
+  zone_id: string;
+  actual_hub_id: string;
+  cheapest_hub_id: string;
+  excess_cost_per_unit: number;
+  excess_cost_total: number;
+  why: string;
+}
+
+export interface IdleNextToOverloadFinding {
+  type: "idle_next_to_overload";
+  overloaded_hub_id: string;
+  overloaded_utilization_pct: number;
+  idle_hub_id: string;
+  idle_utilization_pct: number;
+  idle_spare_capacity: number;
+  network_avg_utilization_pct: number;
+  distance_km: number;
+  why: string;
+}
+
+export interface OpportunitiesResponse {
+  overlapping_coverage: OverlappingCoverageFinding[];
+  far_hub_service: FarHubServiceFinding[];
+  idle_next_to_overload: IdleNextToOverloadFinding[];
+  total_opportunities: number;
+  inefficiency_types_found: number;
+}
+
 export interface IngestResponse {
   hubs: number;
   zones: number;

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import AgentBuilderPanel from "@/components/AgentBuilderPanel";
 import AgentChat from "@/components/AgentChat";
+import InsightsPanel from "@/components/InsightsPanel";
 import KpiCards from "@/components/KpiCards";
 import OptimizerPanel from "@/components/OptimizerPanel";
 import ScenarioDiff from "@/components/ScenarioDiff";
@@ -20,7 +21,7 @@ import type {
 
 const NetworkMap = dynamic(() => import("@/components/NetworkMap"), { ssr: false });
 
-type SidebarTab = "scenario" | "agents";
+type SidebarTab = "scenario" | "agents" | "insights";
 
 export default function Home() {
   const [network, setNetwork] = useState<NetworkMapResponse | null>(null);
@@ -164,7 +165,19 @@ export default function Home() {
             <SidebarTabButton active={tab === "agents"} onClick={() => setTab("agents")}>
               Agents
             </SidebarTabButton>
+            <SidebarTabButton active={tab === "insights"} onClick={() => setTab("insights")}>
+              Insights
+            </SidebarTabButton>
           </div>
+
+          {tab === "insights" && (
+            <div>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                OPPORTUNITY SCANNER
+              </h2>
+              <InsightsPanel />
+            </div>
+          )}
 
           {tab === "scenario" && (
             <>
