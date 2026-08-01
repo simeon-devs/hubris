@@ -167,6 +167,41 @@ def test_opportunities_unknown_scenario_id_is_404(client):
     assert response.status_code == 404
 
 
+def test_threshold_demand_growth_matches_the_engine(client):
+    response = client.get("/threshold/demand-growth", params={"hub_id": "H1"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["threshold_found"] is True
+    assert body["hub_id"] == "H1"
+    assert body["hub_utilization_pct"] == 100.0
+    assert 5.0 <= body["growth_factor_threshold"] <= 5.3  # empirically ~5.16 on the T-04 dataset
+
+
+def test_threshold_demand_growth_unknown_hub_is_400(client):
+    response = client.get("/threshold/demand-growth", params={"hub_id": "NOPE"})
+    assert response.status_code == 400
+
+
+def test_threshold_customer_count_matches_the_engine(client):
+    # The full T-04 network has deep enough network-wide reroute capacity
+    # (generous 12/24/48h SLA windows let overflow reach distant hubs) that
+    # no single emirate's customer growth alone exhausts it within 30 added
+    # customers — a legitimate, honest "not found" result, not a bug.
+    response = client.get(
+        "/threshold/customer-count", params={"emirate": "Fujairah", "max_customer_count": 30}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["threshold_found"] is False
+    assert body["emirate"] == "Fujairah"
+    assert body["searched_up_to_customer_count"] >= 30
+
+
+def test_threshold_customer_count_unknown_emirate_is_400(client):
+    response = client.get("/threshold/customer-count", params={"emirate": "Atlantis"})
+    assert response.status_code == 400
+
+
 def test_ingest_replaces_the_baseline(client):
     workbook = build_workbook({"Hubs": HUBS_ROWS, "Zones": ZONES_ROWS, "Fleet": FLEET_ROWS})
     response = client.post(

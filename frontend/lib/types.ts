@@ -195,6 +195,31 @@ export interface IdleNextToOverloadFinding {
   why: string;
 }
 
+export interface DemandGrowthBreakResponse {
+  hub_id: string;
+  threshold_found: boolean;
+  already_broken_at_current_demand?: boolean;
+  growth_factor_threshold?: number;
+  growth_pct_threshold?: number;
+  hub_utilization_pct?: number;
+  hub_dual?: number;
+  unmet_demand?: Record<string, number>;
+  reason?: string;
+  searched_up_to_growth_factor?: number;
+}
+
+export interface CustomerCountBreakResponse {
+  emirate: string;
+  threshold_found: boolean;
+  already_broken_at_current_demand?: boolean;
+  customer_count_threshold?: number;
+  served_pct_at_threshold?: number;
+  unmet_demand_at_threshold?: Record<string, number>;
+  representative_customer_profile?: { demand: number; sla_hours: number };
+  reason?: string;
+  searched_up_to_customer_count?: number;
+}
+
 export interface OpportunitiesResponse {
   overlapping_coverage: OverlappingCoverageFinding[];
   far_hub_service: FarHubServiceFinding[];

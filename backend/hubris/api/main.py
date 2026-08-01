@@ -4,7 +4,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from hubris.agents.builder import seed_default_templates
-from hubris.api.routers import agents, ingest, kpis, network, opportunities, optimize, scenarios, simulate
+from hubris.api.routers import (
+    agents,
+    ingest,
+    kpis,
+    network,
+    opportunities,
+    optimize,
+    scenarios,
+    simulate,
+    threshold,
+)
 from hubris.core.registry import load_plugins
 
 
@@ -38,3 +48,4 @@ app.include_router(ingest.router)
 app.include_router(agents.router)
 app.include_router(network.router)
 app.include_router(opportunities.router)
+app.include_router(threshold.router)

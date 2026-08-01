@@ -7,6 +7,8 @@ import type {
   AgentQueryRequest,
   AgentQueryResponse,
   AgentSpec,
+  CustomerCountBreakResponse,
+  DemandGrowthBreakResponse,
   IngestResponse,
   KpisResponse,
   NetworkMapResponse,
@@ -51,6 +53,14 @@ export function refreshDistances(): Promise<RefreshDistancesResponse> {
 export function getOpportunities(scenarioId?: string | null): Promise<OpportunitiesResponse> {
   const query = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
   return request(`/opportunities${query}`);
+}
+
+export function getDemandGrowthBreak(hubId: string): Promise<DemandGrowthBreakResponse> {
+  return request(`/threshold/demand-growth?hub_id=${encodeURIComponent(hubId)}`);
+}
+
+export function getCustomerCountBreak(emirate: string): Promise<CustomerCountBreakResponse> {
+  return request(`/threshold/customer-count?emirate=${encodeURIComponent(emirate)}`);
 }
 
 export function listScenarios(): Promise<ScenarioModuleInfo[]> {

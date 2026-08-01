@@ -170,12 +170,15 @@ export default function Home() {
             </SidebarTabButton>
           </div>
 
-          {tab === "insights" && (
+          {tab === "insights" && network && (
             <div>
               <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
                 OPPORTUNITY SCANNER
               </h2>
-              <InsightsPanel />
+              <InsightsPanel
+                hubIds={network.hubs.map((h) => h.id)}
+                emirates={[...new Set(network.zones.map((z) => z.emirate))].sort()}
+              />
             </div>
           )}
 

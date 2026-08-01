@@ -28,7 +28,16 @@ ROLE_TOOLS: dict[str, set[str]] = {
     # T-20: robustness/stress-test questions need optimise_network's Monte
     # Carlo band (holds_under_variation, feasible_pct) — the only tool that
     # actually computes robustness, not just before/after point estimates.
-    "risk_analyst": {"simulate_scenario", "compare_scenarios", "get_kpis", "optimise_network"},
+    # T-22: "at what growth does X break" is the canonical risk-analyst
+    # question — gets the two threshold-finder tools too.
+    "risk_analyst": {
+        "simulate_scenario",
+        "compare_scenarios",
+        "get_kpis",
+        "optimise_network",
+        "find_demand_growth_break",
+        "find_customer_count_break",
+    },
 }
 
 ROLE_GOALS: dict[str, str] = {
@@ -64,7 +73,7 @@ Roles:
 - scenario_strategist: what-if questions (move/close/add a hub, change fleet, change demand) and comparisons
 - optimizer: "should we change the network", hub open/close recommendations, cost minimization
 - cost_analyst: cost-to-serve breakdown, what's driving cost
-- risk_analyst: stress-testing, "what if demand grows", robustness, worst-case questions
+- risk_analyst: stress-testing, "what if demand grows", robustness, worst-case, "at what point does X break" questions
 
 Question: {question}
 
