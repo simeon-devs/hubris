@@ -29,5 +29,6 @@ def optimize(req: OptimizeRequest) -> OptimizeResponse:
         objective=req.objective,
         constraints=req.constraints,
         optimizer_name=req.optimizer_name,
+        demand_variation_pct=req.demand_variation_pct,
     )
     return OptimizeResponse(**result)

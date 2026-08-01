@@ -75,6 +75,7 @@ def run_goal_loop(
                 "achieved_pct_reduction": round(achieved_pct, 4),
                 "objective_value": recommendation["objective_value"],
                 "changes": recommendation["changes"],
+                "robustness": recommendation["robustness"],
             }
         )
 

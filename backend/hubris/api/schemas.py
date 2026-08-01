@@ -27,7 +27,18 @@ class OptimizeRequest(BaseModel):
     objective: dict[str, Any] = {}
     constraints: list[dict[str, Any]] = []
     optimizer_name: str = "milp_cflp"
+    demand_variation_pct: float = 20.0
     scenario_id: str | None = None
+
+
+class RobustnessBandInfo(BaseModel):
+    demand_variation_pct: float
+    trials: int
+    cost_to_serve_p10: float
+    cost_to_serve_p50: float
+    cost_to_serve_p90: float
+    feasible_pct: float
+    holds_under_variation: bool
 
 
 class OptimizeResponse(BaseModel):
@@ -38,6 +49,7 @@ class OptimizeResponse(BaseModel):
     cost_to_serve_before: float
     cost_to_serve_after: float
     cost_to_serve_savings_per_parcel: float
+    robustness: RobustnessBandInfo
 
 
 class AgentQueryRequest(BaseModel):

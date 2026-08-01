@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import AgentBuilderPanel from "@/components/AgentBuilderPanel";
 import AgentChat from "@/components/AgentChat";
 import KpiCards from "@/components/KpiCards";
+import OptimizerPanel from "@/components/OptimizerPanel";
 import ScenarioDiff from "@/components/ScenarioDiff";
 import ScenarioPanel from "@/components/ScenarioPanel";
 import { getKpis, getNetwork, listAgents, refreshDistances } from "@/lib/api";
@@ -190,6 +191,13 @@ export default function Home() {
                   <ScenarioDiff result={simResult} />
                 </div>
               )}
+
+              <div>
+                <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                  NETWORK OPTIMIZER
+                </h2>
+                <OptimizerPanel />
+              </div>
             </>
           )}
 

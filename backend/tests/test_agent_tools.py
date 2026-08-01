@@ -63,6 +63,28 @@ def test_optimise_network_matches_t09_hand_checked_result():
     assert result["objective_value"] == 2600.0
 
 
+def test_optimise_network_ships_a_robustness_band_by_default():
+    # T-20: every recommendation carries a Monte Carlo robustness band
+    # computed on the RESULTING network. Here changes == [] (both hubs
+    # stay open, ample capacity: 200 total vs 60 demand), so even +/-20%
+    # demand swings can never overflow either hub.
+    result = OptimiseNetworkTool().run(model=_model(), optimizer_name="milp_cflp")
+
+    robustness = result["robustness"]
+    assert robustness["demand_variation_pct"] == 20.0
+    assert robustness["trials"] == 50
+    assert robustness["holds_under_variation"] is True
+    assert robustness["feasible_pct"] == 100.0
+    assert robustness["cost_to_serve_p10"] <= robustness["cost_to_serve_p50"] <= robustness["cost_to_serve_p90"]
+
+
+def test_optimise_network_respects_a_custom_demand_variation_pct():
+    result = OptimiseNetworkTool().run(
+        model=_model(), optimizer_name="milp_cflp", demand_variation_pct=5.0
+    )
+    assert result["robustness"]["demand_variation_pct"] == 5.0
+
+
 def test_compare_scenarios_against_baseline():
     result = CompareScenariosTool().run(
         model=_model(),

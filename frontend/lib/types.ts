@@ -110,7 +110,18 @@ export interface OptimizeRequest {
   objective?: Record<string, unknown>;
   constraints?: Record<string, unknown>[];
   optimizer_name?: string;
+  demand_variation_pct?: number;
   scenario_id?: string | null;
+}
+
+export interface RobustnessBand {
+  demand_variation_pct: number;
+  trials: number;
+  cost_to_serve_p10: number;
+  cost_to_serve_p50: number;
+  cost_to_serve_p90: number;
+  feasible_pct: number;
+  holds_under_variation: boolean;
 }
 
 export interface OptimizeResponse {
@@ -121,6 +132,7 @@ export interface OptimizeResponse {
   cost_to_serve_before: number;
   cost_to_serve_after: number;
   cost_to_serve_savings_per_parcel: number;
+  robustness: RobustnessBand;
 }
 
 export interface ToolCallTrace {

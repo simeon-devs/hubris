@@ -23,7 +23,10 @@ ROLE_TOOLS: dict[str, set[str]] = {
     "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
     "optimizer": {"optimise_network"},
     "cost_analyst": {"get_kpis"},
-    "risk_analyst": {"simulate_scenario", "compare_scenarios", "get_kpis"},
+    # T-20: robustness/stress-test questions need optimise_network's Monte
+    # Carlo band (holds_under_variation, feasible_pct) — the only tool that
+    # actually computes robustness, not just before/after point estimates.
+    "risk_analyst": {"simulate_scenario", "compare_scenarios", "get_kpis", "optimise_network"},
 }
 
 ROLE_GOALS: dict[str, str] = {
