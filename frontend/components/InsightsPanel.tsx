@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCustomerCountBreak, getDemandGrowthBreak, getOpportunities } from "@/lib/api";
-import type { CustomerCountBreakResponse, DemandGrowthBreakResponse, OpportunitiesResponse } from "@/lib/types";
+import { getBottleneck, getCustomerCountBreak, getDemandGrowthBreak, getOpportunities } from "@/lib/api";
+import type {
+  BottleneckResponse,
+  CustomerCountBreakResponse,
+  DemandGrowthBreakResponse,
+  OpportunitiesResponse,
+} from "@/lib/types";
 
 const TYPE_LABELS: Record<string, string> = {
   overlapping_coverage: "Overlapping coverage",
@@ -80,12 +85,64 @@ export default function InsightsPanel({ hubIds, emirates }: InsightsPanelProps) 
 
       <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
         <h3 style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
+          Bottleneck unlock
+        </h3>
+        <BottleneckFinder />
+      </div>
+
+      <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+        <h3 style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
           Break-even finder
         </h3>
         <DemandGrowthBreakFinder hubIds={hubIds} />
         <div style={{ height: 10 }} />
         <CustomerCountBreakFinder emirates={emirates} />
       </div>
+    </div>
+  );
+}
+
+function BottleneckFinder() {
+  const [result, setResult] = useState<BottleneckResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setLoading(true);
+    setError(null);
+    try {
+      setResult(await getBottleneck());
+    } catch (err) {
+      setError((err as Error).message);
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ fontSize: 12 }}>
+      <button
+        onClick={run}
+        disabled={loading}
+        style={{
+          padding: "4px 10px",
+          borderRadius: 6,
+          border: "1px solid #111827",
+          background: "#111827",
+          color: "white",
+          cursor: loading ? "default" : "pointer",
+          marginBottom: 6,
+        }}
+      >
+        {loading ? "…" : "Find cheapest unlock"}
+      </button>
+      {error && <div style={{ color: "#dc2626" }}>{error}</div>}
+      {result && (
+        <div style={{ color: "#374151" }}>
+          {result.bottleneck_found ? result.why : result.reason}
+        </div>
+      )}
     </div>
   );
 }

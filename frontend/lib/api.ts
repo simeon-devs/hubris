@@ -7,6 +7,7 @@ import type {
   AgentQueryRequest,
   AgentQueryResponse,
   AgentSpec,
+  BottleneckResponse,
   CustomerCountBreakResponse,
   DemandGrowthBreakResponse,
   IngestResponse,
@@ -61,6 +62,11 @@ export function getDemandGrowthBreak(hubId: string): Promise<DemandGrowthBreakRe
 
 export function getCustomerCountBreak(emirate: string): Promise<CustomerCountBreakResponse> {
   return request(`/threshold/customer-count?emirate=${encodeURIComponent(emirate)}`);
+}
+
+export function getBottleneck(scenarioId?: string | null): Promise<BottleneckResponse> {
+  const query = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
+  return request(`/bottleneck${query}`);
 }
 
 export function listScenarios(): Promise<ScenarioModuleInfo[]> {

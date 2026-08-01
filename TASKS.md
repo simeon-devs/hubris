@@ -56,7 +56,7 @@
 | T-20 | Monte Carlo confidence bands | 4 Accuracy | D | DONE |
 | T-21 | Opportunity scanner | 5 Signature | B | REVIEW |
 | T-22 | Threshold / break-even finder | 5 Signature | B | REVIEW |
-| T-23 | Prescriptive bottleneck unlock (duals → action) | 5 Signature | B | TODO |
+| T-23 | Prescriptive bottleneck unlock (duals → action) | 5 Signature | B | REVIEW |
 | T-24 | Auto decision-brief | 5 Signature | B/C | TODO |
 | T-25 | Demand forecast (Prophet) | 6 Stretch | D | TODO |
 | T-26 | Institutional memory (Qdrant) | 6 Stretch | B | TODO |
@@ -267,6 +267,8 @@ Log:
 Contract: agent over duals (T-08). Depends on: T-08, T-12.
 Done when: turns shadow prices into "cheapest unblock = +N units at Hub B, cost X, unlocks Y".
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/engine/bottleneck.py`. Duals (T-08) are only exact for a single unit of relaxation, so per CLAUDE.md's determinism rule they're used to RANK candidate binding hubs only — the reported `verified_cost_savings`, `unlock_units`, and `unlocked_zone_ids` all come from actually re-solving `solve_min_cost_flow` with each candidate's capacity raised, never a linear extrapolation of the dual. Needed its own `find_displaced_flow_volumes` rather than reusing T-21's zone-level `find_displaced_zones`: a zone whose demand is SPLIT by a binding constraint (some units still at its cheapest hub, some pushed elsewhere) has a dominant hub that's still technically its cheapest option, so the zone-level view would miss exactly the displaced slice that matters here — this works unit-for-unit directly off `flow.flows`. Hand-checked against test_flow.py's own pre-existing binding fixture (H1 capacity dropped to 40 → total_cost 2700.0, 10 units of Z1 pushed onto H2): the tool independently re-derives `unlock_units=10.0`, and re-solving at the unlocked capacity (50) lands exactly back at the fixture's own unconstrained baseline (700.0) → `verified_cost_savings=2000.0`, matching a fully independent hand computation. Wrapped as `find_bottleneck_unlock`, registered, added to `network_analyst` (its "find bottlenecks" scope). New `GET /bottleneck` endpoint. Frontend: a "Bottleneck unlock" section in the Insights tab ("Find cheapest unlock" button). To test: `docker run --rm -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest backend/tests/ --ignore=backend/tests/test_db.py -v` → 127 passed, 9 skipped; `cd frontend && npx tsc --noEmit` clean. **Live on the full T-04 dataset**: baseline correctly reports nothing binding (matches T-21/T-22's finding that the network currently has headroom everywhere); after stressing it via `POST /simulate {demand_scale, factor:5.0}` (a real API call, not a shortcut), 2 hubs bind, and H5 — the same hub T-21/T-22 already flagged as running hottest — comes back as the cheapest verified unlock: +1279 units of capacity there recaptures 6 zones and saves 3115.41 AED/period, more cost-effective than the other binding candidate (H3, 49.56 AED/period for 118 units). A third independent computation path landing on the same hub as T-21's utilization scan and T-22's growth-break search is a good cross-check that these four features are reading a coherent, real underlying network state, not four disconnected demos.
 
 **T-24 · Auto decision-brief**
 Contract: agent + template → export. Depends on: T-09, T-20.

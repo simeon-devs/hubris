@@ -202,6 +202,34 @@ def test_threshold_customer_count_unknown_emirate_is_400(client):
     assert response.status_code == 400
 
 
+def test_bottleneck_reports_nothing_binding_on_the_baseline(client):
+    response = client.get("/bottleneck")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["bottleneck_found"] is False
+
+
+def test_bottleneck_finds_a_verified_unlock_after_stressing_the_network(client):
+    stress = client.post(
+        "/simulate",
+        json={"scenario_name": "demand_scale", "params": {"factor": 5.0}, "save_as": "bottleneck_stress"},
+    )
+    assert stress.status_code == 200
+
+    response = client.get("/bottleneck", params={"scenario_id": "bottleneck_stress"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["bottleneck_found"] is True
+    assert body["recommendation"]["hub_id"] == "H5"
+    assert body["recommendation"]["verified_cost_savings"] > 0
+    assert body["recommendation"]["unlocked_zone_ids"]
+
+
+def test_bottleneck_unknown_scenario_id_is_404(client):
+    response = client.get("/bottleneck", params={"scenario_id": "does-not-exist"})
+    assert response.status_code == 404
+
+
 def test_ingest_replaces_the_baseline(client):
     workbook = build_workbook({"Hubs": HUBS_ROWS, "Zones": ZONES_ROWS, "Fleet": FLEET_ROWS})
     response = client.post(

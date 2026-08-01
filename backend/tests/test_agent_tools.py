@@ -109,6 +109,7 @@ def test_all_registered_tools_are_agent_usable():
         "scan_opportunities",
         "find_demand_growth_break",
         "find_customer_count_break",
+        "find_bottleneck_unlock",
     }
 
     tools = global_registry.as_agent_tools()

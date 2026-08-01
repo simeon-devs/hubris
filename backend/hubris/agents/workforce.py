@@ -19,9 +19,14 @@ from hubris.core.registry import AGENT_TOOL
 from hubris.core.registry import registry as global_registry
 
 ROLE_TOOLS: dict[str, set[str]] = {
-    # T-21: opportunity scanning is exactly a Network Analyst question
-    # ("read current state, find bottlenecks"), so it gets the tool too.
-    "network_analyst": {"get_kpis", "find_spare_capacity", "scan_opportunities"},
+    # T-21/T-23: opportunity scanning and bottleneck unlock are exactly a
+    # Network Analyst question ("read current state, find bottlenecks").
+    "network_analyst": {
+        "get_kpis",
+        "find_spare_capacity",
+        "scan_opportunities",
+        "find_bottleneck_unlock",
+    },
     "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
     "optimizer": {"optimise_network"},
     "cost_analyst": {"get_kpis"},

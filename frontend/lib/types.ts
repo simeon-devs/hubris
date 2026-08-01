@@ -220,6 +220,22 @@ export interface CustomerCountBreakResponse {
   searched_up_to_customer_count?: number;
 }
 
+export interface BottleneckUnlockRecommendation {
+  hub_id: string;
+  unlock_units: number;
+  new_capacity: number;
+  verified_cost_savings: number;
+  unlocked_zone_ids: string[];
+}
+
+export interface BottleneckResponse {
+  bottleneck_found: boolean;
+  recommendation?: BottleneckUnlockRecommendation;
+  all_candidates?: BottleneckUnlockRecommendation[];
+  why?: string;
+  reason?: string;
+}
+
 export interface OpportunitiesResponse {
   overlapping_coverage: OverlappingCoverageFinding[];
   far_hub_service: FarHubServiceFinding[];
