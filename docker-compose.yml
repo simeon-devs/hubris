@@ -20,6 +20,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://hubris:hubris@db:5432/hubris
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # T-19: defaults to OSRM's public demo server (hubris/engine/routing.py's
+      # own default) — override to point at a self-hosted OSRM instance
+      # (e.g. http://osrm:5000) without any code change.
+      OSRM_BASE_URL: ${OSRM_BASE_URL:-https://router.project-osrm.org}
     ports:
       - "8000:8000"
     depends_on:
