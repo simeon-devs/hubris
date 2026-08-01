@@ -24,6 +24,28 @@ Hubris is a **network digital twin**: a live model that unifies the data, **simu
 3. **Operator-useful features nobody else builds.** An opportunity scanner, a threshold/break-even finder, a prescriptive bottleneck unlock, and an auto-generated decision brief — features a real planner calls genuinely useful, not just impressive.
 4. **Extensible by design.** Every capability is a plugin. Adding a metric, a scenario, an optimiser, or a whole new agent takes minutes and requires no core changes.
 
+## Running it locally
+
+```bash
+cp .env.example .env      # then paste your ANTHROPIC_API_KEY into it
+docker compose up -d      # db + backend + frontend; migrations run automatically
+```
+
+- **UI:** http://localhost:3000 · **API docs:** http://localhost:8000/docs
+- The app seeds itself from the synthetic EMX-shaped dataset on boot — there is no manual seed step.
+- Without an `ANTHROPIC_API_KEY` everything still runs; only the agent chat / goal loop go quiet (every engine number, scenario, optimiser run, scanner finding and decision brief is computed without an LLM).
+
+Run the tests (the DB test needs the compose db up):
+
+```bash
+docker build -t hubris-backend-test ./backend
+docker run --rm --network hubris_default \
+  -e DATABASE_URL="postgresql+psycopg2://hubris:hubris@db:5432/hubris" \
+  -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest tests/ -q
+```
+
+Tests that need a live `ANTHROPIC_API_KEY` or network access skip themselves automatically, so a clean checkout is always green.
+
 ## The documents (read in this order)
 
 | File | For whom | What it gives you |
