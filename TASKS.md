@@ -49,7 +49,7 @@
 | T-13 | Goal-driven optimisation loop | 2 Agents | B | DONE |
 | T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | DONE |
 | T-15 | FastAPI routers | 3 API/UI | B/C | REVIEW |
-| T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | TODO |
+| T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | REVIEW |
 | T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | TODO |
 | T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | TODO |
 | T-19 | Real road distances + H3 zoning | 4 Accuracy | D | TODO |
@@ -206,6 +206,8 @@ Log:
 Contract: Next.js + deck.gl. Depends on: T-15 (kpis/scenarios).
 Done when: hubs coloured by utilisation, ArcLayer flows, demand heat; MapLibre basemap (no paid token).
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `frontend/components/NetworkMap.tsx`: deck.gl (`ScatterplotLayer` for hubs, `ArcLayer` for hub→zone flows, `HeatmapLayer` for zone demand) over a react-map-gl/MapLibre basemap, fed entirely by `GET /network` (T-15's new endpoint). Hubs coloured green→amber→red by `utilization_pct` (closed hubs render grey regardless of utilization), sized by `sqrt(capacity)`; click opens a tooltip with utilization/capacity/spare/cost-to-serve — the last one didn't exist anywhere in the engine yet, so added `cost_to_serve_by_hub()` to `hubris/engine/assignment.py` (per-hub AED/parcel, hand-checked: 31.6/102.0 on the tiny fixture) and wired it through `/network`, keeping the honesty rule intact (server-computed, never derived in the browser). `frontend/lib/api.ts`/`types.ts`: a thin typed fetch client mirroring the Pydantic schemas exactly — every field the UI can show has a named type, nothing untyped/`any` flows through. Basemap: switched from CARTO's hosted vector `style.json` to an inline raster-tile style after actually testing it live — the hosted vector style's schema wasn't rendering under maplibre-gl v6 (tiles never got requested, no error thrown either — silently blank), while raster XYZ tiles have no such compatibility surface and are the standard `deck.gl` "no-token basemap" pattern anyway. Caught entirely by the frontend-testing convention: to test: `cd frontend && npm run build` (typecheck + build clean) then `docker compose up -d --build`, or `npm run dev`; then actually drove it with Playwright (headless Chromium, no `chromium-cli` in this environment) against the live stack rather than trusting the build — first pass showed a completely blank grey basemap despite the style.json fetching 200 OK, root-caused by inspecting network requests (the TileJSON's actual `.mvt` tile URLs were never even requested), fixed via the raster swap, then re-verified: real UAE coastline/cities render, hub circles are correctly green/amber-coloured and capacity-sized, blue arc flow lines and orange/red demand-heat blobs both visible, and a real click on a hub ("Ajman Hub 6 (H6)") produced a tooltip with all 4 required fields populated with real numbers (Utilization: 14.7%, Capacity: 2,878 parcels, Spare: 2,455 parcels, Cost-to-serve: 47.85 AED/parcel) matching what `/network` actually returns. Backend regression: `docker run ... pytest tests/ -k "not routes_to and not live and not seeded_cost"` → 83 passed (incl. 2 new hand-checked `cost_to_serve_by_hub` tests).
 
 **T-17 · KPI cards + scenario panel + before/after diff**
 Contract: React → API. Depends on: T-16.

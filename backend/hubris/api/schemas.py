@@ -97,6 +97,7 @@ class HubMapInfo(BaseModel):
     status: str
     utilization_pct: float
     spare_capacity: float
+    cost_to_serve: float
 
 
 class ZoneMapInfo(BaseModel):

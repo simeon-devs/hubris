@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from hubris.api.schemas import FlowMapInfo, HubMapInfo, NetworkMapResponse, ZoneMapInfo
 from hubris.api.state import state
+from hubris.engine.assignment import cost_to_serve_by_hub
 from hubris.engine.flow import solve_min_cost_flow
 from hubris.plugins.metrics.spare_capacity import SpareCapacityMetric
 from hubris.plugins.metrics.utilization import UtilizationMetric
@@ -23,6 +24,7 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
 
     utilization = UtilizationMetric().compute(model, None)
     spare = SpareCapacityMetric().compute(model, None)
+    cost_to_serve = cost_to_serve_by_hub(model)
     flow = solve_min_cost_flow(model)
 
     hubs = [
@@ -36,6 +38,7 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
             status=hub.status,
             utilization_pct=utilization.breakdown.get(hub.id, 0.0),
             spare_capacity=spare.breakdown.get(hub.id, 0.0),
+            cost_to_serve=cost_to_serve.get(hub.id, 0.0),
         )
         for hub in model.hubs
     ]

@@ -14,6 +14,33 @@ def assigned_volume_by_hub(model: NetworkModel) -> dict[str, float]:
     return assigned
 
 
+def cost_to_serve_by_hub(model: NetworkModel) -> dict[str, float]:
+    """Per-hub cost-to-serve rate (AED/parcel of that hub's own assigned
+    demand): (hub fixed_cost + its assigned transport cost) / its assigned
+    volume. 0.0 for a hub with no assigned demand — used by the map
+    tooltip (T-16), computed server-side so the frontend never derives it."""
+    assignments = model.assignments or {}
+    zone_by_id = {zone.id: zone for zone in model.zones}
+
+    transport_by_hub: dict[str, float] = {}
+    for zone_id, hub_id in assignments.items():
+        zone = zone_by_id[zone_id]
+        od = model.od_matrix.get((hub_id, zone_id))
+        cost = zone.demand * od.cost if od else 0.0
+        transport_by_hub[hub_id] = transport_by_hub.get(hub_id, 0.0) + cost
+
+    assigned = assigned_volume_by_hub(model)
+    result: dict[str, float] = {}
+    for hub in model.hubs:
+        volume = assigned.get(hub.id, 0.0)
+        if volume <= 0:
+            result[hub.id] = 0.0
+            continue
+        total = hub.fixed_cost + transport_by_hub.get(hub.id, 0.0)
+        result[hub.id] = round(total / volume, 4)
+    return result
+
+
 def dominant_hub_per_zone(flows: dict[str, dict[str, float]]) -> dict[str, str]:
     """Collapse a flow result's `hub_id -> zone_id -> volume` into the
     single-dominant-hub-per-zone shape `NetworkModel.assignments` expects

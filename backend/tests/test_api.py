@@ -116,6 +116,7 @@ def test_network_returns_hubs_zones_and_flows(client):
     assert len(body["zones"]) == 100
     assert len(body["flows"]) > 0
     assert body["hubs"][0]["utilization_pct"] >= 0
+    assert body["hubs"][0]["cost_to_serve"] >= 0
 
 
 def test_ingest_replaces_the_baseline(client):
