@@ -47,7 +47,7 @@ function toMarkdown(brief: DecisionBriefData): string {
   return lines.join("\n");
 }
 
-export default function DecisionBrief() {
+export default function DecisionBrief({ scenarioId }: { scenarioId: string | null }) {
   const [brief, setBrief] = useState<DecisionBriefData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +55,11 @@ export default function DecisionBrief() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    getBrief()
+    getBrief(scenarioId)
       .then(setBrief)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [scenarioId]);
 
   useEffect(() => {
     load();

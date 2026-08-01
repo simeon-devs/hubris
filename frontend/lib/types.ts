@@ -79,6 +79,11 @@ export interface RefreshDistancesResponse {
   cost_to_serve_after: number;
 }
 
+export interface SavedScenarioInfo {
+  id: string;
+  label: string;
+}
+
 export interface ScenarioModuleInfo {
   name: string;
   params_schema: {

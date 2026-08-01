@@ -17,6 +17,7 @@ from hubris.api.routers import (
     simulate,
     threshold,
 )
+from hubris.api.state import seed_demo_scenario
 from hubris.core.registry import load_plugins
 
 
@@ -24,6 +25,7 @@ from hubris.core.registry import load_plugins
 async def lifespan(app: FastAPI):
     load_plugins()
     seed_default_templates()
+    seed_demo_scenario()  # T-30; never raises — see its docstring
     yield
 
 

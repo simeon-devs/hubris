@@ -91,6 +91,11 @@ class ScenarioModuleInfo(BaseModel):
     params_schema: dict[str, Any]
 
 
+class SavedScenarioInfo(BaseModel):
+    id: str
+    label: str
+
+
 class IngestResponse(BaseModel):
     hubs: int
     zones: int

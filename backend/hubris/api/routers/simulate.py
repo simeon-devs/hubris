@@ -36,7 +36,9 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
     scenario_id = None
     if req.save_as:
         reassigned_model, _ = apply_and_reassign(base_model, req.scenario_name, req.params)
-        state.save_scenario(req.save_as, reassigned_model)
+        state.save_scenario(
+            req.save_as, reassigned_model, label=f"{req.save_as} ({req.scenario_name})"
+        )
         scenario_id = req.save_as
 
     return SimulateResponse(**result, scenario_id=scenario_id)

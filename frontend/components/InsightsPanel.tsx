@@ -18,20 +18,22 @@ const TYPE_LABELS: Record<string, string> = {
 interface InsightsPanelProps {
   hubIds: string[];
   emirates: string[];
+  scenarioId: string | null;
 }
 
-export default function InsightsPanel({ hubIds, emirates }: InsightsPanelProps) {
+export default function InsightsPanel({ hubIds, emirates, scenarioId }: InsightsPanelProps) {
   const [data, setData] = useState<OpportunitiesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    getOpportunities()
+    setError(null);
+    getOpportunities(scenarioId)
       .then(setData)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [scenarioId]);
 
   const groups: { key: keyof OpportunitiesResponse; findings: { why: string }[] }[] = data
     ? [
@@ -87,22 +89,22 @@ export default function InsightsPanel({ hubIds, emirates }: InsightsPanelProps) 
         <h3 style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
           Bottleneck unlock
         </h3>
-        <BottleneckFinder />
+        <BottleneckFinder scenarioId={scenarioId} />
       </div>
 
       <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
         <h3 style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 8px" }}>
           Break-even finder
         </h3>
-        <DemandGrowthBreakFinder hubIds={hubIds} />
+        <DemandGrowthBreakFinder hubIds={hubIds} scenarioId={scenarioId} />
         <div style={{ height: 10 }} />
-        <CustomerCountBreakFinder emirates={emirates} />
+        <CustomerCountBreakFinder emirates={emirates} scenarioId={scenarioId} />
       </div>
     </div>
   );
 }
 
-function BottleneckFinder() {
+function BottleneckFinder({ scenarioId }: { scenarioId: string | null }) {
   const [result, setResult] = useState<BottleneckResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +113,7 @@ function BottleneckFinder() {
     setLoading(true);
     setError(null);
     try {
-      setResult(await getBottleneck());
+      setResult(await getBottleneck(scenarioId));
     } catch (err) {
       setError((err as Error).message);
       setResult(null);
@@ -147,7 +149,13 @@ function BottleneckFinder() {
   );
 }
 
-function DemandGrowthBreakFinder({ hubIds }: { hubIds: string[] }) {
+function DemandGrowthBreakFinder({
+  hubIds,
+  scenarioId,
+}: {
+  hubIds: string[];
+  scenarioId: string | null;
+}) {
   const [hubId, setHubId] = useState(hubIds[0] ?? "");
   const [result, setResult] = useState<DemandGrowthBreakResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,7 +165,7 @@ function DemandGrowthBreakFinder({ hubIds }: { hubIds: string[] }) {
     setLoading(true);
     setError(null);
     try {
-      setResult(await getDemandGrowthBreak(hubId));
+      setResult(await getDemandGrowthBreak(hubId, scenarioId));
     } catch (err) {
       setError((err as Error).message);
       setResult(null);
@@ -213,7 +221,13 @@ function DemandGrowthBreakFinder({ hubIds }: { hubIds: string[] }) {
   );
 }
 
-function CustomerCountBreakFinder({ emirates }: { emirates: string[] }) {
+function CustomerCountBreakFinder({
+  emirates,
+  scenarioId,
+}: {
+  emirates: string[];
+  scenarioId: string | null;
+}) {
   const [emirate, setEmirate] = useState(emirates[0] ?? "");
   const [result, setResult] = useState<CustomerCountBreakResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -223,7 +237,7 @@ function CustomerCountBreakFinder({ emirates }: { emirates: string[] }) {
     setLoading(true);
     setError(null);
     try {
-      setResult(await getCustomerCountBreak(emirate));
+      setResult(await getCustomerCountBreak(emirate, scenarioId));
     } catch (err) {
       setError((err as Error).message);
       setResult(null);

@@ -18,6 +18,7 @@ import type {
   OptimizeRequest,
   OptimizeResponse,
   RefreshDistancesResponse,
+  SavedScenarioInfo,
   ScenarioModuleInfo,
   SimulateRequest,
   SimulateResponse,
@@ -57,12 +58,20 @@ export function getOpportunities(scenarioId?: string | null): Promise<Opportunit
   return request(`/opportunities${query}`);
 }
 
-export function getDemandGrowthBreak(hubId: string): Promise<DemandGrowthBreakResponse> {
-  return request(`/threshold/demand-growth?hub_id=${encodeURIComponent(hubId)}`);
+export function getDemandGrowthBreak(
+  hubId: string,
+  scenarioId?: string | null
+): Promise<DemandGrowthBreakResponse> {
+  const scenario = scenarioId ? `&scenario_id=${encodeURIComponent(scenarioId)}` : "";
+  return request(`/threshold/demand-growth?hub_id=${encodeURIComponent(hubId)}${scenario}`);
 }
 
-export function getCustomerCountBreak(emirate: string): Promise<CustomerCountBreakResponse> {
-  return request(`/threshold/customer-count?emirate=${encodeURIComponent(emirate)}`);
+export function getCustomerCountBreak(
+  emirate: string,
+  scenarioId?: string | null
+): Promise<CustomerCountBreakResponse> {
+  const scenario = scenarioId ? `&scenario_id=${encodeURIComponent(scenarioId)}` : "";
+  return request(`/threshold/customer-count?emirate=${encodeURIComponent(emirate)}${scenario}`);
 }
 
 export function getBottleneck(scenarioId?: string | null): Promise<BottleneckResponse> {
@@ -73,6 +82,10 @@ export function getBottleneck(scenarioId?: string | null): Promise<BottleneckRes
 export function getBrief(scenarioId?: string | null): Promise<DecisionBrief> {
   const query = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
   return request(`/brief${query}`);
+}
+
+export function listSavedScenarios(): Promise<SavedScenarioInfo[]> {
+  return request("/scenarios/saved");
 }
 
 export function listScenarios(): Promise<ScenarioModuleInfo[]> {

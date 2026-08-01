@@ -11,12 +11,13 @@ import KpiCards from "@/components/KpiCards";
 import OptimizerPanel from "@/components/OptimizerPanel";
 import ScenarioDiff from "@/components/ScenarioDiff";
 import ScenarioPanel from "@/components/ScenarioPanel";
-import { getKpis, getNetwork, listAgents, refreshDistances } from "@/lib/api";
+import { getKpis, getNetwork, listAgents, listSavedScenarios, refreshDistances } from "@/lib/api";
 import type {
   AgentSpec,
   KpisResponse,
   NetworkMapResponse,
   RefreshDistancesResponse,
+  SavedScenarioInfo,
   SimulateResponse,
 } from "@/lib/types";
 
@@ -33,15 +34,19 @@ export default function Home() {
   const [tab, setTab] = useState<SidebarTab>("scenario");
   const [refreshingDistances, setRefreshingDistances] = useState(false);
   const [refreshResult, setRefreshResult] = useState<RefreshDistancesResponse | null>(null);
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenarioInfo[]>([]);
+  // null = the live baseline. T-30 seeds a demo scenario at startup, so
+  // the whole demo path is one dropdown change away, never a live rebuild.
+  const [scenarioId, setScenarioId] = useState<string | null>(null);
 
   const reloadNetwork = useCallback(() => {
-    Promise.all([getNetwork(), getKpis()])
+    Promise.all([getNetwork(scenarioId), getKpis(scenarioId)])
       .then(([net, k]) => {
         setNetwork(net);
         setKpis(k);
       })
       .catch((err: Error) => setError(err.message));
-  }, []);
+  }, [scenarioId]);
 
   const reloadAgents = useCallback(() => {
     listAgents()
@@ -65,6 +70,12 @@ export default function Home() {
     reloadAgents();
   }, [reloadNetwork, reloadAgents]);
 
+  useEffect(() => {
+    listSavedScenarios()
+      .then(setSavedScenarios)
+      .catch(() => setSavedScenarios([]));  // a missing picker must never break the page
+  }, [simResult]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <header
@@ -78,6 +89,23 @@ export default function Home() {
       >
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Hubris — Network Digital Twin</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {savedScenarios.length > 0 && (
+            <label style={{ fontSize: 12, color: "#6b7280", display: "flex", alignItems: "center", gap: 6 }}>
+              Viewing
+              <select
+                value={scenarioId ?? ""}
+                onChange={(e) => setScenarioId(e.target.value || null)}
+                style={{ fontSize: 12, padding: "4px 6px", borderRadius: 6, border: "1px solid #e5e7eb" }}
+              >
+                <option value="">Baseline</option>
+                {savedScenarios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {network && <DistanceModeBadge mode={network.distance_mode} />}
           <button
             onClick={handleRefreshDistances}
@@ -182,6 +210,7 @@ export default function Home() {
               <InsightsPanel
                 hubIds={network.hubs.map((h) => h.id)}
                 emirates={[...new Set(network.zones.map((z) => z.emirate))].sort()}
+                scenarioId={scenarioId}
               />
             </div>
           )}
@@ -191,7 +220,7 @@ export default function Home() {
               <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
                 DECISION BRIEF
               </h2>
-              <DecisionBrief />
+              <DecisionBrief scenarioId={scenarioId} />
             </div>
           )}
 
