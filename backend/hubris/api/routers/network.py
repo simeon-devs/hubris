@@ -1,14 +1,28 @@
 """GET /network — hub/zone/flow data for the map (T-16). Not one of T-15's
 literally-named endpoints, but the map can't render without geographic
 coordinates, which none of /kpis /simulate /optimize /agents /scenarios
-provide — this closes that gap so the frontend has one place to get it."""
+provide — this closes that gap so the frontend has one place to get it.
+
+POST /network/refresh-distances (T-19) rebuilds the baseline od_matrix from
+real OSRM drive distances, falling back to haversine x 1.3 automatically —
+state.distance_mode records which one actually ran so the frontend/agents
+never mistake fallback numbers for real road distances."""
 
 from fastapi import APIRouter, HTTPException
 
-from hubris.api.schemas import FleetTypeInfo, FlowMapInfo, HubMapInfo, NetworkMapResponse, ZoneMapInfo
+from hubris.api.schemas import (
+    FleetTypeInfo,
+    FlowMapInfo,
+    HubMapInfo,
+    NetworkMapResponse,
+    RefreshDistancesResponse,
+    ZoneMapInfo,
+)
 from hubris.api.state import state
 from hubris.engine.assignment import cost_to_serve_by_hub
 from hubris.engine.flow import solve_min_cost_flow
+from hubris.engine.routing import refresh_od_matrix
+from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 from hubris.plugins.metrics.spare_capacity import SpareCapacityMetric
 from hubris.plugins.metrics.utilization import UtilizationMetric
 
@@ -64,4 +78,27 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
         for fleet in model.fleet_types
     ]
 
-    return NetworkMapResponse(hubs=hubs, zones=zones, flows=flows, fleet_types=fleet_types)
+    return NetworkMapResponse(
+        hubs=hubs, zones=zones, flows=flows, fleet_types=fleet_types, distance_mode=state.distance_mode
+    )
+
+
+@router.post("/network/refresh-distances", response_model=RefreshDistancesResponse)
+def refresh_distances(use_osrm: bool = True) -> RefreshDistancesResponse:
+    """Rebuild the baseline's od_matrix from real OSRM drive distances
+    (falling back to haversine x 1.3 for the whole batch if OSRM is
+    unreachable) and report the before/after cost-to-serve shift."""
+    cost_before = CostToServeMetric().compute(state.baseline, None).value
+
+    updated_model, mode = refresh_od_matrix(state.baseline, use_osrm=use_osrm)
+    state.baseline = updated_model
+    state.distance_mode = mode
+
+    cost_after = CostToServeMetric().compute(state.baseline, None).value
+
+    return RefreshDistancesResponse(
+        distance_mode=mode,
+        od_pairs_updated=len(updated_model.od_matrix),
+        cost_to_serve_before=cost_before,
+        cost_to_serve_after=cost_after,
+    )

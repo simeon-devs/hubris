@@ -4,6 +4,7 @@ from hubris.ingestion.schema_mapper import NeedsConfirmationError, fuzzy_match_c
 from tests.fixtures.messy_excel import (
     AMBIGUOUS_ZONES_ROWS,
     FLEET_ROWS,
+    GRANULAR_ZONES_ROWS,
     HUBS_ROWS,
     ZONES_ROWS,
     build_workbook,
@@ -99,3 +100,41 @@ def test_ambiguous_required_column_needs_confirmation_then_override_resolves_it(
     )
     assert {z["id"] for z in raw.zones} == {"Z1", "Z2", "Z3"}
     assert {z["emirate"] for z in raw.zones} == {"Dubai", "Abu Dhabi"}
+
+
+def test_aggregate_zones_to_h3_collapses_granular_points_when_enabled():
+    workbook = build_workbook(
+        {"Hubs": HUBS_ROWS, "Zones": GRANULAR_ZONES_ROWS, "Fleet": FLEET_ROWS}
+    )
+
+    raw = ExcelDataConnector().load(
+        workbook, use_llm=False, aggregate_zones_to_h3=True, h3_resolution=5
+    )
+
+    # P1 (25.200, 55.300) and P2 (25.201, 55.301) fall in the same H3 res-5
+    # cell (see tests/test_h3_zoning.py); P3 is far away -> 2 zones, not 3.
+    assert len(raw.zones) == 2
+    demands = sorted(z["demand"] for z in raw.zones)
+    assert demands == [7.0, 25.0]  # P1+P2 summed to 25, P3 alone at 7
+
+    merged_zone = next(z for z in raw.zones if z["demand"] == 25.0)
+    assert merged_zone["id"].startswith("H3-")
+    assert merged_zone["sla_hours"] == 12.0  # tightest of P1's 24 and P2's 12
+
+    # Downstream still hydrates cleanly with the collapsed zone set.
+    model = NetworkModel.from_raw_tables(raw)
+    assert len(model.zones) == 2
+
+
+def test_aggregate_zones_to_h3_disabled_by_default_keeps_zones_ungrouped():
+    workbook = build_workbook(
+        {"Hubs": HUBS_ROWS, "Zones": GRANULAR_ZONES_ROWS, "Fleet": FLEET_ROWS}
+    )
+
+    raw = ExcelDataConnector().load(workbook, use_llm=False)
+
+    # Without the flag, the near-duplicate points stay as 3 separate zones —
+    # proving the default behavior (and every other existing test in this
+    # file) is unchanged by the new parameter.
+    assert len(raw.zones) == 3
+    assert {z["id"] for z in raw.zones} == {"P1", "P2", "P3"}

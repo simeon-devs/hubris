@@ -52,7 +52,7 @@
 | T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | DONE |
 | T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | DONE |
 | T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | DONE |
-| T-19 | Real road distances + H3 zoning | 4 Accuracy | D | TODO |
+| T-19 | Real road distances + H3 zoning | 4 Accuracy | D | REVIEW |
 | T-20 | Monte Carlo confidence bands | 4 Accuracy | D | TODO |
 | T-21 | Opportunity scanner | 5 Signature | B | TODO |
 | T-22 | Threshold / break-even finder | 5 Signature | B | TODO |
@@ -233,6 +233,8 @@ Log:
 Contract: `od_matrix` provider. Depends on: T-06.
 Done when: OSRM/Valhalla/ORS drive-time matrix populates `od_matrix`; H3 aggregates demand; haversine×1.3 fallback if road engine unavailable.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/engine/routing.py`: `refresh_od_matrix(model, use_osrm=True)` rebuilds `od_matrix` from OSRM's public Table API (one batched hub×zone call), returning `(updated_model, mode)` where `mode` is `"osrm"` or `"haversine_fallback"` for the *whole* batch — never a silent per-pair mix — on any network error, non-OK response, or unreachable pair it falls back to the existing haversine×1.3 path (`hubris/engine/geo.py`) so the app never hangs or half-updates. `backend/hubris/engine/h3_zoning.py`: `aggregate_to_h3_zones(points, resolution)` collapses raw lat/lon demand points onto an H3 hex grid (cell centroid as coordinates, demand summed, tightest SLA kept), wired into `ExcelDataConnector.load(..., aggregate_zones_to_h3=False, h3_resolution=7)` — opt-in, defaults off so existing ingestion behaviour is unchanged. `AppState.distance_mode` (default `"haversine_fallback"`, since the synthetic baseline uses the same haversine formula) is now exposed on `GET /network`'s response and updated by the new `POST /network/refresh-distances` endpoint, which reruns `refresh_od_matrix` against the live baseline and reports `cost_to_serve_before`/`cost_to_serve_after` so the shift is always visible, never inferred. Frontend: a badge in the header ("REAL ROAD DISTANCES" green / "HAVERSINE FALLBACK" amber) reads `distance_mode` straight off `GET /network`, plus a "Refresh real distances" button driving the new endpoint and displaying the before/after cost-to-serve inline — no client-side computation of either number. To test: `docker run --rm -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest backend/tests/ --ignore=backend/tests/test_db.py -v` → 93 passed, 9 skipped (skips are the live-OSRM/live-agent tests when network/API key aren't available — all ran and passed here); `cd frontend && npx tsc --noEmit` clean. Drove the real stack live (Docker Compose + Playwright against `localhost:3000`/`localhost:8000`, hitting the actual public OSRM server, no mocks): badge showed "HAVERSINE FALLBACK" on load, clicking "Refresh real distances" flipped it to "REAL ROAD DISTANCES" and the header showed **cost-to-serve 57.0949 → 65.1826 AED/parcel** (+14.2%) — real road distances replacing haversine raised the baseline cost, as expected once actual road geometry (not straight lines) is priced in.
 
 **T-20 · Monte Carlo confidence bands**
 Contract: wraps optimiser/metrics. Depends on: T-09.

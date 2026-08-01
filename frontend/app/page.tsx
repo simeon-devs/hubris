@@ -8,8 +8,14 @@ import AgentChat from "@/components/AgentChat";
 import KpiCards from "@/components/KpiCards";
 import ScenarioDiff from "@/components/ScenarioDiff";
 import ScenarioPanel from "@/components/ScenarioPanel";
-import { getKpis, getNetwork, listAgents } from "@/lib/api";
-import type { AgentSpec, KpisResponse, NetworkMapResponse, SimulateResponse } from "@/lib/types";
+import { getKpis, getNetwork, listAgents, refreshDistances } from "@/lib/api";
+import type {
+  AgentSpec,
+  KpisResponse,
+  NetworkMapResponse,
+  RefreshDistancesResponse,
+  SimulateResponse,
+} from "@/lib/types";
 
 const NetworkMap = dynamic(() => import("@/components/NetworkMap"), { ssr: false });
 
@@ -22,6 +28,8 @@ export default function Home() {
   const [simResult, setSimResult] = useState<SimulateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<SidebarTab>("scenario");
+  const [refreshingDistances, setRefreshingDistances] = useState(false);
+  const [refreshResult, setRefreshResult] = useState<RefreshDistancesResponse | null>(null);
 
   const reloadNetwork = useCallback(() => {
     Promise.all([getNetwork(), getKpis()])
@@ -37,6 +45,17 @@ export default function Home() {
       .then(setAgents)
       .catch((err: Error) => setError(err.message));
   }, []);
+
+  const handleRefreshDistances = useCallback(() => {
+    setRefreshingDistances(true);
+    refreshDistances()
+      .then((result) => {
+        setRefreshResult(result);
+        reloadNetwork();
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setRefreshingDistances(false));
+  }, [reloadNetwork]);
 
   useEffect(() => {
     reloadNetwork();
@@ -55,7 +74,31 @@ export default function Home() {
         }}
       >
         <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Hubris — Network Digital Twin</h1>
-        <span style={{ fontSize: 13, color: "#6b7280" }}>EMX Predictive Network Optimisation</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {network && <DistanceModeBadge mode={network.distance_mode} />}
+          <button
+            onClick={handleRefreshDistances}
+            disabled={refreshingDistances}
+            style={{
+              fontSize: 12,
+              padding: "6px 10px",
+              borderRadius: 6,
+              border: "1px solid #e5e7eb",
+              background: "white",
+              cursor: refreshingDistances ? "default" : "pointer",
+              opacity: refreshingDistances ? 0.6 : 1,
+            }}
+            title="Rebuild the od_matrix from real OSRM drive distances (falls back to haversine automatically if unreachable)"
+          >
+            {refreshingDistances ? "Refreshing…" : "Refresh real distances"}
+          </button>
+          {refreshResult && (
+            <span style={{ fontSize: 12, color: "#6b7280" }}>
+              cost-to-serve {refreshResult.cost_to_serve_before} → {refreshResult.cost_to_serve_after} AED/parcel
+            </span>
+          )}
+          <span style={{ fontSize: 13, color: "#6b7280" }}>EMX Predictive Network Optimisation</span>
+        </div>
       </header>
 
       <main style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -170,6 +213,29 @@ export default function Home() {
         </aside>
       </main>
     </div>
+  );
+}
+
+function DistanceModeBadge({ mode }: { mode: NetworkMapResponse["distance_mode"] }) {
+  const isReal = mode === "osrm";
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: "3px 8px",
+        borderRadius: 999,
+        background: isReal ? "#dcfce7" : "#fef3c7",
+        color: isReal ? "#166534" : "#92400e",
+      }}
+      title={
+        isReal
+          ? "od_matrix distances/times are real OSRM road distances"
+          : "od_matrix distances/times are haversine x 1.3 estimates, not real road distances"
+      }
+    >
+      {isReal ? "REAL ROAD DISTANCES" : "HAVERSINE FALLBACK"}
+    </span>
   );
 }
 

@@ -130,3 +130,11 @@ class NetworkMapResponse(BaseModel):
     zones: list[ZoneMapInfo]
     flows: list[FlowMapInfo]
     fleet_types: list[FleetTypeInfo]
+    distance_mode: str  # "osrm" (real drive distances) | "haversine_fallback"
+
+
+class RefreshDistancesResponse(BaseModel):
+    distance_mode: str  # "osrm" | "haversine_fallback" — whichever this call actually used
+    od_pairs_updated: int
+    cost_to_serve_before: float
+    cost_to_serve_after: float

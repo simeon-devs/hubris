@@ -62,11 +62,21 @@ export interface FleetTypeInfo {
   hub_id: string | null;
 }
 
+export type DistanceMode = "osrm" | "haversine_fallback";
+
 export interface NetworkMapResponse {
   hubs: HubMapInfo[];
   zones: ZoneMapInfo[];
   flows: FlowMapInfo[];
   fleet_types: FleetTypeInfo[];
+  distance_mode: DistanceMode;
+}
+
+export interface RefreshDistancesResponse {
+  distance_mode: DistanceMode;
+  od_pairs_updated: number;
+  cost_to_serve_before: number;
+  cost_to_serve_after: number;
 }
 
 export interface ScenarioModuleInfo {

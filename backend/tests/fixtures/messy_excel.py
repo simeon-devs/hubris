@@ -68,6 +68,40 @@ AMBIGUOUS_ZONES_ROWS = [
     for row in ZONES_ROWS
 ]
 
+# Two raw customer points ~150m apart (fall in the same H3 res-5 cell —
+# see tests/test_h3_zoning.py) plus one far away, all shaped like normal
+# zone rows but representing granular data that should collapse via
+# aggregate_zones_to_h3 rather than being trusted as separate zones.
+GRANULAR_ZONES_ROWS = [
+    {
+        "Zone ID": "P1",
+        "Zone Name": "Point One",
+        "lat": 25.200,
+        "lon": 55.300,
+        "Emirate": "Dubai",
+        "Parcel Demand": 10,
+        "SLA (hrs)": 24,
+    },
+    {
+        "Zone ID": "P2",
+        "Zone Name": "Point Two",
+        "lat": 25.201,
+        "lon": 55.301,
+        "Emirate": "Dubai",
+        "Parcel Demand": 15,
+        "SLA (hrs)": 12,
+    },
+    {
+        "Zone ID": "P3",
+        "Zone Name": "Point Three",
+        "lat": 24.450,
+        "lon": 54.400,
+        "Emirate": "Abu Dhabi",
+        "Parcel Demand": 7,
+        "SLA (hrs)": 24,
+    },
+]
+
 FLEET_ROWS = [
     {
         "Fleet ID": "F1",

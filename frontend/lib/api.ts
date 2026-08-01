@@ -12,6 +12,7 @@ import type {
   NetworkMapResponse,
   OptimizeRequest,
   OptimizeResponse,
+  RefreshDistancesResponse,
   ScenarioModuleInfo,
   SimulateRequest,
   SimulateResponse,
@@ -40,6 +41,10 @@ export function getKpis(scenarioId?: string | null): Promise<KpisResponse> {
 export function getNetwork(scenarioId?: string | null): Promise<NetworkMapResponse> {
   const query = scenarioId ? `?scenario_id=${encodeURIComponent(scenarioId)}` : "";
   return request(`/network${query}`);
+}
+
+export function refreshDistances(): Promise<RefreshDistancesResponse> {
+  return request("/network/refresh-distances", { method: "POST" });
 }
 
 export function listScenarios(): Promise<ScenarioModuleInfo[]> {

@@ -31,10 +31,12 @@ def client():
 def _isolate_state():
     original_baseline = app_state.baseline
     original_scenarios = dict(app_state.scenarios)
+    original_distance_mode = app_state.distance_mode
     original_agents = dict(builder._agents)
     yield
     app_state.baseline = original_baseline
     app_state.scenarios = original_scenarios
+    app_state.distance_mode = original_distance_mode
     builder._agents = original_agents
 
 
@@ -118,6 +120,26 @@ def test_network_returns_hubs_zones_and_flows(client):
     assert body["hubs"][0]["utilization_pct"] >= 0
     assert body["hubs"][0]["cost_to_serve"] >= 0
     assert len(body["fleet_types"]) == 4
+    # T-19: the synthetic baseline is built via the same haversine formula
+    # as the fallback path -> flagged as fallback until real distances are
+    # explicitly refreshed, never silently implied to be real road data.
+    assert body["distance_mode"] == "haversine_fallback"
+
+
+def test_refresh_distances_without_osrm_uses_fallback_and_updates_state(client):
+    before = client.get("/network").json()
+    assert before["distance_mode"] == "haversine_fallback"
+
+    response = client.post("/network/refresh-distances", params={"use_osrm": False})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["distance_mode"] == "haversine_fallback"
+    assert body["od_pairs_updated"] == 9 * 100
+    assert body["cost_to_serve_before"] == 57.0949
+
+    # the mode is now recorded on state and reflected back via /network too
+    after = client.get("/network").json()
+    assert after["distance_mode"] == "haversine_fallback"
 
 
 def test_ingest_replaces_the_baseline(client):

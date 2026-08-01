@@ -14,6 +14,7 @@ from hubris.core.models import RawTables
 from hubris.core.registry import register_data_connector
 from hubris.engine.baseline import build_nearest_hub_baseline
 from hubris.engine.geo import road_distance_km
+from hubris.engine.h3_zoning import DEFAULT_H3_RESOLUTION, aggregate_to_h3_zones
 from hubris.ingestion.schema_mapper import (
     DEFAULT_CONFIDENCE_THRESHOLD,
     best_sheet_name_score,
@@ -63,6 +64,8 @@ class ExcelDataConnector(DataConnector):
         column_overrides: dict[str, dict[str, str]] | None = None,
         threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
         use_llm: bool = True,
+        aggregate_zones_to_h3: bool = False,
+        h3_resolution: int = DEFAULT_H3_RESOLUTION,
     ) -> RawTables:
         sheets = pd.read_excel(source, sheet_name=None)
         sheet_map = sheet_map or {}
@@ -74,6 +77,12 @@ class ExcelDataConnector(DataConnector):
         zones = self._load_table(
             "zones", sheets, sheet_map, column_overrides, threshold, use_llm
         )
+        if aggregate_zones_to_h3:
+            # Real demand data often arrives as many raw customer points
+            # rather than clean zones — collapse it onto an H3 hex grid
+            # instead of trusting whatever granularity the sheet happens
+            # to provide (SCHEMA.md §2).
+            zones = aggregate_to_h3_zones(zones, resolution=h3_resolution)
         fleet_types = self._load_table(
             "fleet_types", sheets, sheet_map, column_overrides, threshold, use_llm
         )
