@@ -7,6 +7,7 @@ from hubris.agents.builder import seed_default_templates
 from hubris.api.routers import (
     agents,
     bottleneck,
+    brief,
     ingest,
     kpis,
     network,
@@ -51,3 +52,4 @@ app.include_router(network.router)
 app.include_router(opportunities.router)
 app.include_router(threshold.router)
 app.include_router(bottleneck.router)
+app.include_router(brief.router)

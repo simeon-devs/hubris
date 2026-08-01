@@ -57,7 +57,7 @@
 | T-21 | Opportunity scanner | 5 Signature | B | REVIEW |
 | T-22 | Threshold / break-even finder | 5 Signature | B | REVIEW |
 | T-23 | Prescriptive bottleneck unlock (duals → action) | 5 Signature | B | REVIEW |
-| T-24 | Auto decision-brief | 5 Signature | B/C | TODO |
+| T-24 | Auto decision-brief | 5 Signature | B/C | REVIEW |
 | T-25 | Demand forecast (Prophet) | 6 Stretch | D | TODO |
 | T-26 | Institutional memory (Qdrant) | 6 Stretch | B | TODO |
 | T-27 | SimPy waves | 6 Stretch | A | TODO |
@@ -274,6 +274,8 @@ Log:
 Contract: agent + template → export. Depends on: T-09, T-20.
 Done when: generates a one-page brief (current state, change, cost/risk, what it unblocks, sensitivity); exportable from the UI.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `backend/hubris/agents/decision_brief.py::generate_decision_brief()` is pure orchestration — zero new numeric computation, just composes ALREADY-computed JSON from three existing tools (`get_kpis` for current state, `optimise_network` for the proposed change + its T-20 robustness band as `sensitivity`, `find_bottleneck_unlock` for what it unblocks) plus a `summary` paragraph built by plain Python string formatting (no LLM) — so the brief needs no network/API key and can never hang, and every number in `summary` is traceable to a field elsewhere in the same response (test-asserted directly). Hand-checked against two already-proven fixtures: the tiny 2-hub baseline (T-07's known 43.3333 cost-to-serve, nothing to change) and T-09's own `CLOSE_HUB_RAW_TABLES` fixture (recommends closing H2, objective_value=650.0, matching that ticket's own hand math exactly). Wrapped as `generate_decision_brief`, registered, added to the `optimizer` role. New `GET /brief` endpoint. Frontend: a new "Brief" sidebar tab (`DecisionBrief.tsx`) rendering all five required sections, plus an "Export .md" button that builds a Markdown document client-side from the same JSON and triggers a browser download (Blob + `<a download>` — no server round-trip, no browser storage APIs). To test: `docker run --rm -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest backend/tests/ --ignore=backend/tests/test_db.py -v` → 132 passed, 9 skipped; `cd frontend && npx tsc --noEmit` clean. Drove the real stack live (Docker Compose + Playwright, no mocks): the Brief tab renders a complete real brief off the full T-04 dataset in ~0.3s (see the phase-end message for the full rendered output) — recommends closing H1/H3/H5/H7, cost-to-serve 57.0949→50.3035 AED/parcel (-11.89%), "ROBUST UNDER ±20% DEMAND" (35.88–36.44 AED/parcel across 50 trials), and correctly reports no binding bottleneck on the baseline; "Export .md" downloads a matching Markdown file. **This closes Phase 5 (T-21–T-24)**.
 
 ### Phase 6 — Stretch (only if core solid)
 

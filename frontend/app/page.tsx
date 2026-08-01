@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import AgentBuilderPanel from "@/components/AgentBuilderPanel";
 import AgentChat from "@/components/AgentChat";
+import DecisionBrief from "@/components/DecisionBrief";
 import InsightsPanel from "@/components/InsightsPanel";
 import KpiCards from "@/components/KpiCards";
 import OptimizerPanel from "@/components/OptimizerPanel";
@@ -21,7 +22,7 @@ import type {
 
 const NetworkMap = dynamic(() => import("@/components/NetworkMap"), { ssr: false });
 
-type SidebarTab = "scenario" | "agents" | "insights";
+type SidebarTab = "scenario" | "agents" | "insights" | "brief";
 
 export default function Home() {
   const [network, setNetwork] = useState<NetworkMapResponse | null>(null);
@@ -168,6 +169,9 @@ export default function Home() {
             <SidebarTabButton active={tab === "insights"} onClick={() => setTab("insights")}>
               Insights
             </SidebarTabButton>
+            <SidebarTabButton active={tab === "brief"} onClick={() => setTab("brief")}>
+              Brief
+            </SidebarTabButton>
           </div>
 
           {tab === "insights" && network && (
@@ -179,6 +183,15 @@ export default function Home() {
                 hubIds={network.hubs.map((h) => h.id)}
                 emirates={[...new Set(network.zones.map((z) => z.emirate))].sort()}
               />
+            </div>
+          )}
+
+          {tab === "brief" && (
+            <div>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                DECISION BRIEF
+              </h2>
+              <DecisionBrief />
             </div>
           )}
 

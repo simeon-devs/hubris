@@ -230,6 +230,32 @@ def test_bottleneck_unknown_scenario_id_is_404(client):
     assert response.status_code == 404
 
 
+def test_brief_matches_the_engine(client):
+    response = client.get("/brief")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {
+        "generated_at",
+        "summary",
+        "current_state",
+        "proposed_change",
+        "cost_risk",
+        "sensitivity",
+        "what_it_unblocks",
+    }
+    # matches T-09/T-15's own hand-checked baseline optimize() result.
+    assert {c["hub_id"] for c in body["proposed_change"]["changes"]} == {"H1", "H3", "H5", "H7"}
+    assert body["proposed_change"]["objective_value"] == 215449.92
+    assert body["current_state"]["cost_to_serve"] == 57.0949
+    assert body["sensitivity"]["demand_variation_pct"] == 20.0
+    assert str(body["cost_risk"]["cost_to_serve_before"]) in body["summary"]
+
+
+def test_brief_unknown_scenario_id_is_404(client):
+    response = client.get("/brief", params={"scenario_id": "does-not-exist"})
+    assert response.status_code == 404
+
+
 def test_ingest_replaces_the_baseline(client):
     workbook = build_workbook({"Hubs": HUBS_ROWS, "Zones": ZONES_ROWS, "Fleet": FLEET_ROWS})
     response = client.post(

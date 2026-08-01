@@ -236,6 +236,31 @@ export interface BottleneckResponse {
   reason?: string;
 }
 
+export interface DecisionBrief {
+  generated_at: string;
+  summary: string;
+  current_state: {
+    cost_to_serve: number;
+    utilization_pct: number;
+    coverage_pct: number;
+    spare_capacity: number;
+    network_summary: NetworkSummary;
+  };
+  proposed_change: {
+    changes: { action: string; hub_id: string }[];
+    objective_value: number;
+    rationale: Record<string, unknown>;
+  };
+  cost_risk: {
+    cost_to_serve_before: number;
+    cost_to_serve_after: number;
+    cost_to_serve_savings_per_parcel: number;
+    delta_vs_baseline: Record<string, number>;
+  };
+  sensitivity: RobustnessBand;
+  what_it_unblocks: BottleneckResponse | null;
+}
+
 export interface OpportunitiesResponse {
   overlapping_coverage: OverlappingCoverageFinding[];
   far_hub_service: FarHubServiceFinding[];

@@ -28,7 +28,9 @@ ROLE_TOOLS: dict[str, set[str]] = {
         "find_bottleneck_unlock",
     },
     "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
-    "optimizer": {"optimise_network"},
+    # T-24: leadership briefs are the optimizer role's natural next step
+    # after a recommendation.
+    "optimizer": {"optimise_network", "generate_decision_brief"},
     "cost_analyst": {"get_kpis"},
     # T-20: robustness/stress-test questions need optimise_network's Monte
     # Carlo band (holds_under_variation, feasible_pct) — the only tool that
