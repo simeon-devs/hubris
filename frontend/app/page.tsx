@@ -2,21 +2,28 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import AgentBuilderPanel from "@/components/AgentBuilderPanel";
+import AgentChat from "@/components/AgentChat";
 import KpiCards from "@/components/KpiCards";
 import ScenarioDiff from "@/components/ScenarioDiff";
 import ScenarioPanel from "@/components/ScenarioPanel";
-import { getKpis, getNetwork } from "@/lib/api";
-import type { KpisResponse, NetworkMapResponse, SimulateResponse } from "@/lib/types";
+import { getKpis, getNetwork, listAgents } from "@/lib/api";
+import type { AgentSpec, KpisResponse, NetworkMapResponse, SimulateResponse } from "@/lib/types";
 
 const NetworkMap = dynamic(() => import("@/components/NetworkMap"), { ssr: false });
+
+type SidebarTab = "scenario" | "agents";
 
 export default function Home() {
   const [network, setNetwork] = useState<NetworkMapResponse | null>(null);
   const [kpis, setKpis] = useState<KpisResponse | null>(null);
+  const [agents, setAgents] = useState<AgentSpec[]>([]);
   const [simResult, setSimResult] = useState<SimulateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<SidebarTab>("scenario");
 
-  const reload = useCallback(() => {
+  const reloadNetwork = useCallback(() => {
     Promise.all([getNetwork(), getKpis()])
       .then(([net, k]) => {
         setNetwork(net);
@@ -25,9 +32,16 @@ export default function Home() {
       .catch((err: Error) => setError(err.message));
   }, []);
 
+  const reloadAgents = useCallback(() => {
+    listAgents()
+      .then(setAgents)
+      .catch((err: Error) => setError(err.message));
+  }, []);
+
   useEffect(() => {
-    reload();
-  }, [reload]);
+    reloadNetwork();
+    reloadAgents();
+  }, [reloadNetwork, reloadAgents]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -57,7 +71,7 @@ export default function Home() {
                 color: "#dc2626",
               }}
             >
-              Failed to load network data: {error}
+              Failed to load: {error}
             </div>
           )}
           {!error && !network && (
@@ -79,7 +93,7 @@ export default function Home() {
 
         <aside
           style={{
-            width: 380,
+            width: 400,
             borderLeft: "1px solid #e5e7eb",
             overflowY: "auto",
             padding: 16,
@@ -99,33 +113,89 @@ export default function Home() {
             )}
           </div>
 
-          <div>
-            <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
-              WHAT-IF SCENARIO
-            </h2>
-            {network ? (
-              <ScenarioPanel
-                hubs={network.hubs}
-                fleetTypes={network.fleet_types}
-                onResult={setSimResult}
-              />
-            ) : (
-              <div style={{ fontSize: 13, color: "#9ca3af" }}>Loading…</div>
-            )}
+          <div style={{ display: "flex", gap: 6, borderBottom: "1px solid #e5e7eb", paddingBottom: 10 }}>
+            <SidebarTabButton active={tab === "scenario"} onClick={() => setTab("scenario")}>
+              Scenario
+            </SidebarTabButton>
+            <SidebarTabButton active={tab === "agents"} onClick={() => setTab("agents")}>
+              Agents
+            </SidebarTabButton>
           </div>
 
-          {simResult && (
-            <div>
-              <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
-                BEFORE / AFTER
-              </h2>
-              <ScenarioDiff result={simResult} />
-            </div>
+          {tab === "scenario" && (
+            <>
+              <div>
+                <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                  WHAT-IF SCENARIO
+                </h2>
+                {network ? (
+                  <ScenarioPanel
+                    hubs={network.hubs}
+                    fleetTypes={network.fleet_types}
+                    onResult={setSimResult}
+                  />
+                ) : (
+                  <div style={{ fontSize: 13, color: "#9ca3af" }}>Loading…</div>
+                )}
+              </div>
+
+              {simResult && (
+                <div>
+                  <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                    BEFORE / AFTER
+                  </h2>
+                  <ScenarioDiff result={simResult} />
+                </div>
+              )}
+            </>
           )}
 
-          <div style={{ color: "#9ca3af", fontSize: 13 }}>Agent chat lands here in T-18.</div>
+          {tab === "agents" && (
+            <>
+              <div>
+                <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                  AGENT CHAT
+                </h2>
+                <AgentChat agents={agents} />
+              </div>
+
+              <div>
+                <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                  AGENT BUILDER
+                </h2>
+                <AgentBuilderPanel agents={agents} onChange={reloadAgents} />
+              </div>
+            </>
+          )}
         </aside>
       </main>
     </div>
+  );
+}
+
+function SidebarTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        fontSize: 12,
+        padding: "6px 12px",
+        borderRadius: 6,
+        border: active ? "1px solid #111827" : "1px solid #e5e7eb",
+        background: active ? "#111827" : "white",
+        color: active ? "white" : "#111827",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
   );
 }

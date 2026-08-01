@@ -51,7 +51,7 @@
 | T-15 | FastAPI routers | 3 API/UI | B/C | REVIEW |
 | T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | REVIEW |
 | T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | REVIEW |
-| T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | TODO |
+| T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | REVIEW |
 | T-19 | Real road distances + H3 zoning | 4 Accuracy | D | TODO |
 | T-20 | Monte Carlo confidence bands | 4 Accuracy | D | TODO |
 | T-21 | Opportunity scanner | 5 Signature | B | TODO |
@@ -220,6 +220,8 @@ Log:
 Contract: React → `/agent/query`, `/agents`. Depends on: T-16, T-14.
 Done when: chat answers with computed+explained results (shows which tool gave each number); Agent Builder creates an agent live.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `frontend/components/AgentChat.tsx`: a chat panel with a dropdown to pick the workforce (auto-routed) or any custom agent, calling `POST /agent/query`; every agent message renders `source: <tool>` badges beneath it (one per T-11 tool call in the response's `tool_calls` trace) that expand on click to the exact computed JSON that tool returned — this is the literal mechanism for "shows which tool gave each number," not a description of it. `AgentBuilderPanel.tsx`: lists existing custom agents with delete buttons, and a create form (name, goal, tool checkboxes drawn from the 5 real T-11 tools, autonomy dropdown) posting to `POST /agents`; newly-created agents appear immediately in both the builder's list and the chat's agent dropdown, with no reload. Sidebar reorganised into Scenario/Agents tabs (T-17's panels + T-18's now both fit without a mile-long scroll). To test: `cd frontend && npm run build` (typecheck+build clean); backend regression `docker run ... pytest tests/ -k "not routes_to and not live and not seeded_cost"` → 83 passed; full suite incl. `db` + all live agent tests → 93 passed. Drove the real stack live end-to-end with Playwright: asked the workforce "Should we close any hubs to save cost?" → correctly routed to `Agent (optimizer)`, answered with the same real recommendation as T-12's own test (close H1/H3/H5/H7, 11.89% reduction) with a `source: optimise_network` badge; clicked it and confirmed via DOM inspection (0 `<pre>` elements before, 1 after, containing the real tool JSON) that it expands to the actual computed result, not a placeholder; created a custom agent live via the builder form and confirmed it appeared in both the agent list and the chat dropdown immediately, then deleted it and confirmed it vanished from both. **This closes Phase 3 (T-15–T-18)** — see the phase-end message for exactly how to run the full stack locally.
 
 ### Phase 4 — Accuracy
 
