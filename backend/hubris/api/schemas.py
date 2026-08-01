@@ -115,7 +115,18 @@ class FlowMapInfo(BaseModel):
     volume: float
 
 
+class FleetTypeInfo(BaseModel):
+    id: str
+    name: str
+    capacity: float
+    cost_per_km: float
+    fixed_cost: float
+    count_available: int
+    hub_id: str | None = None
+
+
 class NetworkMapResponse(BaseModel):
     hubs: list[HubMapInfo]
     zones: list[ZoneMapInfo]
     flows: list[FlowMapInfo]
+    fleet_types: list[FleetTypeInfo]

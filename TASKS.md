@@ -50,7 +50,7 @@
 | T-14 | Agent Builder (custom agents + templates) | 2 Agents | B | DONE |
 | T-15 | FastAPI routers | 3 API/UI | B/C | REVIEW |
 | T-16 | Frontend shell + map (deck.gl) | 3 API/UI | C | REVIEW |
-| T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | TODO |
+| T-17 | KPI cards + scenario panel + before/after diff | 3 API/UI | C | REVIEW |
 | T-18 | Agent chat + Agent Builder panels | 3 API/UI | C | TODO |
 | T-19 | Real road distances + H3 zoning | 4 Accuracy | D | TODO |
 | T-20 | Monte Carlo confidence bands | 4 Accuracy | D | TODO |
@@ -213,6 +213,8 @@ Log:
 Contract: React → API. Depends on: T-16.
 Done when: KPI tiles live; scenario controls (toggle hubs, demand/fleet sliders) → Simulate → before/after diff renders.
 Log:
+- WIP — Claude — 2026-08-01
+- REVIEW — Claude — 2026-08-01 — `frontend/components/KpiCards.tsx` (cost-to-serve, avg utilization, coverage, spare capacity — all 4 read straight from `GET /kpis`), `ScenarioPanel.tsx` (3 tabs: close a hub via dropdown, demand-growth via a -30%..+100% slider, fleet-mix via fleet-type dropdown + vehicle-count slider — all three map onto real T-10 scenario modules and call `POST /simulate`), `ScenarioDiff.tsx` (before→after values + coloured % delta per metric, green/red only where a direction is unambiguously good/bad — cost down and coverage up are coloured, utilization/spare capacity are shown neutrally since more or less can both be desirable depending on intent). One deliberate scope cut, flagged rather than faked: BUILD_SPEC §10 also lists a "% of decisions answerable on-platform" KPI card — no engine metric computes that yet (it needs the 10-canonical-question checklist infrastructure from BUILD_SPEC §11, not built), and the phase's own explicit rule is "never hardcoded, never client-computed," so it's omitted rather than faked with a placeholder number. Extended `GET /network` with `fleet_types` (needed for the fleet-mix dropdown) — new response field, backward compatible. To test: `cd frontend && npm run build` (typecheck+build clean); backend regression `docker run ... pytest tests/ -k "not routes_to and not live and not seeded_cost"` → 83 passed. Drove the real running stack with Playwright end-to-end and watched real numbers move: closing H1 → cost-to-serve 57.09→55.56 AED/parcel (-2.7%, green), utilization 15.89→17.61% (+10.8%), coverage unchanged (0.0%, correctly neutral — caught and fixed a bug here: 0% deltas were rendering red/"−0.0%" due to floating-point noise near zero, fixed with a 0.05% negligible-change threshold shared by the colour and text formatting); +40% demand growth → cost-to-serve drops to 49.62 (-13.1%, fixed costs amortising over more volume, consistent with T-10's own findings); fleet-mix changes correctly show exactly 0.0% impact on all 4 KPIs — an honest reflection that fleet composition isn't wired into any current metric's calculation, not a bug to paper over.
 
 **T-18 · Agent chat + Agent Builder panels**
 Contract: React → `/agent/query`, `/agents`. Depends on: T-16, T-14.

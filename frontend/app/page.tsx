@@ -1,21 +1,33 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
-import { getNetwork } from "@/lib/api";
-import type { NetworkMapResponse } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
+import KpiCards from "@/components/KpiCards";
+import ScenarioDiff from "@/components/ScenarioDiff";
+import ScenarioPanel from "@/components/ScenarioPanel";
+import { getKpis, getNetwork } from "@/lib/api";
+import type { KpisResponse, NetworkMapResponse, SimulateResponse } from "@/lib/types";
 
 const NetworkMap = dynamic(() => import("@/components/NetworkMap"), { ssr: false });
 
 export default function Home() {
   const [network, setNetwork] = useState<NetworkMapResponse | null>(null);
+  const [kpis, setKpis] = useState<KpisResponse | null>(null);
+  const [simResult, setSimResult] = useState<SimulateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getNetwork()
-      .then(setNetwork)
+  const reload = useCallback(() => {
+    Promise.all([getNetwork(), getKpis()])
+      .then(([net, k]) => {
+        setNetwork(net);
+        setKpis(k);
+      })
       .catch((err: Error) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
@@ -35,12 +47,30 @@ export default function Home() {
       <main style={{ flex: 1, display: "flex", minHeight: 0 }}>
         <section style={{ flex: 1, position: "relative" }}>
           {error && (
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#dc2626",
+              }}
+            >
               Failed to load network data: {error}
             </div>
           )}
           {!error && !network && (
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b7280" }}>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#6b7280",
+              }}
+            >
               Loading network…
             </div>
           )}
@@ -55,12 +85,45 @@ export default function Home() {
             padding: 16,
             display: "flex",
             flexDirection: "column",
-            gap: 16,
+            gap: 20,
           }}
         >
-          <div style={{ color: "#9ca3af", fontSize: 13 }}>
-            KPI cards, scenario controls, and agent chat land here in T-17/T-18.
+          <div>
+            <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+              NETWORK KPIS
+            </h2>
+            {kpis ? (
+              <KpiCards kpis={kpis} deltaPct={simResult?.delta_pct} />
+            ) : (
+              <div style={{ fontSize: 13, color: "#9ca3af" }}>Loading…</div>
+            )}
           </div>
+
+          <div>
+            <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+              WHAT-IF SCENARIO
+            </h2>
+            {network ? (
+              <ScenarioPanel
+                hubs={network.hubs}
+                fleetTypes={network.fleet_types}
+                onResult={setSimResult}
+              />
+            ) : (
+              <div style={{ fontSize: 13, color: "#9ca3af" }}>Loading…</div>
+            )}
+          </div>
+
+          {simResult && (
+            <div>
+              <h2 style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", margin: "0 0 8px" }}>
+                BEFORE / AFTER
+              </h2>
+              <ScenarioDiff result={simResult} />
+            </div>
+          )}
+
+          <div style={{ color: "#9ca3af", fontSize: 13 }}>Agent chat lands here in T-18.</div>
         </aside>
       </main>
     </div>

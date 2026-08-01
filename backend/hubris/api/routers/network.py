@@ -5,7 +5,7 @@ provide — this closes that gap so the frontend has one place to get it."""
 
 from fastapi import APIRouter, HTTPException
 
-from hubris.api.schemas import FlowMapInfo, HubMapInfo, NetworkMapResponse, ZoneMapInfo
+from hubris.api.schemas import FleetTypeInfo, FlowMapInfo, HubMapInfo, NetworkMapResponse, ZoneMapInfo
 from hubris.api.state import state
 from hubris.engine.assignment import cost_to_serve_by_hub
 from hubris.engine.flow import solve_min_cost_flow
@@ -51,5 +51,17 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
         for hub_id, zone_volumes in flow.flows.items()
         for zone_id, volume in zone_volumes.items()
     ]
+    fleet_types = [
+        FleetTypeInfo(
+            id=fleet.id,
+            name=fleet.name,
+            capacity=fleet.capacity,
+            cost_per_km=fleet.cost_per_km,
+            fixed_cost=fleet.fixed_cost,
+            count_available=fleet.count_available,
+            hub_id=fleet.hub_id,
+        )
+        for fleet in model.fleet_types
+    ]
 
-    return NetworkMapResponse(hubs=hubs, zones=zones, flows=flows)
+    return NetworkMapResponse(hubs=hubs, zones=zones, flows=flows, fleet_types=fleet_types)

@@ -52,10 +52,21 @@ export interface FlowMapInfo {
   volume: number;
 }
 
+export interface FleetTypeInfo {
+  id: string;
+  name: string;
+  capacity: number;
+  cost_per_km: number;
+  fixed_cost: number;
+  count_available: number;
+  hub_id: string | null;
+}
+
 export interface NetworkMapResponse {
   hubs: HubMapInfo[];
   zones: ZoneMapInfo[];
   flows: FlowMapInfo[];
+  fleet_types: FleetTypeInfo[];
 }
 
 export interface ScenarioModuleInfo {
