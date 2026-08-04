@@ -64,20 +64,20 @@
 | T-28 | Real dataset ingestion + calibration (EVENT DAY) | 7 Event | A | TODO |
 | T-29 | Baseline validation + sensitivity + sanity checks | 7 Event | A/D | TODO |
 | T-30 | Demo seed scenario + pitch + Q&A rehearsal | 7 Event | L | TODO |
-| **T-33** | **W1 · Runtime provenance verification** | **8 Integrity** | **A** | **REVIEW** |
-| T-34 | Wire the goal-driven loop (tool + route + UI) | 8 Integrity | B | TODO |
-| T-35 | Turn on H3 zoning in /ingest | 8 Integrity | A | TODO |
+| **T-33** | **W1 · Runtime provenance verification** | **8 Integrity** | **A** | **DONE** |
+| T-34 | Wire the goal-driven loop (tool + route + UI) | 8 Integrity | B | WIP |
+| T-35 | Turn on H3 zoning in /ingest | 8 Integrity | A | WIP |
 | T-36 | Expose all 6 scenarios in ScenarioPanel | 8 Integrity | C | TODO |
-| T-37 | Fix the >100% utilisation artifact | 8 Integrity | A | TODO |
-| T-31 | Reconstructed-baseline labelling | 8 Integrity | B | TODO |
-| T-32 | Evidence-labelling of engine inputs | 8 Integrity | A | TODO |
+| T-37 | Fix the >100% utilisation artifact | 8 Integrity | A | WIP |
+| T-31 | Reconstructed-baseline labelling | 8 Integrity | B | WIP |
+| T-32 | Evidence-labelling of engine inputs | 8 Integrity | A | WIP |
 | T-38 | W2a · Memory core (schema, store, episodic) | 9 Learning | B | TODO |
 | T-39 | W2b · Semantic + procedural + agent heuristics | 9 Learning | B | TODO |
 | T-40 | W4 · Closed-loop autonomous monitoring | 9 Learning | B | TODO |
 | ~~T-41~~ | ~~W5 · Multi-agent swarm + adversarial review~~ | 9 Learning | — | **CUT — Sims — 2026-08-04** |
 | T-42 | W3 · Time Machine (temporal navigation) | 9 Learning | C | TODO |
 | T-43 | W6 · Hubris as an MCP server | 9 Learning | A | TODO |
-| T-44 | Live-agent CI path (guardrail regression) | 8 Integrity | A | REVIEW |
+| T-44 | Live-agent CI path (guardrail regression) | 8 Integrity | A | DONE |
 
 **Build order:** finish Phase 0 → 1 before anything else (it's the critical path). Phases 2 and 3 can run in parallel once 0–1 exist. Phase 4 as soon as the engine is stable. Phase 5 is the differentiator — do it before stretch. Phase 6 only if core is solid. Phase 7 is the event day itself.
 
@@ -332,16 +332,19 @@ Done when: `run_agent_query` calls the verifier on **every** path (workforce, cu
 Log:
 - WIP — Claude — 2026-08-04
 - REVIEW — Claude — 2026-08-04 — **The gate is live.** `core/contracts.py` gains `VerificationVerdict` + `ProvenanceVerifier`; `agents/verifier.py` implements it over the existing (previously test-only) `find_unexplained_numbers`; `agents/runner.py` is rebuilt around `run_verified_query`: every answer is checked against the tool results that run actually received, an untraceable figure triggers exactly ONE regeneration pass with the figures named back to the agent (`REGENERATION_PROMPT`), a second failure returns `status="flagged"` with the figures listed — never silently. The verdict rides `AgentQueryResponse.verification` as a **required** field (a path without a verdict now fails at the schema layer) on all three `/agent/query` paths (workforce / custom agent / single); `workforce.py` propagates it through the graph state; the false docstring the audit flagged is gone. **How a user reaches it:** every `/agent/query` response carries `verification` (visible in /docs and to the frontend); the `AgentChat.tsx` badge render is Nathi's per build rule 6 — backend/API complete, not blocked. Evidence: (1) `tests/test_verifier.py` — 9 scripted-agent tests that run without an LLM and **fail if a fabricated figure escapes as verified** (fabricate-both-passes → flagged naming 29088; fabricate-then-clean → regenerated, correction names the exact figure; clean → verified first pass, no second LLM call; numbers-with-no-tools → flagged; user's-own-number → not fabrication; every result carries a verdict). (2) **Live proof, honestly reported:** first 5x run set was 4 green + 1 failed; diagnosis (runs 6-12 with full logs) reproduced it — NOT a fabrication escape but a pre-existing crash: the LLM passed `optimizer_name="MILP"` (a spelling lifted from the tool's own description), `registry.get` KeyError crashed the whole query via LangGraph's tool node. Fixed under build rule 4: `tool_adapter._call` now returns tool exceptions as correctable error RESULTS (`{"error", "tool", "hint"}`) the agent reads and self-corrects, and the tool description names the exact legal values ('milp_cflp'|'greedy'); regression-pinned in `test_adapter_returns_bad_llm_arguments_as_correctable_error_not_a_crash`. (3) **Official post-fix proof: 5 consecutive full live runs A-E → 157 passed / 0 failed each** (logs kept in session scratchpad). (4) **The gate visibly fires:** 4/4 direct runs of the previously-60%-failing cost_advisor question came back `status=regenerated, attempts=2, untraceable=[]` — the agent fabricated on the first pass every time, was caught every time, and shipped clean every time. (5) Rule-4 hardening found live: when the Anthropic key ran out of credits mid-verification, `/agent/query` returned a raw 500 → added `_run_guarded`: agent-layer failures now degrade to a clean 503 ("Agent layer unavailable: ...") while every deterministic endpoint stays 200 (probed live against the real outage; `test_agent_query_upstream_llm_failure_is_a_clean_503_not_a_crash`). To test (non-live): `docker run --rm --network hubris_default -e DATABASE_URL=postgresql+psycopg2://hubris:hubris@db:5432/hubris -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest tests/ -q` → 150 passed, 9 skipped. Live: same command with `-e ANTHROPIC_API_KEY=...` → 157 passed (ran 5x consecutively). **⚠ The API key exhausted its credits during these runs — T-44's own green run and every later ticket's required live run are blocked until it's topped up.**
+- DONE — Sims — 2026-08-04 — "the gate is real and the 4/4 regeneration evidence is exactly what we needed." Key topped up.
 
 **T-34 · Wire the goal-driven loop (tool + route + UI)**
 Contract: `AgentTool` wrapper over `run_goal_loop` + `POST /goal` + a UI control. Depends on: T-13 (built), T-33 (its output must be verified).
 Done when: `run_goal_loop` is reachable from the agent chat, an API route, and a visible UI control; the returned **path explored** is rendered, not just the final answer; a test drives it through the API.
 Log:
+- WIP — Claude — 2026-08-04
 
 **T-35 · Turn on H3 zoning in `/ingest`**
 Contract: `ExcelDataConnector.load(aggregate_zones_to_h3=…)` surfaced as an ingest option. Depends on: T-19 (built).
 Done when: `/ingest` accepts an H3 toggle + resolution, the UI upload control exposes it, and an API test proves granular points collapse to hex zones through the real endpoint.
 Log:
+- WIP — Claude — 2026-08-04
 
 **T-36 · Expose all 6 scenarios in ScenarioPanel**
 Contract: the panel builds its controls from `GET /scenarios`' `params_schema`, not a hard-coded union type. Depends on: T-10, T-17.
@@ -350,6 +353,7 @@ Log:
 
 **T-37 · Fix the >100% utilisation artifact**
 Contract: distinguish assignment-based from flow-based utilisation (`ARCHITECTURE.md §3`, the "five concepts" discipline). Depends on: T-07, T-08.
+- WIP — Claude — 2026-08-04 (log entry moved below Done-when by convention; see REVIEW)
 Done when: no view can report a hub above 100% while the flow is feasible; the two quantities are separately named in the API; the seeded demo scenario shows the corrected figure; **T-07's hand-checked fixtures are re-derived (not just re-run) and the ticket log states the before/after impact on the headline cost-to-serve / ~5% number explicitly** — per Sims (2026-08-04), this must not be fixed quietly: if the headline moves, the log says by how much and why; if it doesn't, the log says that.
 Log:
 
@@ -403,6 +407,7 @@ Done when: a documented, one-command way to run the full suite *including* the l
 Log:
 - WIP — Claude — 2026-08-04
 - REVIEW — Claude — 2026-08-04 — `scripts/test-live.sh`: the one-command live gate. Env-var key wins, `.env` fallback; **fail-fast preflight** (a 1-token API ping) turns a dead/unfunded key into a clear ~2-second exit-3 with the API's own error text instead of 9 confusing test errors; compose-network precondition check (exit 5); runs the full suite with the key and DB; **fails (exit 4) if the live tests were SKIPPED rather than run** — a green that silently skipped the guardrail is impossible; **no retry logic exists in the script by design** (build rule 5 — a red run is a red run). README documents it; the Leader's follow-up loop now requires a green run in every REVIEW log from this ticket onward. Same command works in CI with the key as a secret. **How a user reaches it:** `./scripts/test-live.sh` from the repo root. Verified: exit-2 (no key anywhere) and exit-3 (key present but out of credits — probed against the real current outage) both demonstrated live; the wrapped pytest command is byte-identical to the one that ran green 5x consecutively for T-33 (runs A–E, 157 passed each). **⚠ The script's own end-to-end GREEN run is blocked: the API key exhausted its credits during T-33's proof runs. Top up, then `./scripts/test-live.sh` must print "LIVE GATE GREEN" before any Wave-1 ticket enters REVIEW.**
+- DONE — Sims — 2026-08-04 — key topped up; the first green `./scripts/test-live.sh` run is recorded in the next ticket's REVIEW note.
 
 ---
 
