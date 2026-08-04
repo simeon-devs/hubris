@@ -208,6 +208,47 @@ def test_threshold_customer_count_unknown_emirate_is_400(client):
     assert response.status_code == 400
 
 
+def test_goal_loop_via_api_structured_targets_no_llm(client):
+    # T-34: the loop is user-reachable through the API, LLM-free via
+    # structured targets. Unconstrained optimum on the T-04 dataset is the
+    # hand-checked 11.89% reduction -> an 8% target succeeds in 1 iteration.
+    response = client.post(
+        "/goal", json={"targets": {"target_cost_reduction_pct": 8.0, "max_utilization": None}}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["achieved_pct_reduction"] == 11.89
+    assert len(body["path"]) == 1  # the path explored is in the response, per ticket
+    assert body["path"][0]["changes"]  # real recommendation content, not a summary
+
+    # unreachable target WITH a cap -> iterates, relaxing the cap each step
+    response = client.post(
+        "/goal",
+        json={
+            "targets": {"target_cost_reduction_pct": 99.0, "max_utilization": 0.2},
+            "max_iterations": 3,
+        },
+    )
+    body = response.json()
+    assert body["success"] is False
+    assert len(body["path"]) == 3
+    caps = [step["constraints"][0]["value"] for step in body["path"]]
+    assert caps == sorted(caps) and len(set(caps)) == 3  # cap genuinely relaxed per iteration
+
+
+def test_goal_loop_via_api_requires_objective_or_targets(client):
+    assert client.post("/goal", json={}).status_code == 400
+
+
+def test_goal_loop_unknown_scenario_is_404(client):
+    response = client.post(
+        "/goal",
+        json={"targets": {"target_cost_reduction_pct": 5.0}, "scenario_id": "nope"},
+    )
+    assert response.status_code == 404
+
+
 def test_bottleneck_reports_nothing_binding_on_the_baseline(client):
     response = client.get("/bottleneck")
     assert response.status_code == 200

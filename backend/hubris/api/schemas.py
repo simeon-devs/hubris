@@ -101,6 +101,31 @@ class AgentSpecResponse(BaseModel):
     autonomy: str
 
 
+class GoalTargets(BaseModel):
+    """Structured, LLM-free objective for /goal (rule 4: the demo path
+    never depends on the LLM being up)."""
+
+    target_cost_reduction_pct: float
+    max_utilization: float | None = None
+
+
+class GoalRequest(BaseModel):
+    objective: str | None = None  # plain English; parsed by the LLM
+    targets: GoalTargets | None = None  # structured; skips the LLM entirely
+    max_iterations: int = 5
+    scenario_id: str | None = None
+
+
+class GoalResponse(BaseModel):
+    success: bool
+    objective_text: str
+    target_pct_reduction: float
+    max_utilization_cap: float | None
+    achieved_pct_reduction: float | None
+    recommendation: dict[str, Any] | None
+    path: list[dict[str, Any]]  # one entry per iteration — render this, not just the endpoint
+
+
 class ScenarioModuleInfo(BaseModel):
     name: str
     params_schema: dict[str, Any]

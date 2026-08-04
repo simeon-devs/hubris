@@ -128,6 +128,7 @@ def test_all_registered_tools_are_agent_usable():
         "find_customer_count_break",
         "find_bottleneck_unlock",
         "generate_decision_brief",
+        "run_goal_loop",
     }
 
     tools = global_registry.as_agent_tools()

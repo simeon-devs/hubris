@@ -30,7 +30,8 @@ ROLE_TOOLS: dict[str, set[str]] = {
     "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
     # T-24: leadership briefs are the optimizer role's natural next step
     # after a recommendation.
-    "optimizer": {"optimise_network", "generate_decision_brief"},
+    # T-34: the goal-driven loop is the optimizer's own machinery.
+    "optimizer": {"optimise_network", "generate_decision_brief", "run_goal_loop"},
     "cost_analyst": {"get_kpis"},
     # T-20: robustness/stress-test questions need optimise_network's Monte
     # Carlo band (holds_under_variation, feasible_pct) — the only tool that
