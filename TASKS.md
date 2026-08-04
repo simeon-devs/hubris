@@ -74,9 +74,10 @@
 | T-38 | W2a · Memory core (schema, store, episodic) | 9 Learning | B | TODO |
 | T-39 | W2b · Semantic + procedural + agent heuristics | 9 Learning | B | TODO |
 | T-40 | W4 · Closed-loop autonomous monitoring | 9 Learning | B | TODO |
-| T-41 | W5 · Multi-agent swarm + adversarial review | 9 Learning | B | TODO (at risk) |
-| T-42 | W3 · Time Machine (temporal navigation) | 9 Learning | C | TODO (at risk) |
+| ~~T-41~~ | ~~W5 · Multi-agent swarm + adversarial review~~ | 9 Learning | — | **CUT — Sims — 2026-08-04** |
+| T-42 | W3 · Time Machine (temporal navigation) | 9 Learning | C | TODO |
 | T-43 | W6 · Hubris as an MCP server | 9 Learning | A | TODO |
+| T-44 | Live-agent CI path (guardrail regression) | 8 Integrity | A | TODO |
 
 **Build order:** finish Phase 0 → 1 before anything else (it's the critical path). Phases 2 and 3 can run in parallel once 0–1 exist. Phase 4 as soon as the engine is stable. Phase 5 is the differentiator — do it before stretch. Phase 6 only if core is solid. Phase 7 is the event day itself.
 
@@ -347,7 +348,7 @@ Log:
 
 **T-37 · Fix the >100% utilisation artifact**
 Contract: distinguish assignment-based from flow-based utilisation (`ARCHITECTURE.md §3`, the "five concepts" discipline). Depends on: T-07, T-08.
-Done when: no view can report a hub above 100% while the flow is feasible; the two quantities are separately named in the API; the seeded demo scenario shows the corrected figure; T-07's hand-checked fixtures still pass or are re-derived with the change explained in the log.
+Done when: no view can report a hub above 100% while the flow is feasible; the two quantities are separately named in the API; the seeded demo scenario shows the corrected figure; **T-07's hand-checked fixtures are re-derived (not just re-run) and the ticket log states the before/after impact on the headline cost-to-serve / ~5% number explicitly** — per Sims (2026-08-04), this must not be fixed quietly: if the headline moves, the log says by how much and why; if it doesn't, the log says that.
 Log:
 
 **T-31 · Reconstructed-baseline labelling**
@@ -377,19 +378,26 @@ Contract: scheduler runs `monitoring`-autonomy agents; alerts land in `memory_al
 Done when: `capacity_watchdog` self-runs on a schedule with no user action, **runs a real simulation** (not a cached-KPI threshold check), writes an alert with computed finding + recommended action + brief link, and the UI shows an alert card that can be acknowledged; a test proves the scheduled path produces an alert from a synthetic breach.
 Log:
 
-**T-41 · W5 · Multi-agent swarm with adversarial review**
-Contract: stateless specialists + handoff tools; Risk agent challenges Optimizer, both computed, resolved pre-user. Depends on: T-33, T-12.
-Done when: an optimiser recommendation triggers a Risk challenge that runs a **real** stress simulation; both positions carry engine numbers; the resolved answer surfaces the disagreement and its resolution; the transcript shows genuine handoffs, not one router hop; and the whole exchange passes the T-33 verifier.
+**~~T-41 · W5 · Multi-agent swarm with adversarial review~~ — CUT**
 Log:
+- CUT — Sims — 2026-08-04 — Do not build. The measured 60% single-agent misbehaviour rate (STATUS.md) makes a live multi-agent chain too fragile for the demo path, and Monte Carlo robustness bands already challenge the Optimizer's recommendation with real computed numbers. The adversarial-review *narrative* is delivered by the existing Risk role + T-20 bands; the swarm *machinery* is not worth the demo risk. Do not resurrect without a new decision from Sims.
 
 **T-42 · W3 · Time Machine (temporal navigation)**
-Contract: `GET /timeline` over episodic memory + forward projections; scrubber drives the map. Depends on: T-38 (past), T-16 (map).
-Done when: a scrubber under the map moves through recorded past decisions and forward projections; the map re-renders live as it moves; **dropped flows grey out and new flows highlight**; every state shown came from a stored episode or a real projection — never an interpolation invented in the browser.
+Contract: `GET /timeline` over episodic memory + **scenario projections** (see naming rule below); scrubber drives the map. Depends on: T-16 (map) for the scaffold; **T-38 (episodic memory) for the backward direction only**.
+Build order (per Sims, 2026-08-04): **scaffold against mock data starting in Wave 1**, not Wave 3 — timeline state, scrub interaction, map re-render, and flow enter/exit transitions can all be built and tested against fixture data before memory exists, then swapped to real episodes when T-38 lands.
+**Backward scrubbing depends on T-38 and must degrade gracefully without it:** if no episodes exist (fresh boot, memory unavailable, pre-T-38), the backward direction shows an explicit empty state ("no recorded history yet") — never an error, never a blank map, never synthetic history.
+**Naming rule (per Sims): the forward direction is "scenario projections", NOT "forecast" — everywhere it appears**: UI labels, API field names, agent explanations, and briefs. We have no demand forecast (T-25 is TODO). Overclaiming forecast is the exact failure class the audit caught; a `forecast_*` identifier anywhere in this feature is a review-blocking defect.
+Done when: a scrubber under the map moves through recorded past decisions and scenario projections; the map re-renders live as it moves; **dropped flows grey out and new flows highlight**; the backward view degrades gracefully with zero episodes; nothing in UI/API/prose calls the forward direction a forecast; every state shown came from a stored episode or a real projection — never an interpolation invented in the browser.
 Log:
 
 **T-43 · W6 · Hubris as an MCP server**
 Contract: MCP surface generated from `registry.as_agent_tools()`. Depends on: T-03, T-33.
 Done when: an external MCP client can list and call the twin's tools and get identical JSON to the internal path; registering a new plugin publishes it to MCP with **no** per-tool wiring; agent-facing responses route through the T-33 gate; documented well enough that a judge can point their own client at it.
+Log:
+
+**T-44 · Live-agent CI path (guardrail regression)**
+Contract: a test path that runs the 9 live-LLM tests with a real `ANTHROPIC_API_KEY`, immediately after T-33 lands. Depends on: T-33.
+Done when: a documented, one-command way to run the full suite *including* the live agent tests exists (compose-based or CI secret); the live no-fabrication tests are **required, not skippable, for every ticket after T-33** — a ticket's REVIEW log must show a green live-agent run, and the leader's checklist enforces it; flake handling is defined (a fabrication failure is a real failure, never retried into green).
 Log:
 
 ---
@@ -400,47 +408,59 @@ Log:
 > + integrity), **Omair** (agents/memory), **Nathi** (frontend). Reassign freely — the
 > dependencies matter more than the names.
 
+> **Approved by Sims 2026-08-04 with adjustments:** T-41 CUT (do not build); T-42 scaffolds
+> from Wave 1 against mock data; forward direction is named "scenario projections"
+> everywhere; T-37 must log its headline impact; T-44 (live-agent CI) lands immediately
+> after T-33 and its tests are required for every subsequent ticket.
+> **Priority if time runs short: T-33 > Wave 1 > Time Machine + memory > monitoring + MCP.**
+
 ### Execution order
 
 **Wave 0 — stop the bleeding (blocks everything).**
-`T-33` alone. Nobody starts anything else until the provenance gate is live, because every
-feature after it produces agent prose that must pass through it, and retrofitting a gate is
-strictly harder than building on top of one. Realistically half a day; it is mostly wiring
-code that already exists and is already tested.
+`T-33` alone, immediately followed by **`T-44`** (live-agent CI). Nobody starts anything
+else until the provenance gate is live, because every feature after it produces agent prose
+that must pass through it, and retrofitting a gate is strictly harder than building on top
+of one. T-44 rides the same wave: from that point on, the 9 live no-fabrication tests are
+**required for every ticket's REVIEW**, not skippable — a green run with the key is part of
+the definition of done.
 
-**Wave 1 — free wins, fully parallel.** Independent of each other; only `T-34` waits on `T-33`.
+**Wave 1 — free wins + Time Machine scaffold, fully parallel.** Only `T-34` waits on `T-33`.
 
-| Ticket | Owner | Why it's cheap |
+| Ticket | Owner | Why it's here |
 |---|---|---|
 | `T-34` goal loop wiring | Omair | Implementation + tests exist; needs a tool, a route, a button |
 | `T-35` H3 in `/ingest` | Simeon | One parameter through one endpoint |
 | `T-36` all 6 scenarios | Nathi | Panel becomes schema-driven; removes future work |
-| `T-37` >100% utilisation | Simeon | Small, but touches a hand-checked metric — do it carefully |
+| `T-37` >100% utilisation | Simeon | Small, but touches a hand-checked metric — headline impact logged, never quiet |
 | `T-32` assumption registry | Simeon | Pure refactor; **do before T-28**, it gets harder once real data lands |
 | `T-31` baseline labelling | Omair | Mostly plumbing a flag to three surfaces |
+| `T-42a` **Time Machine scaffold (mock data)** | Nathi | Per Sims: starts NOW, not Wave 3 — scrubber, map re-render, flow grey/highlight transitions, all against fixtures; backward view built empty-state-first so it degrades gracefully until T-38 exists |
 
 **Wave 2 — the learning twin.** `T-38` → `T-39`. Strictly sequential; `T-38` is the
 foundation (schema + store + episodic writes) and is the ticket that finally makes Postgres
 load-bearing. `T-39` is where the *demo* lives — an agent writing a heuristic that changes a
-later answer is the moment "learning twin" stops being a slide.
+later answer is the moment "learning twin" stops being a slide. Simeon starts `T-43` (MCP)
+here in parallel; Nathi continues `T-42a` polish.
 
-**Wave 3 — parallel, once memory exists.**
-- `T-42` Time Machine (Nathi) — needs `T-38`'s episodes for "past".
+**Wave 3 — light-up, once memory exists.**
+- `T-42b` Time Machine backward direction goes live on real episodes (Nathi) — the scaffold
+  already handles the empty state, so this is a data swap, not a build.
 - `T-40` monitoring (Omair) — needs `T-38` for alert storage.
-- `T-43` MCP (Simeon) — needs only the registry + `T-33`; can actually start in Wave 2.
+- `T-43` MCP finish (Simeon).
 
-**Wave 4 — if and only if Waves 0–3 are green.**
-`T-41` adversarial swarm. Deliberately last: highest LLM-behaviour risk, and it is the one
-feature whose failure mode is *live, on stage, unpredictably*.
+**T-41 is CUT (Sims, 2026-08-04). There is no Wave 4.** The adversarial-review narrative is
+carried by the existing Risk role + T-20 Monte Carlo bands, which already challenge the
+Optimizer with real computed numbers.
 
 ### Dependency graph (critical path in bold)
 
 ```
-  **T-33** ──┬── T-34 ──────────────────────────────────┐
+  **T-33** ──┬── T-44 (CI — gates every later REVIEW)
+             ├── T-34 ──────────────────────────────────┐
              ├── T-43 (MCP)                             │
-             ├── **T-38** ── **T-39** ──┬── T-40        │
-             │                          └── T-42        ├── demo
-             └── T-41  (last, riskiest)                 │
+             └── **T-38** ── **T-39** ──┬── T-40        ├── demo
+                                        └── T-42b       │
+  T-42a scaffold (mock; Wave 1) ───────────┘            │
   T-32, T-31, T-35, T-36, T-37  (independent) ──────────┘
 ```
 
@@ -451,58 +471,60 @@ narrative. Protect that chain first.
 
 | Wave | Simeon | Omair | Nathi |
 |---|---|---|---|
-| 0 | **T-33** | (review T-33) | prep verification badge UI |
-| 1 | T-35, T-37, T-32 | T-34, T-31 | T-36, badge UI |
-| 2 | T-43 (MCP) | **T-38 → T-39** | T-42 scaffolding (mock data) |
-| 3 | T-43 finish | T-40 | **T-42** live on real episodes |
-| 4 | hardening / rehearsal | T-41 *(only if green)* | polish, demo path |
+| 0 | **T-33 → T-44** | (review T-33) | verification badge UI |
+| 1 | T-35, T-37, T-32 | T-34, T-31 | T-36, **T-42a scaffold (mock)** |
+| 2 | T-43 (MCP) | **T-38 → T-39** | T-42a polish (transitions, empty states) |
+| 3 | T-43 finish, hardening | T-40 | **T-42b** live on real episodes |
 
-Nathi is the constraint in Waves 2–3 — the Time Machine is the largest single frontend
-build in the project. Starting its scaffolding against mock data during Wave 2, then
-swapping to real episodes, is what keeps it off the critical path.
+Nathi's constraint is resolved by the Wave-1 start: the Time Machine's hard parts (scrub
+interaction, re-render, transitions) are built against fixtures long before memory exists,
+so Wave 3 is a data swap.
 
 ### Honest estimate
 
-**Will land (high confidence):** T-33, T-34, T-35, T-36, T-37, T-31, T-32. These are small,
-mostly wiring, and mostly against code that already exists and is tested.
+**Will land (high confidence):** T-33, T-44, T-34, T-35, T-36, T-37, T-31, T-32. Small,
+mostly wiring, mostly against code that already exists and is tested.
 
-**Should land (medium):** T-38, T-39, T-43. Real builds, but well-bounded. The MCP server is
-less work than it sounds precisely because the registry already produces the tool list.
+**Should land (medium):** T-38, T-39, T-43, T-42a (scaffold). Real builds, but well-bounded
+— and the scaffold's early start removes the Time Machine's scheduling risk.
 
-**At risk (genuinely uncertain):** T-42 Time Machine, T-40 monitoring.
+**At risk (genuinely uncertain):** T-42b on real episodes (inherits any T-38 slip), T-40
+monitoring (scheduler fragility — see risk flags).
 
-**Likely to be cut:** T-41 adversarial swarm.
+**Cut by decision, not by time:** T-41.
+
+### Priority when time runs short (Sims, 2026-08-04)
+
+**T-33 > Wave 1 (incl. T-42a scaffold) > Time Machine + memory (T-38/T-39/T-42b) >
+monitoring + MCP (T-40/T-43).** Cut from the right end of that chain, never the left.
 
 ---
 
 ## RISK FLAGS — read before committing to this scope
 
-**1. This plan is roughly 2× what the remaining time supports. Someone must choose.**
-Eleven tickets, three people. The waves are ordered so that cutting from the bottom is safe:
-lose T-41, then T-40, then T-42, and the build still tells a complete story. Cutting upward
-from T-33 breaks the pitch. Decide the cut line deliberately now rather than at 03:00.
+**1. This plan is still more than the remaining time comfortably supports.**
+Twelve tickets (after cutting T-41, adding T-44), three people. The priority chain is now
+fixed by Sims: **T-33 > Wave 1 > Time Machine + memory > monitoring + MCP** — cut from the
+right end, never the left. The remaining discretionary call is only *where on the right*
+the line falls.
 
-**2. T-41 (adversarial swarm) is the most likely to destabilise the demo. My recommendation: cut it, or timebox it hard behind a feature flag.**
-Multi-agent handoffs multiply LLM latency and failure modes — an answer now needs two or
-three agents to behave, in sequence, live. We already have measured evidence that a *single*
-agent misbehaves 60% of the time on one prompt. The honest version of this feature is
-already 80% delivered by the existing Risk role plus Monte Carlo bands: the Optimizer
-recommends, the robustness band challenges it with real numbers. If it is built, it must be
-behind a toggle that falls back to the current single-specialist path, and the demo must not
-depend on it.
+**2. ~~T-41 adversarial swarm~~ — RESOLVED: CUT (Sims, 2026-08-04). Do not build.**
+Rationale on record: the measured 60% single-agent misbehaviour rate makes a live
+multi-agent chain too fragile for the demo path, and Monte Carlo bands already challenge
+the Optimizer with real numbers. The Risk-vs-Optimizer *story* stays in the pitch; the
+swarm machinery does not exist and must not be resurrected without a new decision.
 
-**3. T-42 (Time Machine) is the highest demo *value* and the highest frontend *cost*. Do not let it start late.**
-It is the most legible feature in the build — a judge understands scrubbing a map instantly.
-But it is a real piece of interaction engineering: timeline state, map re-render on scrub,
-flow enter/exit transitions. Scaffold it in Wave 2 against mock data. If it slips past
-Wave 3, cut it rather than shipping a janky scrubber — a stuttering timeline reads worse
-than not having one.
+**3. T-42 (Time Machine) — RESOLVED: scaffold starts in Wave 1 (Sims, 2026-08-04).**
+The hard interaction engineering (scrubber, re-render, flow grey/highlight transitions) is
+built against mock data from Wave 1; backward scrubbing depends on T-38 and is built
+empty-state-first so it degrades gracefully when episodes are absent. Residual risk is
+only T-42b (the real-episode swap) inheriting a T-38 slip. The quality bar stands: if the
+scrubber stutters, cut it — a janky timeline reads worse than none.
 
-**4. W2's "forward" half is weaker than it sounds.**
-"Forward into forecast futures" implies a demand forecast we do not have (T-25, still TODO).
-Until then, "forward" means scrubbing across *scenario projections*, not a learned forecast.
-Say that plainly in the pitch. Claiming forecast we don't have is exactly the failure mode
-we just spent an audit fixing.
+**4. Forward direction naming — RESOLVED: "scenario projections", never "forecast" (Sims, 2026-08-04).**
+Applies everywhere the feature surfaces: UI labels, API field names, agent explanations,
+briefs, and the pitch. We have no demand forecast (T-25 TODO). A `forecast_*` identifier in
+Time Machine code is a review-blocking defect, not a style nit.
 
 **5. T-40's scheduler is a demo-fragility risk.**
 A background job that self-runs during a live demo is a background job that can throw during
@@ -510,18 +532,20 @@ a live demo. Requirements: it must never raise into the request path, must be pa
 the UI, and there must be a pre-seeded alert so the card is populated even if the scheduler
 is switched off for the pitch.
 
-**6. T-37 touches a signed-off, hand-checked metric.**
-`cost_to_serve` and `utilization` both read `model.assignments`. Changing the utilisation
-definition can move the headline ~5% number. Do not let this be a silent fix: whatever
-changes, re-derive T-07's fixtures and record the before/after in the ticket log.
+**6. T-37 — RESOLVED into the ticket's Done-when (Sims, 2026-08-04).**
+Fixtures are *re-derived*, not just re-run, and the ticket log must state the before/after
+impact on the headline cost-to-serve / ~5% figure explicitly — including "no change" if
+that is the result. A quiet fix fails review.
 
 **7. Free wins are free *now* and expensive after T-28.**
 T-32 (assumption registry) and T-35 (H3) get materially harder once the real dataset lands
-and everything is in flux. Do them in Wave 1 or accept they won't happen.
+and everything is in flux. They are in Wave 1; if they slip out of it, accept they won't
+happen.
 
-**8. The 138-passing-tests number still does not cover the agent layer.**
-All nine skipped tests are the LLM ones. After T-33, add a CI path that runs the live agent
-tests with a key — otherwise the guardrail's own regression test is one nobody runs.
+**8. ~~Live-agent CI~~ — RESOLVED: promoted to T-44, immediately after T-33 (Sims, 2026-08-04).**
+The 9 live no-fabrication tests become **required for every subsequent ticket's REVIEW** —
+a green live-agent run with the key is part of the definition of done from T-44 onward. A
+fabrication failure is a real failure; it is never retried into green.
 
 ---
 

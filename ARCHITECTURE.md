@@ -39,8 +39,8 @@
    └──────────────┬───────────────────┘
                   ▼
    ┌──────────────────────────────────┐
-   │ 5. Agent layer (LangGraph/Claude) │  adversarial swarm (handoffs) · Agent
-   │    tools = registry.as_tools()    │  Builder · goal-driven loop · monitoring
+   │ 5. Agent layer (LangGraph/Claude) │  routed workforce + computed review ·
+   │    tools = registry.as_tools()    │  Agent Builder · goal loop · monitoring
    │    (agents call tools, never       │  agents · scanner/threshold/unlock/brief
    │     compute numbers)              │
    └──────────────┬───────────────────┘
@@ -117,7 +117,7 @@ Enforcement is **three layers, and the third is the one that actually holds**:
 
 **Architectural consequence:** module 5b is on the critical path between the agent layer and
 the API. There is deliberately no bypass — `run_agent_query` returns a verified result or a
-flagged one, never raw prose. Any new agent surface (monitoring alerts, swarm output, MCP
+flagged one, never raw prose. Any new agent surface (monitoring alerts, MCP
 responses) routes through the same gate.
 
 ## 6. Tech stack (confirmed)

@@ -65,22 +65,25 @@ enforcement, a seeded agent fabricated a figure in **3 of 5 consecutive live run
 multiplied two real tool numbers and presented the product as fact). See `STATUS.md`.
 **No code path may return agent prose to a user without passing the verifier.**
 
-**5.1 Multi-agent swarm with adversarial review (W5)** — specialist agents mirroring EMX roles:
+**5.1 Multi-agent workforce with computed adversarial review** — specialist agents mirroring EMX roles:
 - **Network Analyst** — reads current state, finds bottlenecks.
 - **Scenario Strategist** — proposes what-ifs.
 - **Optimizer** — drives the solver.
 - **Cost Analyst** — cost-to-serve decomposition, shadow prices.
 - **Risk / Devil's Advocate** — stress-tests recommendations (demand +30%).
 
-These are **stateless specialists connected by handoff tools**, not a router that picks one
-and stops. The defining behaviour is **adversarial review**: when the Optimizer produces a
-recommendation, the Risk agent is obliged to *challenge* it — and the challenge is computed
-(a real stress simulation / robustness band), not rhetorical. Both sides are resolved into a
-single answer before the planner sees it, and the disagreement itself is surfaced: *"Optimizer
-recommends closing H1/H3/H5/H7; Risk found it holds to +20% demand but breaks at +35%."*
+A router classifies the planner's question and dispatches the right specialist with a
+restricted toolset. The **adversarial-review guarantee is computed, not conversational**:
+every Optimizer recommendation ships with a Monte Carlo robustness band (T-20) that
+challenges it with real engine numbers — *"holds under ±20% demand, feasible in 100% of 50
+trials"* — and the Risk role has `optimise_network` + the threshold finder to answer
+"at what point does this break?" with a searched, re-solved tipping point.
 
-That is the thing a router-plus-specialist cannot do, and it is why the swarm is worth
-building rather than described.
+> **Decision (Sims, 2026-08-04): the full swarm — stateless specialists with live
+> inter-agent handoffs (formerly W5/T-41) — is CUT and must not be built.** Measured
+> single-agent misbehaviour (3 of 5 live runs, `STATUS.md`) makes a live multi-agent chain
+> too fragile for the demo path, and the bands already deliver the challenge with real
+> numbers. Do not resurrect without a new decision.
 
 **5.2 Agent Builder (no-code)** — a planner defines a new agent: name, plain-English goal, allowed tools (from the registry), autonomy (on-demand vs monitoring). It registers and works immediately. This is the signature "customisation" feature and the live-demo highlight.
 
@@ -117,7 +120,8 @@ All ride the same engine + loop machinery, so they're cheap together:
 - **Threshold / break-even finder** — "at what demand growth does Hub B need expanding? how many customers before SLA breaks?" Drives the loop to find the tipping point.
 - **Prescriptive bottleneck unlock** — turns the LP duals into "the cheapest way to unblock is +N units at Hub B, costing X, unlocking Y."
 - **Auto decision-brief** — generates the one-page leadership business case (current state, change, cost/risk, what it unblocks, sensitivity).
-- **Time Machine — temporal navigation (W3)** — a scrubber over the map. Drag **back** through recorded history and past decisions (from episodic memory), **forward** into forecast futures. The map re-renders live as you scrub. Paired with **active/inactive flow visuals**: routes that drop out go grey, routes taking over the volume highlight — so a planner *sees* the network reshape rather than reading a diff table. This is the single most demo-legible feature in the build.
+- **Time Machine — temporal navigation (W3)** — a scrubber over the map. Drag **back** through recorded history and past decisions (from episodic memory; degrades gracefully to an explicit "no recorded history yet" empty state when no episodes exist), **forward** through **scenario projections**. The map re-renders live as you scrub. Paired with **active/inactive flow visuals**: routes that drop out go grey, routes taking over the volume highlight — so a planner *sees* the network reshape rather than reading a diff table. This is the single most demo-legible feature in the build.
+  **Naming rule (Sims, 2026-08-04): the forward direction is "scenario projections", never "forecast" — in UI labels, API fields, agent explanations and briefs.** We have no demand forecast until T-25 exists; a `forecast_*` identifier in this feature is a review-blocking defect. If T-25 ever lands, renaming becomes a deliberate upgrade, not a retrofit.
 
 ## 7. Accuracy backbone
 
@@ -139,7 +143,7 @@ All ride the same engine + loop machinery, so they're cheap together:
 | **CORE (must work)** | Ingestion → unified view → cost calculator + min-cost flow baseline → one live what-if that recomputes → agents answering with real numbers → goal-driven loop (**reachable**) → MILP recommender w/ greedy fallback | This alone is a winning, honest build. |
 | **ACCURACY** | Real road distances + H3 (**wired into `/ingest`**), Monte Carlo confidence bands, reconstructed-baseline labelling, evidence-labelled inputs | Makes the ~5% believable to a logistics judge — and defensible under questioning. |
 | **SIGNATURE (pick the demo flexes)** | Agent Builder (2–3 real templates), opportunity scanner, threshold finder, prescriptive unlock, auto decision-brief, **Time Machine (W3)**, **learning twin (W2)** | The "we never thought of that" differentiators. |
-| **PLATFORM** | **MCP server (W6)**, closed-loop monitoring (W4), adversarial swarm (W5) | Proves this is a platform other systems can drive, not a demo app. |
+| **PLATFORM** | **MCP server (W6)**, closed-loop monitoring (W4) | Proves this is a platform other systems can drive, not a demo app. *(The W5 swarm was cut by decision — see §5.1.)* |
 | **STRETCH** | Forecast, SimPy waves, vector search over memory | Upside; cut without hesitation if time is tight. |
 
 **Anti-scope rule (learned the hard way):** a feature is not built until a user can *reach*
