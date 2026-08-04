@@ -1,0 +1,13 @@
+store_id,city,archetype,base_daily_shipments,service_min,travel_min,stops_per_hour_cap,existing_permanent,existing_outsourced
+DXB-01,Dubai,urban_dense,620,2.6,2.0,13.0,5,4
+DXB-02,Dubai,urban_dense,540,2.6,2.0,13.0,5,3
+DXB-03,Dubai,suburban,410,3.0,3.4,9.0,5,2
+DXB-04,Dubai,industrial_b2b,305,4.2,4.8,6.5,5,3
+AUH-01,Abu Dhabi,urban_dense,480,2.6,2.0,13.0,3,3
+AUH-02,Abu Dhabi,suburban,350,3.0,3.4,9.0,4,2
+AUH-03,Abu Dhabi,industrial_b2b,260,4.2,4.8,6.5,5,2
+SHJ-01,Sharjah,suburban,390,3.0,3.4,9.0,4,3
+SHJ-02,Sharjah,mixed,300,3.0,3.0,10.0,2,3
+AAN-01,Al Ain,mixed,190,3.0,3.0,10.0,2,2
+RAK-01,Ras Al Khaimah,mixed,175,3.0,3.0,10.0,2,1
+FUJ-01,Fujairah,suburban,150,3.0,3.4,9.0,2,1

@@ -1,0 +1,4 @@
+extra_delay_days,effective_permanent_lead_time_days,weeks_of_exposure_before_hire_lands,structural_gap_heads_exposed,courier_hours_at_risk_over_exposure
+0,52.5,7.5,49,20580.0
+15,67.5,9.6,49,26460.0
+30,82.5,11.8,49,32340.0
