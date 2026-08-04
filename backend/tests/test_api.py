@@ -18,7 +18,13 @@ from fastapi.testclient import TestClient
 from hubris.agents.builder import builder
 from hubris.api.main import app
 from hubris.api.state import state as app_state
-from tests.fixtures.messy_excel import FLEET_ROWS, HUBS_ROWS, ZONES_ROWS, build_workbook
+from tests.fixtures.messy_excel import (
+    FLEET_ROWS,
+    GRANULAR_ZONES_ROWS,
+    HUBS_ROWS,
+    ZONES_ROWS,
+    build_workbook,
+)
 
 
 @pytest.fixture(scope="module")
@@ -296,6 +302,30 @@ def test_agent_query_upstream_llm_failure_is_a_clean_503_not_a_crash(client, mon
 def test_agent_query_unknown_agent_is_still_404_not_503(client):
     response = client.post("/agent/query", json={"question": "q", "agent_name": "nope"})
     assert response.status_code == 404
+
+
+def test_ingest_h3_toggle_collapses_granular_points_through_the_endpoint(client):
+    # T-35: P1/P2 share an H3 res-5 cell, P3 is far away (fixture verified
+    # against the h3 library in test_h3_zoning.py) -> 3 rows in, 2 zones out.
+    workbook = build_workbook({"Hubs": HUBS_ROWS, "Zones": GRANULAR_ZONES_ROWS, "Fleet": FLEET_ROWS})
+    response = client.post(
+        "/ingest",
+        params={"aggregate_zones_to_h3": "true", "h3_resolution": 5},
+        files={"file": ("granular.xlsx", workbook.read(), "application/octet-stream")},
+    )
+    assert response.status_code == 200
+    assert response.json()["zones"] == 2
+
+    net = client.get("/network").json()
+    assert len(net["zones"]) == 2
+    assert all(z["id"].startswith("H3-") for z in net["zones"])
+
+    # default stays off: same workbook, no toggle -> 3 untouched zones
+    workbook = build_workbook({"Hubs": HUBS_ROWS, "Zones": GRANULAR_ZONES_ROWS, "Fleet": FLEET_ROWS})
+    response = client.post(
+        "/ingest", files={"file": ("granular.xlsx", workbook.read(), "application/octet-stream")}
+    )
+    assert response.json()["zones"] == 3
 
 
 def test_baseline_provenance_is_labelled_end_to_end(client):
