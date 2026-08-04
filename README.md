@@ -63,6 +63,27 @@ run. It contains **no retry logic on purpose**: a fabrication failure is a real 
 goes in the ticket log as a red run — never re-rolled into green. In CI, the same command
 works with `ANTHROPIC_API_KEY` supplied as a secret.
 
+## Hubris as an MCP server (operate the twin from any AI)
+
+Every registry tool is published over the Model Context Protocol — implement a plugin,
+register it, and it appears on the MCP surface with no wiring. Point any MCP client
+(Claude Desktop, MCP Inspector, your own script) at:
+
+```jsonc
+// e.g. Claude Desktop config
+{ "mcpServers": { "hubris": {
+    "command": "docker",
+    "args": ["run","--rm","-i","--network","hubris_default",
+             "-e","DATABASE_URL=postgresql+psycopg2://hubris:hubris@db:5432/hubris",
+             "-v","<repo>/backend:/app","-w","/app",
+             "hubris-backend-test","python","-m","hubris.mcp_server"] } } }
+```
+
+Every result is the engine's computed JSON (identical to the internal path); episodes and
+heuristic annotations apply to external callers too. The MCP process runs its own twin
+instance (baseline + the seeded `demo_surge`; pass `_scenario_id`). A captured external
+call lives in `examples/mcp-external-call.json`.
+
 ## The documents (read in this order)
 
 | File | For whom | What it gives you |

@@ -1,0 +1,36 @@
+{
+  "_what_this_is": "T-43 (Sims' Wave-3 ask): a working EXTERNAL MCP call operating the twin. A real mcp ClientSession spawned `python -m hubris.mcp_server` as a separate process over stdio, performed the protocol handshake (protocol 2025-06-18), listed all 13 registry tools (published automatically \u2014 the server source contains no tool names, statically test-asserted), and ran real computations: baseline KPIs (57.0949, labelled reconstructed baseline), a demand x1.3 what-if re-solved by the engine (-10.57% cost-to-serve, feasible), and the pre-seeded demo scenario via _scenario_id (H5 at 100.0%). JSON identity with the internal path is asserted in test_mcp_server.py.",
+  "transcript": {
+    "server": {
+      "name": "hubris",
+      "protocol": "2025-06-18"
+    },
+    "tools_listed": [
+      "get_kpis",
+      "simulate_scenario",
+      "compare_scenarios",
+      "find_bottleneck_unlock",
+      "find_spare_capacity",
+      "find_demand_growth_break",
+      "find_customer_count_break",
+      "optimise_network",
+      "generate_decision_brief",
+      "recall_memory",
+      "record_heuristic",
+      "run_goal_loop",
+      "scan_opportunities"
+    ],
+    "call_get_kpis": {
+      "cost_to_serve": 57.0949,
+      "baseline_provenance": "reconstructed_nearest_hub"
+    },
+    "call_simulate_demand_1_3x": {
+      "scenario_cost_to_serve": 51.0601,
+      "feasible": true,
+      "delta_pct": -10.5698
+    },
+    "call_get_kpis_demo_surge": {
+      "H5_utilization": 100.0
+    }
+  }
+}

@@ -17,3 +17,4 @@ langchain-anthropic==1.5.3
 httpx==0.28.1
 python-multipart==0.0.20
 h3==4.1.2
+mcp==1.12.4  # T-43; newest compatible with the pydantic==2.10.4 pin (1.29 needs pydantic>=2.11)

@@ -68,7 +68,7 @@ def _apply_heuristics_safe(tool_name: str, result):
         return result
 
 
-def _record_tool_episode(tool_name: str, kwargs: dict, result: dict) -> None:
+def _record_tool_episode(tool_name: str, kwargs: dict, result: dict, source_prefix: str = "agent") -> None:
     """Best-effort, graceful — import inside the function so the adapter
     has zero hard dependency on the memory layer."""
     try:
@@ -83,7 +83,7 @@ def _record_tool_episode(tool_name: str, kwargs: dict, result: dict) -> None:
                     "feasible": result.get("scenario_flow_feasible"),
                     "delta_pct": result.get("delta_pct", {}),
                 },
-                source="agent:simulate_scenario",
+                source=f"{source_prefix}:simulate_scenario",
             )
         else:
             memory.record_episode(
@@ -98,7 +98,7 @@ def _record_tool_episode(tool_name: str, kwargs: dict, result: dict) -> None:
                     "changes": result.get("changes", []),
                     "objective_value": result.get("objective_value"),
                 },
-                source="agent:optimise_network",
+                source=f"{source_prefix}:optimise_network",
             )
     except Exception:  # noqa: BLE001 — never let memory recording break a tool call
         return
