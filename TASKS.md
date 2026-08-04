@@ -65,12 +65,12 @@
 | T-29 | Baseline validation + sensitivity + sanity checks | 7 Event | A/D | TODO |
 | T-30 | Demo seed scenario + pitch + Q&A rehearsal | 7 Event | L | TODO |
 | **T-33** | **W1 · Runtime provenance verification** | **8 Integrity** | **A** | **DONE** |
-| T-34 | Wire the goal-driven loop (tool + route + UI) | 8 Integrity | B | WIP |
-| T-35 | Turn on H3 zoning in /ingest | 8 Integrity | A | WIP |
-| T-36 | Expose all 6 scenarios in ScenarioPanel | 8 Integrity | C | TODO |
-| T-37 | Fix the >100% utilisation artifact | 8 Integrity | A | WIP |
-| T-31 | Reconstructed-baseline labelling | 8 Integrity | B | WIP |
-| T-32 | Evidence-labelling of engine inputs | 8 Integrity | A | WIP |
+| T-34 | Wire the goal-driven loop (tool + route + UI) | 8 Integrity | B | REVIEW |
+| T-35 | Turn on H3 zoning in /ingest | 8 Integrity | A | REVIEW |
+| T-36 | Expose all 6 scenarios in ScenarioPanel | 8 Integrity | C (Nathi) | TODO |
+| T-37 | Fix the >100% utilisation artifact | 8 Integrity | A | REVIEW |
+| T-31 | Reconstructed-baseline labelling | 8 Integrity | B | REVIEW |
+| T-32 | Evidence-labelling of engine inputs | 8 Integrity | A | REVIEW |
 | T-38 | W2a · Memory core (schema, store, episodic) | 9 Learning | B | TODO |
 | T-39 | W2b · Semantic + procedural + agent heuristics | 9 Learning | B | TODO |
 | T-40 | W4 · Closed-loop autonomous monitoring | 9 Learning | B | TODO |
@@ -339,12 +339,14 @@ Contract: `AgentTool` wrapper over `run_goal_loop` + `POST /goal` + a UI control
 Done when: `run_goal_loop` is reachable from the agent chat, an API route, and a visible UI control; the returned **path explored** is rendered, not just the final answer; a test drives it through the API.
 Log:
 - WIP — Claude — 2026-08-04
+- REVIEW — Claude — 2026-08-04 — commit aa4cc20. `agents/tools/run_goal_loop.py` (registered, optimizer role) + `POST /goal` with TWO ways in per rule 4: `objective` (plain English, LLM-parsed) or `targets` (structured, **fully LLM-free** — the demo path cannot hang on an LLM outage, and non-live tests drive the loop deterministically); LLM/parse failures degrade to a clean 503. Response carries the full **path explored** (one entry per iteration: constraints tried, reduction achieved, changes) — render the path, not just the endpoint. **How a user reaches it:** agent chat (workforce optimizer can call `run_goal_loop`), `POST /goal` (in /docs); the visible UI control is Nathi's (rule 6) and is the one open clause of this Done-when. To test: `test_goal_loop_via_api_structured_targets_no_llm` — 8% target → success at the hand-checked 11.89% in 1 step; 99% target with a 0.2 cap → 3 iterations with the cap strictly relaxing; 400 with neither input; 404 unknown scenario. Verified live: `POST /goal {"targets":{"target_cost_reduction_pct":8.0}}` → success=true, achieved=11.89, path=1. Live gate: `./scripts/test-live.sh` → **LIVE GATE GREEN — 169 passed** (incl. all 9 live no-fabrication tests, none skipped), 2026-08-04, on commit c336faa.
 
 **T-35 · Turn on H3 zoning in `/ingest`**
 Contract: `ExcelDataConnector.load(aggregate_zones_to_h3=…)` surfaced as an ingest option. Depends on: T-19 (built).
 Done when: `/ingest` accepts an H3 toggle + resolution, the UI upload control exposes it, and an API test proves granular points collapse to hex zones through the real endpoint.
 Log:
 - WIP — Claude — 2026-08-04
+- REVIEW — Claude — 2026-08-04 — commit d5cea3b. `POST /ingest?aggregate_zones_to_h3=true&h3_resolution=N` — T-19's built-but-unreachable aggregation now has an endpoint path; default off, clean zone data untouched. To test: `test_ingest_h3_toggle_collapses_granular_points_through_the_endpoint` — 3 granular rows → 2 hex zones (ids `H3-*`) through the real endpoint, and the same workbook without the toggle stays 3 zones. **Reachability caveat for the Done-when's UI clause:** the audit follow-on stands — there is NO upload UI at all (`lib/api.ts` has `ingest()`, no component calls it), so the upload control + H3 toggle are Nathi's; API reachability is complete. Live gate: `./scripts/test-live.sh` → **LIVE GATE GREEN — 169 passed** (incl. all 9 live no-fabrication tests, none skipped), 2026-08-04, on commit c336faa.
 
 **T-36 · Expose all 6 scenarios in ScenarioPanel**
 Contract: the panel builds its controls from `GET /scenarios`' `params_schema`, not a hard-coded union type. Depends on: T-10, T-17.
@@ -356,16 +358,25 @@ Contract: distinguish assignment-based from flow-based utilisation (`ARCHITECTUR
 - WIP — Claude — 2026-08-04 (log entry moved below Done-when by convention; see REVIEW)
 Done when: no view can report a hub above 100% while the flow is feasible; the two quantities are separately named in the API; the seeded demo scenario shows the corrected figure; **T-07's hand-checked fixtures are re-derived (not just re-run) and the ticket log states the before/after impact on the headline cost-to-serve / ~5% number explicitly** — per Sims (2026-08-04), this must not be fixed quietly: if the headline moves, the log says by how much and why; if it doesn't, the log says that.
 Log:
+- REVIEW — Claude — 2026-08-04 — commit 4d3fb92. `UtilizationMetric` + `SpareCapacityMetric` now compute from the FLOW SOLVE's volumes (shared `flow_volume_by_hub` so the two can never diverge onto different definitions); flow respects capacity by construction → **no view can exceed 100% while feasible**. The old quantity survives under its honest name: `HubMapInfo.assignment_share_pct` (dominant-hub attribution, CAN exceed 100 on split zones, documented as attribution-not-utilisation). **Headline impact, stated explicitly: cost-to-serve 57.0949 → 57.0949 — UNCHANGED; the 11.89% optimiser claim — UNCHANGED** (cost_to_serve deliberately stays on the documented T-02 dominant-assignment approximation; only utilisation/spare moved to flow). Re-derived, not just re-run: tiny fixture identical (flow == dominant assignment there: 30.0 avg, H1 50/H2 10, spare 50/90); synthetic baseline avg identical 15.89 with per-hub shifts only H3 21.57→20.96 and H4 11.01→11.41 (the flow's genuinely cheaper split, consistent with T-08's 132,567-vs-132,577 log); `test_opportunities`' full-scan fixture re-derived under flow-truth (new nearby-idle H4; idle finding asserted as exactly [H1→H4]). Verified live on the demo scenario: **H5 `utilization_pct: 100.0` alongside `assignment_share_pct: 107.67`** — the artifact is now a labelled distinction, not a wrong number. Spare capacity is flow-based too (can no longer go negative). Live gate: `./scripts/test-live.sh` → **LIVE GATE GREEN — 169 passed** (incl. all 9 live no-fabrication tests, none skipped), 2026-08-04, on commit c336faa.
 
 **T-31 · Reconstructed-baseline labelling**
 Contract: baseline provenance surfaced through API → UI → brief. Depends on: T-08, T-24.
 Done when: whenever the baseline is our nearest-hub proxy rather than a real `current_assignments` table, every surface reporting an improvement says so and states it is **not** a description of EMX's current practice; the decision brief carries the label; a test asserts the flag flips when real assignments are ingested.
 Log:
+- WIP — Claude — 2026-08-04
+- REVIEW — Claude — 2026-08-04 — commit 8d3d761. `RawTables.assignments_provided` (set by the connector iff a current-assignments sheet actually existed) → `NetworkModel.baseline_provenance` ("provided" | "reconstructed_nearest_hub") → surfaced on `GET /network`, `/kpis`' network_summary (so **agents** cite it too — the get_kpis description instructs saying so when quoting baseline figures), and the decision brief, whose summary appends the re-validation caveat sentence when reconstructed. **How a user reaches it:** all three surfaces live now; UI display is Nathi's. To test: `test_baseline_provenance_is_labelled_end_to_end` (synthetic → reconstructed on all three surfaces, caveat present) and `test_baseline_provenance_flips_to_provided_when_assignments_are_ingested` (workbook WITH an assignments sheet → "provided", **caveat disappears** — no scary label where none is due). Live gate: `./scripts/test-live.sh` → **LIVE GATE GREEN — 169 passed** (incl. all 9 live no-fabrication tests, none skipped), 2026-08-04, on commit c336faa.
 
 **T-32 · Evidence-labelling of engine inputs**
 Contract: one assumption registry; every parameter tagged `verified` / `derived` / `assumed` with a source where one exists. Depends on: none (do before T-28).
 Done when: `ROAD_FACTOR`, `AVG_SPEED_KMH`, scanner thresholds, Monte Carlo defaults, demo-surge factor and all synthetic cost parameters live in one labelled registry; `GET /assumptions` exposes it; the UI can show "this number rests on N assumed inputs"; nothing numeric is defined outside it.
 Log:
+- WIP — Claude — 2026-08-04
+- REVIEW — Claude — 2026-08-04 — commit 50e8774. `core/assumptions.py`: 23 parameters, each `verified`/`derived`/`assumed` with a source sentence and consumer list; 13 modules refactored to IMPORT their constants from it (geo, routing, flow, milp, monte_carlo, opportunities ×7, threshold_finder ×4, h3_zoning, cost_model, demo_scenario, excel_connector, synthetic, 3 scenario modules) — `test_module_constants_are_registry_values_not_copies` breaks if anyone re-hardcodes one, so the registry is load-bearing, not a parallel catalogue. `GET /assumptions` live: **total 23 — 18 assumed / 4 derived / 1 verified** (the honest ratio IS the feature: it's the T-28 replace-list). `test_verified_entries_cite_a_document` keeps "verified" honest. Scope note: synthetic DATASET rows (hub capacities, demand draws) are data, not engine parameters — they stay in the generator; every cross-cutting engine input named by the Done-when is in. UI surface = Nathi. Live gate: `./scripts/test-live.sh` → **LIVE GATE GREEN — 169 passed** (incl. all 9 live no-fabrication tests, none skipped), 2026-08-04, on commit c336faa.
+
+**Wave-1 additions (Sims, 2026-08-04)**
+- **A · cost_advisor double-call root cause** — commit c336faa. The live-captured fabrication was `savings_per_parcel × total_demand` ("~29,088 AED annually") — no TOTAL saving existed in `optimise_network`'s JSON, so the agent computed one. Now returned computed: `total_cost_before/after/savings` (hand-checked on the tiny fixture: 2600/2600/0), with the description explicitly forbidding the multiplication and the per-period→annual relabel. **Measured on the same adversarial question: pass-1 clean 4/6 (was 0/4 before the fix), remaining 2/6 caught and regenerated cleanly, 0 flagged** — latency halved on two-thirds of these queries with the gate still covering the tail.
+- **B · live flagged terminal state, captured for Nathi** — `examples/flagged-verification-response.json`: a real `/agent/query` response with `verification = {status: "flagged", untraceable_figures: [123456.78], attempts: 2, checked_against: ["get_kpis"]}`, produced by a deliberately adversarial temp agent ordered to keep an invented figure under correction (deleted after capture). Confirms the designed contract: HTTP 200, the prose IS returned, the verdict names the exact figure — the UI must mark it, never render it as trustworthy. The `verification` API contract needed **no change** — frozen as Nathi is building it.
 
 ### Phase 9 — The learning twin & platform reach
 
