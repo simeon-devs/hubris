@@ -40,6 +40,10 @@ class NetworkModel(BaseModel):
     demand: dict[str, float]  # zone_id -> demand
     od_matrix: dict[tuple[str, str], OD]
     assignments: dict[str, str] | None = None  # zone_id -> hub_id (dominant hub)
+    # T-31: "provided" = real source assignments; "reconstructed_nearest_hub"
+    # = our proxy baseline. Surfaced in /kpis, /network and the brief so the
+    # ~5% claim is never silently measured against an unlabelled proxy.
+    baseline_provenance: str = "reconstructed_nearest_hub"
 
     @classmethod
     def from_raw_tables(cls, raw: RawTables) -> "NetworkModel":
@@ -75,6 +79,7 @@ class NetworkModel(BaseModel):
             demand=demand,
             od_matrix=od_matrix,
             assignments=assignments or None,
+            baseline_provenance="provided" if raw.assignments_provided else "reconstructed_nearest_hub",
         )
 
 

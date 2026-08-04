@@ -123,6 +123,7 @@ class ExcelDataConnector(DataConnector):
                     )
 
         ca_sheet_name = self._find_best_sheet("current_assignments", sheets, sheet_map)
+        assignments_provided = ca_sheet_name is not None
         if ca_sheet_name is not None:
             current_assignments = self._load_table(
                 "current_assignments", sheets, sheet_map, column_overrides, threshold, use_llm
@@ -138,6 +139,7 @@ class ExcelDataConnector(DataConnector):
             fleet_types=fleet_types,
             od_matrix=od_matrix,
             current_assignments=current_assignments,
+            assignments_provided=assignments_provided,  # T-31
         )
 
     def _find_best_sheet(

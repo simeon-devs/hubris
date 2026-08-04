@@ -90,6 +90,7 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
         flows=flows,
         fleet_types=fleet_types,
         distance_mode=state.distance_mode,
+        baseline_provenance=model.baseline_provenance,  # T-31
     )
 
 

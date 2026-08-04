@@ -61,3 +61,7 @@ class RawTables(BaseModel):
     fleet_types: list[dict] = []
     od_matrix: list[dict] = []
     current_assignments: list[dict] = []
+    # T-31: True only when the SOURCE supplied real current assignments;
+    # False means current_assignments is OUR nearest-hub reconstruction and
+    # every improvement claim is measured against a proxy, not EMX practice.
+    assignments_provided: bool = False

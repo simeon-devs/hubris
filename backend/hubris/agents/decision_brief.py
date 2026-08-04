@@ -33,6 +33,7 @@ def generate_decision_brief(
     bottleneck = FindBottleneckUnlockTool().run(model=model)
 
     current_state = {
+        "baseline_provenance": kpis["network_summary"]["baseline_provenance"],  # T-31
         "cost_to_serve": kpis["cost_to_serve"]["value"],
         "utilization_pct": kpis["utilization"]["value"],
         "coverage_pct": kpis["coverage"]["value"],
@@ -53,9 +54,14 @@ def generate_decision_brief(
     sensitivity = optimize_result["robustness"]
     what_it_unblocks = bottleneck if bottleneck["bottleneck_found"] else None
 
+    caveat = _baseline_caveat(current_state["baseline_provenance"])
+    summary = _write_summary(proposed_change, cost_risk, sensitivity, what_it_unblocks)
+    if caveat:
+        summary = f"{summary} {caveat}"
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "summary": _write_summary(proposed_change, cost_risk, sensitivity, what_it_unblocks),
+        "summary": summary,
         "current_state": current_state,
         "proposed_change": proposed_change,
         "cost_risk": cost_risk,
@@ -94,3 +100,16 @@ def _write_summary(proposed_change: dict, cost_risk: dict, sensitivity: dict, wh
     )
 
     return " ".join([change_sentence, savings_sentence, robustness_sentence, unblock_sentence])
+
+
+def _baseline_caveat(provenance: str) -> str | None:
+    """T-31: the sentence the brief must carry whenever the improvement is
+    measured against our own proxy. None when real assignments were
+    ingested — no scary caveat where none is due."""
+    if provenance != "provided":
+        return (
+            "Baseline note: the current assignment is a RECONSTRUCTED nearest-hub proxy, "
+            "not EMX's recorded practice — improvement figures are measured against that "
+            "reconstruction and must be re-validated once real assignment data is loaded."
+        )
+    return None

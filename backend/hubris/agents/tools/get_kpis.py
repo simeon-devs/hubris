@@ -17,7 +17,10 @@ class GetKpisTool(AgentTool):
         "computed — use those directly, never divide transport/fixed by total "
         "yourself), utilization (%, network + per-hub), coverage (% demand "
         "served within SLA), spare capacity (parcels, network + per-hub), and "
-        "network_summary (hub_count, zone_count, emirate_count, total_demand "
+        "network_summary (hub_count, zone_count, emirate_count, total_demand, "
+        "baseline_provenance — 'reconstructed_nearest_hub' means the current "
+        "assignment is OUR proxy, not EMX's recorded practice; say so when "
+        "citing baseline or improvement figures "
         "— use these directly, never count hub/zone/emirate entries in a "
         "breakdown yourself). "
         "Every value is computed by the deterministic engine, not estimated."
@@ -35,6 +38,10 @@ class GetKpisTool(AgentTool):
             for metric in global_registry.all(METRIC)
         }
         kpis["network_summary"] = {
+            # T-31: never let an agent (or the UI) cite a baseline figure
+            # without knowing whether it rests on real assignments or our
+            # nearest-hub reconstruction.
+            "baseline_provenance": model.baseline_provenance,
             "hub_count": len(model.hubs),
             "open_hub_count": sum(1 for hub in model.hubs if hub.status == "open"),
             "zone_count": len(model.zones),

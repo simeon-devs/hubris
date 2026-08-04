@@ -169,6 +169,9 @@ class NetworkMapResponse(BaseModel):
     flows: list[FlowMapInfo]
     fleet_types: list[FleetTypeInfo]
     distance_mode: str  # "osrm" (real drive distances) | "haversine_fallback"
+    # T-31: "provided" | "reconstructed_nearest_hub" — the baseline every
+    # improvement is measured against, labelled, never implied to be real.
+    baseline_provenance: str
 
 
 class RefreshDistancesResponse(BaseModel):

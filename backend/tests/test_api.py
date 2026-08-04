@@ -298,6 +298,46 @@ def test_agent_query_unknown_agent_is_still_404_not_503(client):
     assert response.status_code == 404
 
 
+def test_baseline_provenance_is_labelled_end_to_end(client):
+    # T-31: the synthetic baseline is a reconstruction and says so on every
+    # surface — /network, /kpis' network_summary, and the brief's summary.
+    assert client.get("/network").json()["baseline_provenance"] == "reconstructed_nearest_hub"
+    assert (
+        client.get("/kpis").json()["network_summary"]["baseline_provenance"]
+        == "reconstructed_nearest_hub"
+    )
+    brief = client.get("/brief").json()
+    assert brief["current_state"]["baseline_provenance"] == "reconstructed_nearest_hub"
+    assert "RECONSTRUCTED nearest-hub proxy" in brief["summary"]
+
+
+def test_baseline_provenance_flips_to_provided_when_assignments_are_ingested(client):
+    # A workbook WITH a current-assignments sheet -> provenance flips, and
+    # the brief's caveat disappears (no scary label where none is due).
+    assignments_rows = [
+        {"Zone ID": "Z1", "Hub ID": "H1", "Volume": 30.0},
+        {"Zone ID": "Z2", "Hub ID": "H1", "Volume": 20.0},
+        {"Zone ID": "Z3", "Hub ID": "H2", "Volume": 10.0},
+    ]
+    workbook = build_workbook(
+        {
+            "Hubs": HUBS_ROWS,
+            "Zones": ZONES_ROWS,
+            "Fleet": FLEET_ROWS,
+            "Current Assignments": assignments_rows,
+        }
+    )
+    response = client.post(
+        "/ingest", files={"file": ("real.xlsx", workbook.read(), "application/octet-stream")}
+    )
+    assert response.status_code == 200
+
+    assert client.get("/network").json()["baseline_provenance"] == "provided"
+    brief = client.get("/brief").json()
+    assert brief["current_state"]["baseline_provenance"] == "provided"
+    assert "RECONSTRUCTED" not in brief["summary"]
+
+
 def test_assumptions_endpoint_serves_the_labelled_registry(client):
     response = client.get("/assumptions")
     assert response.status_code == 200
