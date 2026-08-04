@@ -46,6 +46,10 @@ docker run --rm --network hubris_default \
 
 Tests that need a live `ANTHROPIC_API_KEY` or network access skip themselves automatically, so a clean checkout is always green.
 
+> **Demo ordering rule:** run the demo flow AFTER any test run, never before — the suite
+> shares the compose db and leaves plausible-looking episodes behind. Seed/refresh the demo
+> (including the learning story) as the LAST step before presenting.
+
 **The live gate (required for every ticket's REVIEW from T-44 onward):**
 
 ```bash
