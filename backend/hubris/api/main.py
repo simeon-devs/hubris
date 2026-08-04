@@ -13,6 +13,7 @@ from hubris.api.routers import (
     ingest,
     kpis,
     memory,
+    monitoring,
     network,
     opportunities,
     optimize,
@@ -20,7 +21,8 @@ from hubris.api.routers import (
     simulate,
     threshold,
 )
-from hubris.api.state import seed_demo_scenario
+from hubris.api.state import seed_demo_scenario, state
+from hubris.monitoring import scheduler as monitoring_scheduler
 from hubris.core.registry import load_plugins
 
 
@@ -29,7 +31,9 @@ async def lifespan(app: FastAPI):
     load_plugins()
     seed_default_templates()
     seed_demo_scenario()  # T-30; never raises — see its docstring
+    monitoring_scheduler.start(state)  # T-40; boot sweep + self-run loop
     yield
+    monitoring_scheduler.stop()
 
 
 app = FastAPI(title="Hubris API", lifespan=lifespan)
@@ -60,4 +64,5 @@ app.include_router(bottleneck.router)
 app.include_router(goal.router)
 app.include_router(assumptions.router)
 app.include_router(memory.router)
+app.include_router(monitoring.router)
 app.include_router(brief.router)

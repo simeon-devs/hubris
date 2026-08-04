@@ -461,6 +461,44 @@ def test_memory_facts_heuristics_endpoints_and_retire_switch(client):
     assert client.post("/memory/heuristics/nope/active", json={"active": False}).status_code == 404
 
 
+def test_monitoring_status_run_once_alerts_and_ack(client):
+    from hubris.memory.store import memory as _memory
+
+    status = client.get("/monitoring/status").json()
+    assert status["interval_seconds"] > 0 and "enabled" in status
+
+    if not _memory.available():
+        pytest.skip("requires the live compose db (DATABASE_URL)")
+
+    # manual trigger with a cranked stress -> critical alert, end to end
+    result = client.post("/monitoring/run-once", json={"stress_factor": 50.0}).json()
+    created = [a["id"] for a in result["alerts_created"]]
+    try:
+        assert len(created) == 1
+        feed = client.get("/memory/alerts").json()
+        assert feed["available"] is True
+        mine = [a for a in feed["alerts"] if a["id"] == created[0]]
+        assert mine and mine[0]["severity"] == "critical"
+
+        # acknowledge -> leaves the default feed, stays under include_acknowledged
+        assert client.post(f"/memory/alerts/{created[0]}/ack").status_code == 200
+        assert created[0] not in [a["id"] for a in client.get("/memory/alerts").json()["alerts"]]
+        assert created[0] in [
+            a["id"]
+            for a in client.get("/memory/alerts", params={"include_acknowledged": "true"}).json()["alerts"]
+        ]
+        assert client.post("/memory/alerts/nope/ack").status_code == 404
+    finally:
+        from tests.test_monitoring import _delete_alerts
+
+        _delete_alerts(created)
+
+    # pause switch round-trips
+    assert client.post("/monitoring/enabled", json={"enabled": False}).json()["enabled"] is False
+    assert client.get("/monitoring/status").json()["enabled"] is False
+    client.post("/monitoring/enabled", json={"enabled": True})
+
+
 def test_baseline_provenance_is_labelled_end_to_end(client):
     # T-31: the synthetic baseline is a reconstruction and says so on every
     # surface — /network, /kpis' network_summary, and the brief's summary.

@@ -190,6 +190,26 @@ _register(
     "something real to say while min-cost flow still fully serves demand.",
     ["hubris/data/demo_scenario.py"],
 )
+# ---- monitoring (T-40) -----------------------------------------------------
+_register(
+    "monitoring_interval_seconds", 300, "assumed",
+    "Watchdog sweep cadence. Long enough to be invisible in cost, short enough that a "
+    "planner sees the twin acting on its own during a session.",
+    ["hubris/monitoring/scheduler.py"],
+)
+_register(
+    "watchdog_stress_factor", 1.2, "assumed",
+    "The REAL stress simulation the watchdog runs against the baseline each sweep "
+    "(demand_scale x this) — a plausible near-term surge, not a black-swan.",
+    ["hubris/monitoring/watchdog.py"],
+)
+_register(
+    "watchdog_hot_utilization_pct", 90.0, "assumed",
+    "Alert threshold: a hub at/above this flow-based utilisation under the sweep's "
+    "conditions is a capacity risk worth pushing to the planner unprompted.",
+    ["hubris/monitoring/watchdog.py"],
+)
+
 _register(
     "demo_target_emirate", "Sharjah", "derived",
     "The emirate whose hub (H5) binds first under growth (T-22's break-even search) — the "

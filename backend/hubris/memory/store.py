@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from hubris.core.contracts import MemoryRecord, MemoryStore
 from hubris.core.db import DATABASE_URL
 from hubris.core.orm import (
+    MemoryAlertORM,
     MemoryEpisodeORM,
     MemoryFactORM,
     MemoryHeuristicORM,
@@ -268,6 +269,76 @@ class PostgresMemoryStore(MemoryStore):
                 if row is None:
                     return False
                 row.active = active
+                session.commit()
+                return True
+        except Exception:  # noqa: BLE001
+            return False
+
+
+    # ---- alerts (T-40) ------------------------------------------------------
+    def record_alert(
+        self,
+        agent_name: str,
+        severity: str,
+        finding: dict,
+        recommended_action: dict | None,
+        brief_link: str | None,
+        provenance: str,
+    ) -> str | None:
+        if not provenance:
+            raise ValueError("an alert without provenance is fabrication — refused")
+        try:
+            with Session(self._get_engine()) as session:
+                alert_id = _new_id()
+                session.add(
+                    MemoryAlertORM(
+                        id=alert_id,
+                        agent_name=agent_name,
+                        severity=severity,
+                        finding=finding,
+                        recommended_action=recommended_action,
+                        brief_id=brief_link,
+                        provenance=provenance,
+                    )
+                )
+                session.commit()
+                return alert_id
+        except ValueError:
+            raise
+        except Exception:  # noqa: BLE001
+            return None
+
+    def list_alerts(self, include_acknowledged: bool = False, limit: int = 50) -> list[dict]:
+        try:
+            with Session(self._get_engine()) as session:
+                stmt = select(MemoryAlertORM).order_by(MemoryAlertORM.created_at.desc())
+                if not include_acknowledged:
+                    stmt = stmt.where(MemoryAlertORM.acknowledged.is_(False))
+                rows = session.execute(stmt.limit(limit)).scalars().all()
+                return [
+                    {
+                        "id": row.id,
+                        "agent_name": row.agent_name,
+                        "severity": row.severity,
+                        "finding": row.finding,
+                        "recommended_action": row.recommended_action,
+                        "brief_link": row.brief_id,
+                        "acknowledged": row.acknowledged,
+                        "provenance": row.provenance,
+                        "created_at": row.created_at.isoformat() if row.created_at else None,
+                    }
+                    for row in rows
+                ]
+        except Exception:  # noqa: BLE001
+            return []
+
+    def acknowledge_alert(self, alert_id: str) -> bool:
+        try:
+            with Session(self._get_engine()) as session:
+                row = session.get(MemoryAlertORM, alert_id)
+                if row is None:
+                    return False
+                row.acknowledged = True
                 session.commit()
                 return True
         except Exception:  # noqa: BLE001
