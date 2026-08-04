@@ -127,7 +127,13 @@ class HubMapInfo(BaseModel):
     emirate: str
     capacity: float
     status: str
+    # T-37 — two deliberately distinct quantities, named apart:
+    # utilization_pct: flow-based (actual volumes; never >100 while feasible)
+    # assignment_share_pct: dominant-hub attribution (T-02 collapse; a split
+    #   zone's whole demand lands on one hub, so this CAN exceed 100 — it is
+    #   an attribution view, not physical utilisation)
     utilization_pct: float
+    assignment_share_pct: float
     spare_capacity: float
     cost_to_serve: float
 

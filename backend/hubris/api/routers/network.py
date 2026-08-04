@@ -19,7 +19,7 @@ from hubris.api.schemas import (
     ZoneMapInfo,
 )
 from hubris.api.state import state
-from hubris.engine.assignment import cost_to_serve_by_hub
+from hubris.engine.assignment import assigned_volume_by_hub, cost_to_serve_by_hub
 from hubris.engine.flow import solve_min_cost_flow
 from hubris.engine.routing import refresh_od_matrix
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
@@ -40,6 +40,9 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
     spare = SpareCapacityMetric().compute(model, None)
     cost_to_serve = cost_to_serve_by_hub(model)
     flow = solve_min_cost_flow(model)
+    # T-37: the OLD utilisation definition, kept under its honest name —
+    # dominant-hub assignment share (can exceed 100 on split zones).
+    assigned = assigned_volume_by_hub(model)
 
     hubs = [
         HubMapInfo(
@@ -51,6 +54,9 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
             capacity=hub.capacity,
             status=hub.status,
             utilization_pct=utilization.breakdown.get(hub.id, 0.0),
+            assignment_share_pct=round(
+                (assigned.get(hub.id, 0.0) / hub.capacity * 100) if hub.capacity else 0.0, 2
+            ),
             spare_capacity=spare.breakdown.get(hub.id, 0.0),
             cost_to_serve=cost_to_serve.get(hub.id, 0.0),
         )
@@ -79,7 +85,11 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
     ]
 
     return NetworkMapResponse(
-        hubs=hubs, zones=zones, flows=flows, fleet_types=fleet_types, distance_mode=state.distance_mode
+        hubs=hubs,
+        zones=zones,
+        flows=flows,
+        fleet_types=fleet_types,
+        distance_mode=state.distance_mode,
     )
 
 
