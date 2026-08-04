@@ -369,6 +369,53 @@ def test_ingest_h3_toggle_collapses_granular_points_through_the_endpoint(client)
     assert response.json()["zones"] == 3
 
 
+def test_simulate_and_optimize_record_episodes_and_memory_endpoint_serves_them(client):
+    # T-38: every /simulate and /optimize run becomes a recallable episode.
+    import uuid as _uuid
+    from hubris.memory.store import memory as _memory
+
+    if not _memory.available():
+        pytest.skip("requires the live compose db (DATABASE_URL)")
+
+    tag = _uuid.uuid4().hex[:8]
+    r = client.post(
+        "/simulate",
+        json={"scenario_name": "demand_scale", "params": {"factor": 1.1}, "save_as": f"mem_{tag}"},
+    )
+    assert r.status_code == 200
+    returned_cost = r.json()["scenario_kpis"]["cost_to_serve"]["value"]
+    assert client.post("/optimize", json={}).status_code == 200
+
+    body = client.get("/memory/episodes", params={"limit": 10}).json()
+    assert body["available"] is True
+    names = [e["content"]["scenario_name"] for e in body["episodes"]]
+    assert "demand_scale" in names and "optimise_network" in names
+    newest_sim = next(e for e in body["episodes"] if e["content"]["scenario_name"] == "demand_scale")
+    assert newest_sim["provenance"].startswith("api:/simulate:")
+    # the episode records EXACTLY what the API returned — same engine run
+    assert newest_sim["content"]["kpis"]["cost_to_serve"]["value"] == returned_cost
+    assert newest_sim["content"]["outcome"]["saved_as"] == f"mem_{tag}"
+
+
+def test_demo_path_survives_memory_being_down(client, monkeypatch):
+    # Sims' Wave-2 rule: memory must never be a new failure mode. Kill the
+    # store's engine; /simulate still 200, /memory/episodes says available
+    # false with an empty list — never an error.
+    from sqlalchemy import create_engine as _ce
+    from hubris.memory.store import memory as _memory
+
+    monkeypatch.setattr(
+        _memory, "_engine", _ce("postgresql+psycopg2://x:x@127.0.0.1:1/void", future=True)
+    )
+
+    r = client.post("/simulate", json={"scenario_name": "close_hub", "params": {"hub_id": "H1"}})
+    assert r.status_code == 200
+    assert r.json()["scenario_kpis"]["cost_to_serve"]["value"] > 0
+
+    body = client.get("/memory/episodes").json()
+    assert body == {"available": False, "episodes": [], "total_returned": 0}
+
+
 def test_baseline_provenance_is_labelled_end_to_end(client):
     # T-31: the synthetic baseline is a reconstruction and says so on every
     # surface — /network, /kpis' network_summary, and the brief's summary.

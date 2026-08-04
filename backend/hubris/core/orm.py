@@ -87,3 +87,58 @@ class ScenarioResultORM(Base):
     kpis: Mapped[dict] = mapped_column(JSONB)
     flows: Mapped[dict] = mapped_column(JSONB)
     duals: Mapped[dict] = mapped_column(JSONB)
+
+
+# ---- the learning twin (T-38; SCHEMA.md §1a) ----
+class MemoryEpisodeORM(Base):
+    __tablename__ = "memory_episodes"
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    scenario_id: Mapped[str | None] = mapped_column(nullable=True)
+    scenario_name: Mapped[str]
+    params: Mapped[dict] = mapped_column(JSONB)
+    kpis: Mapped[dict] = mapped_column(JSONB)
+    outcome: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    provenance: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MemoryFactORM(Base):
+    __tablename__ = "memory_facts"
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(unique=True)
+    content: Mapped[dict] = mapped_column(JSONB)
+    confidence: Mapped[float | None] = mapped_column(nullable=True)
+    provenance: Mapped[str]
+    observed_count: Mapped[int] = mapped_column(server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MemoryHeuristicORM(Base):
+    __tablename__ = "memory_heuristics"
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(unique=True)
+    rule: Mapped[dict] = mapped_column(JSONB)
+    rationale: Mapped[str | None] = mapped_column(nullable=True)
+    author: Mapped[str]
+    provenance: Mapped[str]
+    active: Mapped[bool] = mapped_column(server_default="true")
+    times_applied: Mapped[int] = mapped_column(server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MemoryAlertORM(Base):
+    __tablename__ = "memory_alerts"
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    agent_name: Mapped[str]
+    severity: Mapped[str]
+    finding: Mapped[dict] = mapped_column(JSONB)
+    recommended_action: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    brief_id: Mapped[str | None] = mapped_column(nullable=True)
+    acknowledged: Mapped[bool] = mapped_column(server_default="false")
+    provenance: Mapped[str]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

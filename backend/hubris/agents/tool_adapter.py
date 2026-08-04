@@ -12,6 +12,11 @@ from pydantic import create_model
 
 from hubris.core.contracts import AgentTool, NetworkModel
 
+# T-38: agent-invoked what-ifs/optimisations are part of the twin's history
+# too — recorded at this chokepoint so EVERY run becomes an episode,
+# whether a human clicked it or an agent chose it.
+_EPISODE_TOOLS = {"simulate_scenario", "optimise_network"}
+
 _JSON_TYPE_MAP: dict[str, type] = {
     "string": str,
     "number": float,
@@ -51,6 +56,42 @@ def _args_schema(tool: AgentTool) -> type:
     return create_model(f"{tool.name}_Args", **fields)  # type: ignore[call-overload]
 
 
+def _record_tool_episode(tool_name: str, kwargs: dict, result: dict) -> None:
+    """Best-effort, graceful — import inside the function so the adapter
+    has zero hard dependency on the memory layer."""
+    try:
+        from hubris.memory.store import memory
+
+        if tool_name == "simulate_scenario":
+            memory.record_episode(
+                scenario_name=kwargs.get("scenario_name", "simulate_scenario"),
+                params=kwargs.get("params", {}),
+                kpis=result.get("scenario_kpis", {}),
+                outcome={
+                    "feasible": result.get("scenario_flow_feasible"),
+                    "delta_pct": result.get("delta_pct", {}),
+                },
+                source="agent:simulate_scenario",
+            )
+        else:
+            memory.record_episode(
+                scenario_name="optimise_network",
+                params={k: v for k, v in kwargs.items() if k != "model"},
+                kpis={
+                    "cost_to_serve_before": result.get("cost_to_serve_before"),
+                    "cost_to_serve_after": result.get("cost_to_serve_after"),
+                    "total_cost_savings": result.get("total_cost_savings"),
+                },
+                outcome={
+                    "changes": result.get("changes", []),
+                    "objective_value": result.get("objective_value"),
+                },
+                source="agent:optimise_network",
+            )
+    except Exception:  # noqa: BLE001 — never let memory recording break a tool call
+        return
+
+
 def to_langchain_tool(tool: AgentTool, model: NetworkModel) -> StructuredTool:
     def _call(**kwargs: Any) -> dict:
         # Every optional field in the dynamically-built args schema defaults
@@ -61,7 +102,10 @@ def to_langchain_tool(tool: AgentTool, model: NetworkModel) -> StructuredTool:
         # real default apply either way.
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
         try:
-            return tool.run(model=model, **kwargs)
+            result = tool.run(model=model, **kwargs)
+            if tool.name in _EPISODE_TOOLS:
+                _record_tool_episode(tool.name, kwargs, result)
+            return result
         except Exception as exc:  # noqa: BLE001
             # Graceful-fallback rule (build rule 4 / CLAUDE.md §7 "the demo
             # never hangs"): a bad argument from the LLM (e.g.

@@ -71,7 +71,7 @@
 | T-37 | Fix the >100% utilisation artifact | 8 Integrity | A | DONE |
 | T-31 | Reconstructed-baseline labelling | 8 Integrity | B | DONE |
 | T-32 | Evidence-labelling of engine inputs | 8 Integrity | A | DONE |
-| T-38 | W2a · Memory core (schema, store, episodic) | 9 Learning | B | WIP |
+| T-38 | W2a · Memory core (schema, store, episodic) | 9 Learning | B | REVIEW |
 | T-39 | W2b · Semantic + procedural + agent heuristics | 9 Learning | B | TODO |
 | T-40 | W4 · Closed-loop autonomous monitoring | 9 Learning | B | TODO |
 | ~~T-41~~ | ~~W5 · Multi-agent swarm + adversarial review~~ | 9 Learning | — | **CUT — Sims — 2026-08-04** |
@@ -390,6 +390,7 @@ Contract: `MemoryStore` (`CLAUDE.md §4`) over the `memory_*` tables (`SCHEMA.md
 Done when: Alembic migration creates all four `memory_*` tables; **every** `/simulate` and `/optimize` run writes an episode with provenance; `GET /memory/episodes` returns them; the Postgres layer is no longer dead at runtime; a test proves an episode survives a process restart.
 Log:
 - WIP — Claude — 2026-08-04
+- REVIEW — Claude — 2026-08-04 — **Postgres is load-bearing.** `core/contracts.py` gains `MemoryRecord` + `MemoryStore` (provenance mandatory at the contract boundary — a record without it is a ValueError, deliberately NOT swallowed); `core/orm.py` + migration `a7c2e91b3f04` create all four `memory_*` tables (auto-applied at boot; the compose backend image is rebuilt since `migrations/` is baked at build time, found the hard way when `alembic upgrade head` inside the running container was a silent no-op). `memory/store.py::PostgresMemoryStore` — graceful by construction: every method catches DB failures and returns None/False/[]; infrastructure failure degrades, programming errors (bad kind, missing provenance, non-machine-applicable rule) still raise. **Every run becomes an episode**: `/simulate` + `/optimize` routers AND the agent tool path (`tool_adapter` chokepoint, so agent-chosen what-ifs enter history too), each stamped `source:runid` provenance. **How a user sees it (Sims' note 1):** `GET /memory/episodes` (live now: `available: true`, real episodes with the exact KPIs the API returned) — with the explicit caveat that T-38 alone is API-surface only; the "twin has learned something" user-visible proof (recall in chat, heuristics applied) is T-39's deliverable, per the ticket split. **Demo safety (note 2), test-proven:** with the store's engine pointed at an unreachable host, `/simulate` still 200 with correct KPIs and `/memory/episodes` returns `{available: false, episodes: []}` — never an error (`test_demo_path_survives_memory_being_down`). **Restart survival:** a second store over a brand-new engine reads what the first wrote (`test_episode_survives_a_process_restart`). To test: 9 new tests in `test_memory_store.py` + 2 API tests; full non-live suite 169 passed. Live gate: `./scripts/test-live.sh` → **LIVE GATE GREEN — 178 passed** (incl. all 9 live no-fabrication tests), 2026-08-04.
 
 **T-39 · W2b · Semantic + procedural memory, agent-writable heuristics**
 Contract: `record_fact` / `record_heuristic` / `recall` + a `record_heuristic` **agent tool**. Depends on: T-38.

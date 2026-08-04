@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from hubris.agents.tools.optimise_network import OptimiseNetworkTool
 from hubris.api.schemas import OptimizeRequest, OptimizeResponse
 from hubris.api.state import state
+from hubris.memory.store import memory
 from hubris.core.registry import OPTIMIZER
 from hubris.core.registry import registry as global_registry
 
@@ -30,5 +31,28 @@ def optimize(req: OptimizeRequest) -> OptimizeResponse:
         constraints=req.constraints,
         optimizer_name=req.optimizer_name,
         demand_variation_pct=req.demand_variation_pct,
+    )
+
+    # T-38: every optimiser run becomes an episode (graceful, best-effort).
+    memory.record_episode(
+        scenario_name="optimise_network",
+        params={
+            "objective": req.objective,
+            "constraints": req.constraints,
+            "optimizer_name": req.optimizer_name,
+            "demand_variation_pct": req.demand_variation_pct,
+        },
+        kpis={
+            "cost_to_serve_before": result["cost_to_serve_before"],
+            "cost_to_serve_after": result["cost_to_serve_after"],
+            "total_cost_savings": result["total_cost_savings"],
+        },
+        outcome={
+            "changes": result["changes"],
+            "objective_value": result["objective_value"],
+            "holds_under_variation": result["robustness"]["holds_under_variation"],
+        },
+        scenario_id=req.scenario_id,
+        source="api:/optimize",
     )
     return OptimizeResponse(**result)

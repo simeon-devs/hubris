@@ -12,6 +12,7 @@ from hubris.api.routers import (
     goal,
     ingest,
     kpis,
+    memory,
     network,
     opportunities,
     optimize,
@@ -58,4 +59,5 @@ app.include_router(threshold.router)
 app.include_router(bottleneck.router)
 app.include_router(goal.router)
 app.include_router(assumptions.router)
+app.include_router(memory.router)
 app.include_router(brief.router)

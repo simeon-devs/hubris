@@ -27,6 +27,8 @@ __all__ = [
     "AgentTool",
     "VerificationVerdict",
     "ProvenanceVerifier",
+    "MemoryRecord",
+    "MemoryStore",
 ]
 
 
@@ -161,6 +163,42 @@ class VerificationVerdict(BaseModel):
     untraceable_figures: list[float] = []
     attempts: int = 1
     checked_against: list[str] = []  # tool names whose results were the evidence
+
+
+# ---- the learning twin (T-38/T-39 / W2) ----
+class MemoryRecord(BaseModel):
+    """One remembered thing. `provenance` is mandatory everywhere — memory
+    is evidence, not a fabrication loophole (CLAUDE.md §4)."""
+
+    kind: str  # "episodic" | "semantic" | "procedural"
+    key: str
+    content: dict
+    provenance: str  # tool/run id that produced it
+    confidence: float | None = None
+    created_at: Any = None
+
+
+class MemoryStore(ABC):
+    """Postgres-backed. The twin's ability to learn across sessions.
+
+    EVERY implementation must degrade gracefully (build rule 4): with the
+    DB empty or unreachable, record_* return falsy and recall returns [] —
+    the demo path behaves exactly as it did before memory existed, never a
+    new failure mode."""
+
+    @abstractmethod
+    def record_episode(self, scenario_name: str, params: dict, kpis: dict, outcome: dict,
+                       scenario_id: str | None = None, source: str = "api") -> str | None: ...
+
+    @abstractmethod
+    def record_fact(self, key: str, content: dict, provenance: str) -> str | None: ...
+
+    @abstractmethod
+    def record_heuristic(self, name: str, rule: dict, rationale: str, author: str,
+                         provenance: str) -> str | None: ...
+
+    @abstractmethod
+    def recall(self, kind: str, query: dict | None = None, limit: int = 10) -> list[MemoryRecord]: ...
 
 
 class ProvenanceVerifier(ABC):

@@ -9,6 +9,7 @@ from hubris.agents.scenario_utils import apply_and_reassign
 from hubris.agents.tools.simulate_scenario import SimulateScenarioTool
 from hubris.api.schemas import SimulateRequest, SimulateResponse
 from hubris.api.state import state
+from hubris.memory.store import memory
 from hubris.core.registry import SCENARIO
 from hubris.core.registry import registry as global_registry
 
@@ -40,5 +41,20 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
             req.save_as, reassigned_model, label=f"{req.save_as} ({req.scenario_name})"
         )
         scenario_id = req.save_as
+
+    # T-38: every simulate run becomes an episode — best-effort, graceful
+    # (an unreachable DB must never fail the simulation itself).
+    memory.record_episode(
+        scenario_name=req.scenario_name,
+        params=req.params,
+        kpis=result["scenario_kpis"],
+        outcome={
+            "feasible": result["scenario_flow_feasible"],
+            "delta_pct": result["delta_pct"],
+            "saved_as": scenario_id,
+        },
+        scenario_id=req.base_scenario_id,
+        source="api:/simulate",
+    )
 
     return SimulateResponse(**result, scenario_id=scenario_id)
