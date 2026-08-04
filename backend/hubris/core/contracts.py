@@ -38,6 +38,14 @@ class NetworkModel(BaseModel):
     demand: dict[str, float]  # zone_id -> demand
     od_matrix: dict[tuple[str, str], OD]
     assignments: dict[str, str] | None = None  # zone_id -> hub_id (dominant hub)
+    # Exact hub_id -> zone_id -> volume from the flow solve that produced
+    # `assignments` (set by scenario_utils.apply_and_reassign). When present,
+    # capacity metrics aggregate these exact split volumes instead of
+    # attributing each zone's FULL demand to its dominant hub — the dominant-
+    # hub collapse can overcount a hub past 100% utilization when the flow
+    # split a zone across hubs. None for models whose assignments came
+    # straight from ingested data (their current-state truth is preserved).
+    flow_volumes: dict[str, dict[str, float]] | None = None
 
     @classmethod
     def from_raw_tables(cls, raw: RawTables) -> "NetworkModel":

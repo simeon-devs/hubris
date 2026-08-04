@@ -1,0 +1,1 @@
+{"detail":[{"type":"missing","loc":["body","scenario_name"],"msg":"Field required","input":{"scenario":"demand_scale","params":{"factor":6.0}}}]}

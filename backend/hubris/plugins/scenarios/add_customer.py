@@ -29,7 +29,7 @@ class AddCustomerScenario(ScenarioModule):
     }
 
     def apply(self, model: NetworkModel, params: dict) -> NetworkModel:
-        copy = model.model_copy(deep=True)
+        copy = model.model_copy(deep=True, update={"flow_volumes": None})  # structure changed - stale flow split must not survive
         zone = Zone(
             id=params["id"],
             name=params["name"],

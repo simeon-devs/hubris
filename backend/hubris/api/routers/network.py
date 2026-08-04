@@ -16,17 +16,49 @@ from hubris.api.schemas import (
     HubMapInfo,
     NetworkMapResponse,
     RefreshDistancesResponse,
+    RouteCostResponse,
     ZoneMapInfo,
 )
 from hubris.api.state import state
 from hubris.engine.assignment import cost_to_serve_by_hub
 from hubris.engine.flow import solve_min_cost_flow
+from hubris.engine.route_cost import compute_route_cost
 from hubris.engine.routing import refresh_od_matrix
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 from hubris.plugins.metrics.spare_capacity import SpareCapacityMetric
 from hubris.plugins.metrics.utilization import UtilizationMetric
+from hubris.plugins.metrics.workforce_requirement import WorkforceRequirementMetric
 
 router = APIRouter()
+
+
+def _workforce_fields(entry: dict | None) -> dict:
+    """Map one hub's WorkforceRequirementMetric entry onto HubMapInfo's field
+    names. Returns {} for an unknown hub so HubMapInfo's own defaults apply."""
+    if not entry:
+        return {}
+    return {
+        "required_headcount": entry["required_headcount"],
+        "sustainable_headcount": entry["sustainable_headcount"],
+        "headcount_gap": entry["gap"],
+        "gap_direction": entry["gap_direction"],
+        "required_permanent": entry["required_permanent"],
+        "required_outsourced": entry["required_outsourced"],
+    }
+
+
+@router.get("/route-cost", response_model=RouteCostResponse)
+def get_route_cost(
+    from_hub: str, to_zone: str, scenario_id: str | None = None
+) -> RouteCostResponse:
+    """Per-fleet transit cost for one hub→zone corridor — engine-computed
+    (engine/route_cost.py). The UI's corridor inspector calls this instead of
+    doing arithmetic in the browser (CLAUDE.md §2)."""
+    try:
+        model = state.get_model(scenario_id)
+        return RouteCostResponse(**compute_route_cost(model, from_hub, to_zone))
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/network", response_model=NetworkMapResponse)
@@ -40,6 +72,8 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
     spare = SpareCapacityMetric().compute(model, None)
     cost_to_serve = cost_to_serve_by_hub(model)
     flow = solve_min_cost_flow(model)
+    # Per-hub courier headcount + staffing gap — drives the 3D map pillars.
+    workforce = WorkforceRequirementMetric().compute(model, None).breakdown["per_hub"]
 
     hubs = [
         HubMapInfo(
@@ -53,6 +87,7 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
             utilization_pct=utilization.breakdown.get(hub.id, 0.0),
             spare_capacity=spare.breakdown.get(hub.id, 0.0),
             cost_to_serve=cost_to_serve.get(hub.id, 0.0),
+            **_workforce_fields(workforce.get(hub.id)),
         )
         for hub in model.hubs
     ]

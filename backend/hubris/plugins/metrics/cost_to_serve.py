@@ -21,14 +21,29 @@ class CostToServeMetric(Metric):
 
         transport_cost = 0.0
         per_emirate_transport: dict[str, float] = {}
-        for zone_id, hub_id in assignments.items():
-            zone = zone_by_id[zone_id]
-            od = model.od_matrix.get((hub_id, zone_id))
-            cost = zone.demand * od.cost if od else 0.0
-            transport_cost += cost
-            per_emirate_transport[zone.emirate] = (
-                per_emirate_transport.get(zone.emirate, 0.0) + cost
-            )
+        if model.flow_volumes is not None:
+            # Scenario-derived models carry the LP's exact split volumes —
+            # use them so transport cost matches the flow the map draws.
+            for hub_id, zone_volumes in model.flow_volumes.items():
+                for zone_id, volume in zone_volumes.items():
+                    zone = zone_by_id.get(zone_id)
+                    if zone is None:
+                        continue
+                    od = model.od_matrix.get((hub_id, zone_id))
+                    cost = volume * od.cost if od else 0.0
+                    transport_cost += cost
+                    per_emirate_transport[zone.emirate] = (
+                        per_emirate_transport.get(zone.emirate, 0.0) + cost
+                    )
+        else:
+            for zone_id, hub_id in assignments.items():
+                zone = zone_by_id[zone_id]
+                od = model.od_matrix.get((hub_id, zone_id))
+                cost = zone.demand * od.cost if od else 0.0
+                transport_cost += cost
+                per_emirate_transport[zone.emirate] = (
+                    per_emirate_transport.get(zone.emirate, 0.0) + cost
+                )
 
         fixed_cost = sum(hub.fixed_cost for hub in model.hubs if hub.status == "open")
         total_cost = transport_cost + fixed_cost

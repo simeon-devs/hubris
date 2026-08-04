@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from hubris.agents.builder import seed_default_templates
 from hubris.api.routers import (
     agents,
+    alerts,
     bottleneck,
     brief,
     ingest,
@@ -13,6 +14,7 @@ from hubris.api.routers import (
     network,
     opportunities,
     optimize,
+    reports,
     scenarios,
     simulate,
     threshold,
@@ -29,11 +31,14 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Hubris API", lifespan=lifespan)
+app = FastAPI(title="EMX ATLAS API — Predictive Network Twin (7X)", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    # 3001 too: the dev frontend falls back there whenever another local
+    # project holds 3000 — without this the browser silently blocks every
+    # response and the UI spins forever on "Loading network…".
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -55,3 +60,5 @@ app.include_router(opportunities.router)
 app.include_router(threshold.router)
 app.include_router(bottleneck.router)
 app.include_router(brief.router)
+app.include_router(alerts.router)
+app.include_router(reports.router)

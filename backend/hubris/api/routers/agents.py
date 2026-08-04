@@ -59,13 +59,16 @@ def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
             answer=result["answer"],
             tool_calls=_parse_tool_calls(result["tool_calls"]),
             agent_name=req.agent_name,
+            verification=result.get("verification"),
         )
 
     if req.mode == "single":
         tools = global_registry.all(AGENT_TOOL)
         result = run_agent_query(model, tools, req.question)
         return AgentQueryResponse(
-            answer=result["answer"], tool_calls=_parse_tool_calls(result["tool_calls"])
+            answer=result["answer"],
+            tool_calls=_parse_tool_calls(result["tool_calls"]),
+            verification=result.get("verification"),
         )
 
     result = run_workforce_query(model, req.question)
@@ -73,6 +76,7 @@ def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
         answer=result["answer"],
         tool_calls=_parse_tool_calls(result["tool_calls"]),
         role=result["role"],
+        verification=result.get("verification"),
     )
 
 

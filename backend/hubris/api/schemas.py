@@ -65,11 +65,23 @@ class ToolCallTrace(BaseModel):
     result: Any = None
 
 
+class VerificationInfo(BaseModel):
+    """Provenance guardrail verdict (agents/provenance.py, run live in
+    agents/runner.py): did every number in the answer trace back to an
+    actual tool result? `retried` records that the agent was made to
+    correct itself once before this verdict."""
+
+    grounded: bool
+    unexplained_numbers: list[float] = []
+    retried: bool = False
+
+
 class AgentQueryResponse(BaseModel):
     answer: str
     tool_calls: list[ToolCallTrace]
     role: str | None = None
     agent_name: str | None = None
+    verification: VerificationInfo | None = None
 
 
 class CreateAgentRequest(BaseModel):
@@ -115,6 +127,14 @@ class HubMapInfo(BaseModel):
     utilization_pct: float
     spare_capacity: float
     cost_to_serve: float
+    # Workforce (WorkforceRequirementMetric). Defaults keep older clients and
+    # any caller that builds a HubMapInfo by hand working unchanged.
+    required_headcount: int = 0
+    sustainable_headcount: int = 0
+    headcount_gap: int = 0
+    gap_direction: str = "balanced"  # understaffed | balanced | overstaffed
+    required_permanent: int = 0
+    required_outsourced: int = 0
 
 
 class ZoneMapInfo(BaseModel):
@@ -155,3 +175,24 @@ class RefreshDistancesResponse(BaseModel):
     od_pairs_updated: int
     cost_to_serve_before: float
     cost_to_serve_after: float
+
+
+class RouteCostMode(BaseModel):
+    fleet_id: str
+    fleet_name: str
+    vehicle_capacity: float
+    cost_per_km: float
+    variable_cost: float
+    vehicle_fixed_cost: float
+    trip_cost: float
+    cost_per_parcel: float
+
+
+class RouteCostResponse(BaseModel):
+    from_hub: str
+    to_zone: str
+    distance_km: float
+    time_min: float
+    od_cost_per_parcel: float
+    handling_cost_per_parcel: float
+    modes: list[RouteCostMode]  # sorted cheapest-per-parcel first

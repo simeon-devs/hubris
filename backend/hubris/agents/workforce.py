@@ -30,7 +30,9 @@ ROLE_TOOLS: dict[str, set[str]] = {
     "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
     # T-24: leadership briefs are the optimizer role's natural next step
     # after a recommendation.
-    "optimizer": {"optimise_network", "generate_decision_brief"},
+    # pursue_goal (T-13, goal-driven loop): "hit this target" questions are
+    # the optimizer's job — the loop drives optimise_network itself.
+    "optimizer": {"optimise_network", "generate_decision_brief", "pursue_goal"},
     "cost_analyst": {"get_kpis"},
     # T-20: robustness/stress-test questions need optimise_network's Monte
     # Carlo band (holds_under_variation, feasible_pct) — the only tool that
@@ -78,7 +80,7 @@ ROUTER_PROMPT = """Classify the planner's question into exactly one specialist r
 Roles:
 - network_analyst: current state, bottlenecks, spare capacity, utilization questions, "any inefficiencies/opportunities?"
 - scenario_strategist: what-if questions (move/close/add a hub, change fleet, change demand) and comparisons
-- optimizer: "should we change the network", hub open/close recommendations, cost minimization
+- optimizer: "should we change the network", hub open/close recommendations, cost minimization, "find a way to hit <target>" goal pursuit
 - cost_analyst: cost-to-serve breakdown, what's driving cost
 - risk_analyst: stress-testing, "what if demand grows", robustness, worst-case, "at what point does X break" questions
 
@@ -100,6 +102,7 @@ class WorkforceState(TypedDict):
     role: str
     answer: str
     tool_calls: list[dict]
+    verification: dict
 
 
 def _route_node(classifier: Classifier):
@@ -118,7 +121,12 @@ def _specialist_node(role: str, model: NetworkModel):
         tools = [t for t in global_registry.all(AGENT_TOOL) if t.name in tool_names]
         system_prompt = f"{NO_FABRICATION_SYSTEM_PROMPT}\n\nYour role: {ROLE_GOALS[role]}"
         result = run_agent_query(model, tools, state["question"], system_prompt=system_prompt)
-        return {**state, "answer": result["answer"], "tool_calls": result["tool_calls"]}
+        return {
+            **state,
+            "answer": result["answer"],
+            "tool_calls": result["tool_calls"],
+            "verification": result["verification"],
+        }
 
     return _node
 
@@ -141,9 +149,12 @@ def run_workforce_query(
     model: NetworkModel, question: str, classifier: Classifier | None = None
 ) -> dict:
     graph = build_workforce_graph(model, classifier)
-    result = graph.invoke({"question": question, "role": "", "answer": "", "tool_calls": []})
+    result = graph.invoke(
+        {"question": question, "role": "", "answer": "", "tool_calls": [], "verification": {}}
+    )
     return {
         "role": result["role"],
         "answer": result["answer"],
         "tool_calls": result["tool_calls"],
+        "verification": result.get("verification") or None,
     }

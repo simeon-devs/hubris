@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { getBrief } from "@/lib/api";
 import type { DecisionBrief as DecisionBriefData } from "@/lib/types";
 
@@ -48,9 +48,9 @@ function toMarkdown(brief: DecisionBriefData): string {
 }
 
 export default function DecisionBrief({ scenarioId }: { scenarioId: string | null }) {
-  const [brief, setBrief] = useState<DecisionBriefData | null>(null);
+  const [brief, setBrief]     = useState<DecisionBriefData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -61,129 +61,152 @@ export default function DecisionBrief({ scenarioId }: { scenarioId: string | nul
       .finally(() => setLoading(false));
   }, [scenarioId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   function exportBrief() {
     if (!brief) return;
     const blob = new Blob([toMarkdown(brief)], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "hubris-decision-brief.md";
-    a.click();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "hubris-decision-brief.md"; a.click();
     URL.revokeObjectURL(url);
   }
 
-  if (loading) return <div style={{ fontSize: 13, color: "#9ca3af" }}>Generating brief…</div>;
-  if (error) return <div style={{ fontSize: 12, color: "#dc2626" }}>{error}</div>;
+  if (loading) return <p className="text-xs text-slate-400 animate-pulse">Generating brief…</p>;
+  if (error) return (
+    <div className="text-xs px-3.5 py-2.5 rounded-xl text-rose-400 bg-rose-500/10 border border-rose-500/20">
+      {error}
+    </div>
+  );
   if (!brief) return null;
 
+  const robust = brief.sensitivity.holds_under_variation;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, fontSize: 13 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 11, color: "#9ca3af" }}>
-          Generated {new Date(brief.generated_at).toLocaleString()}
+    <div className="flex flex-col gap-5">
+
+      {/* Actions header */}
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-mono text-slate-500">
+          {new Date(brief.generated_at).toLocaleString()}
         </span>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={load} style={buttonStyle(false)}>
-            Refresh
-          </button>
-          <button onClick={exportBrief} style={buttonStyle(true)}>
-            Export .md
-          </button>
+        <div className="flex gap-2">
+          <GhostBtn onClick={load}>↻ Refresh</GhostBtn>
+          <CyanBtn onClick={exportBrief}>↓ Export .md</CyanBtn>
         </div>
       </div>
 
-      <Section title="Summary">
-        <p style={{ margin: 0, lineHeight: 1.5, color: "#374151" }}>{brief.summary}</p>
-      </Section>
+      {/* Summary */}
+      <BriefBlock title="Summary">
+        <p className="text-sm leading-relaxed text-slate-100">{brief.summary}</p>
+      </BriefBlock>
 
-      <Section title="Current state">
-        <Row label="Cost-to-serve" value={`${brief.current_state.cost_to_serve} AED/parcel`} />
-        <Row label="Utilization" value={`${brief.current_state.utilization_pct}%`} />
-        <Row label="Coverage" value={`${brief.current_state.coverage_pct}%`} />
-        <Row label="Spare capacity" value={`${brief.current_state.spare_capacity} parcels`} />
-      </Section>
+      {/* Current state */}
+      <BriefBlock title="Current state">
+        <DataRow label="Cost-to-serve" value={`${brief.current_state.cost_to_serve} AED/parcel`} mono />
+        <DataRow label="Utilization"   value={`${brief.current_state.utilization_pct}%`} mono />
+        <DataRow label="Coverage"      value={`${brief.current_state.coverage_pct}%`} mono />
+        <DataRow label="Spare capacity" value={`${brief.current_state.spare_capacity} parcels`} mono />
+      </BriefBlock>
 
-      <Section title="Proposed change">
+      {/* Proposed change */}
+      <BriefBlock title="Proposed change">
         {brief.proposed_change.changes.length === 0 ? (
-          <div style={{ color: "#6b7280" }}>Already optimal — no changes recommended.</div>
+          <p className="text-sm text-emerald-400">✓ Already optimal — no changes recommended.</p>
         ) : (
-          brief.proposed_change.changes.map((c, i) => (
-            <div key={i} style={{ color: "#374151" }}>
-              {c.action.replace("_", " ")} {c.hub_id}
-            </div>
-          ))
+          <div className="flex flex-col gap-1">
+            {brief.proposed_change.changes.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm text-slate-100">
+                <span className="text-amber-400">◆</span>
+                {c.action.replace("_", " ")} {c.hub_id}
+              </div>
+            ))}
+          </div>
         )}
-      </Section>
+      </BriefBlock>
 
-      <Section title="Cost / risk">
-        <Row
-          label="Cost-to-serve"
+      {/* Cost / risk */}
+      <BriefBlock title="Cost / risk">
+        <DataRow label="Before → After"
           value={`${brief.cost_risk.cost_to_serve_before} → ${brief.cost_risk.cost_to_serve_after} AED/parcel`}
-        />
-        <Row label="Savings" value={`${brief.cost_risk.cost_to_serve_savings_per_parcel} AED/parcel`} />
-      </Section>
+          mono />
+        <DataRow label="Savings" value={`${brief.cost_risk.cost_to_serve_savings_per_parcel} AED/parcel`}
+          mono accent="emerald" />
+      </BriefBlock>
 
-      <Section title="Sensitivity">
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            padding: "3px 8px",
-            borderRadius: 999,
-            background: brief.sensitivity.holds_under_variation ? "#dcfce7" : "#fee2e2",
-            color: brief.sensitivity.holds_under_variation ? "#166534" : "#991b1b",
-          }}
-        >
-          {brief.sensitivity.holds_under_variation ? "ROBUST" : "AT RISK"} UNDER ±
-          {brief.sensitivity.demand_variation_pct}% DEMAND
-        </span>
-        <div style={{ color: "#6b7280", marginTop: 4 }}>
-          {brief.sensitivity.cost_to_serve_p10} – {brief.sensitivity.cost_to_serve_p90} AED/parcel across{" "}
-          {brief.sensitivity.trials} trials, feasible in {brief.sensitivity.feasible_pct}%
+      {/* Sensitivity */}
+      <BriefBlock title={`Sensitivity · ±${brief.sensitivity.demand_variation_pct}% demand`}>
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full tracking-widest
+            ${robust
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : "bg-rose-500/10    text-rose-400    border border-rose-500/20"
+            }`}>
+            {robust ? "ROBUST" : "AT RISK"}
+          </span>
         </div>
-      </Section>
+        <p className="text-xs font-mono text-slate-400">
+          {brief.sensitivity.cost_to_serve_p10} – {brief.sensitivity.cost_to_serve_p90}
+          <span className="font-sans"> AED/parcel · </span>
+          {brief.sensitivity.feasible_pct}%<span className="font-sans"> feasible of </span>
+          {brief.sensitivity.trials}<span className="font-sans"> trials</span>
+        </p>
+      </BriefBlock>
 
-      <Section title="What it unblocks">
+      {/* What it unblocks */}
+      <BriefBlock title="What it unblocks">
         {brief.what_it_unblocks ? (
-          <p style={{ margin: 0, color: "#374151" }}>{brief.what_it_unblocks.why}</p>
+          <p className="text-sm leading-relaxed text-slate-100">{brief.what_it_unblocks.why}</p>
         ) : (
-          <div style={{ color: "#6b7280" }}>No binding bottleneck currently.</div>
+          <p className="text-sm text-slate-400">No binding bottleneck currently.</p>
         )}
-      </Section>
+      </BriefBlock>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function BriefBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <h3 style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: "0 0 6px" }}>{title}</h3>
+    <div className="flex flex-col gap-2.5">
+      <h4 className="text-[10px] font-semibold uppercase tracking-widest text-cyan-200 pb-2
+                     border-b border-white/[0.07]">
+        {title}
+      </h4>
       {children}
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function DataRow({ label, value, mono, accent }: {
+  label: string; value: string; mono?: boolean; accent?: "emerald";
+}) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", color: "#374151" }}>
-      <span style={{ color: "#6b7280" }}>{label}</span>
-      <span>{value}</span>
+    <div className="flex items-baseline justify-between gap-4">
+      <span className="text-xs text-amber-100/70 flex-shrink-0">{label}</span>
+      <span className={`${mono ? "font-mono" : ""} text-xs
+        ${accent === "emerald" ? "text-emerald-400" : "text-slate-100"}`}>
+        {value}
+      </span>
     </div>
   );
 }
 
-function buttonStyle(primary: boolean): CSSProperties {
-  return {
-    fontSize: 12,
-    padding: "4px 10px",
-    borderRadius: 6,
-    border: primary ? "1px solid #111827" : "1px solid #e5e7eb",
-    background: primary ? "#111827" : "white",
-    color: primary ? "white" : "#111827",
-    cursor: "pointer",
-  };
+function GhostBtn({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className="text-[10px] px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors duration-150
+                 bg-white/5 border border-white/10 text-slate-400 hover:text-slate-100 hover:border-white/20">
+      {children}
+    </button>
+  );
+}
+
+function CyanBtn({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className="text-[10px] px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors duration-150
+                 bg-cyan-500/12 border border-cyan-500/25 text-cyan-300 hover:text-white">
+      {children}
+    </button>
+  );
 }

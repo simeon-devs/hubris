@@ -19,6 +19,12 @@ def apply_and_reassign(
     scenario_model = scenario.apply(model, params)
     flow = solve_min_cost_flow(scenario_model)
     reassigned_model = scenario_model.model_copy(
-        update={"assignments": dominant_hub_per_zone(flow.flows)}
+        update={
+            "assignments": dominant_hub_per_zone(flow.flows),
+            # Keep the exact split volumes alongside the dominant-hub collapse
+            # so capacity metrics can report flow-true utilization (never the
+            # >100% overcount artifact of attributing full zones).
+            "flow_volumes": flow.flows,
+        }
     )
     return reassigned_model, flow

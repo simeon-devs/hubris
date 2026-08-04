@@ -25,7 +25,7 @@ class MoveHubScenario(ScenarioModule):
     }
 
     def apply(self, model: NetworkModel, params: dict) -> NetworkModel:
-        copy = model.model_copy(deep=True)
+        copy = model.model_copy(deep=True, update={"flow_volumes": None})  # structure changed - stale flow split must not survive
         hub = next(h for h in copy.hubs if h.id == params["hub_id"])
         hub.lat = params["new_lat"]
         hub.lon = params["new_lon"]

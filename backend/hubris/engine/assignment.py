@@ -7,6 +7,13 @@ from hubris.core.contracts import NetworkModel
 
 def assigned_volume_by_hub(model: NetworkModel) -> dict[str, float]:
     assigned = {hub.id: 0.0 for hub in model.hubs}
+    # Flow-true volumes, when the model carries them (scenario-derived models
+    # do): the exact split the LP found, so no hub is overcounted past its
+    # capacity by the dominant-hub collapse.
+    if model.flow_volumes is not None:
+        for hub_id, zone_volumes in model.flow_volumes.items():
+            assigned[hub_id] = assigned.get(hub_id, 0.0) + sum(zone_volumes.values())
+        return assigned
     if not model.assignments:
         return assigned
     for zone_id, hub_id in model.assignments.items():
@@ -23,11 +30,20 @@ def cost_to_serve_by_hub(model: NetworkModel) -> dict[str, float]:
     zone_by_id = {zone.id: zone for zone in model.zones}
 
     transport_by_hub: dict[str, float] = {}
-    for zone_id, hub_id in assignments.items():
-        zone = zone_by_id[zone_id]
-        od = model.od_matrix.get((hub_id, zone_id))
-        cost = zone.demand * od.cost if od else 0.0
-        transport_by_hub[hub_id] = transport_by_hub.get(hub_id, 0.0) + cost
+    if model.flow_volumes is not None:
+        # Attribute transport cost by the exact flow split, consistent with
+        # assigned_volume_by_hub above.
+        for hub_id, zone_volumes in model.flow_volumes.items():
+            for zone_id, volume in zone_volumes.items():
+                od = model.od_matrix.get((hub_id, zone_id))
+                cost = volume * od.cost if od else 0.0
+                transport_by_hub[hub_id] = transport_by_hub.get(hub_id, 0.0) + cost
+    else:
+        for zone_id, hub_id in assignments.items():
+            zone = zone_by_id[zone_id]
+            od = model.od_matrix.get((hub_id, zone_id))
+            cost = zone.demand * od.cost if od else 0.0
+            transport_by_hub[hub_id] = transport_by_hub.get(hub_id, 0.0) + cost
 
     assigned = assigned_volume_by_hub(model)
     result: dict[str, float] = {}

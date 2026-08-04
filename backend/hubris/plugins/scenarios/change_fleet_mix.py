@@ -18,7 +18,7 @@ class ChangeFleetMixScenario(ScenarioModule):
     }
 
     def apply(self, model: NetworkModel, params: dict) -> NetworkModel:
-        copy = model.model_copy(deep=True)
+        copy = model.model_copy(deep=True, update={"flow_volumes": None})  # structure changed - stale flow split must not survive
         fleet = next(f for f in copy.fleet_types if f.id == params["fleet_type_id"])
         fleet.count_available = params["count_available"]
         return copy

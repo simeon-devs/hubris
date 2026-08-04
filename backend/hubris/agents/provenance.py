@@ -33,6 +33,12 @@ def extract_numbers_from_value(value: object) -> set[float]:
         return numbers
     if isinstance(value, (int, float)):
         numbers.add(float(value))
+    elif isinstance(value, str):
+        # Tool results reach the transcript as JSON *strings* (LangChain
+        # ToolMessage.content). Extract their numbers textually so a raw
+        # string result still grounds the answer instead of silently
+        # contributing nothing to the known-numbers set.
+        numbers |= set(extract_numbers_from_text(value))
     elif isinstance(value, dict):
         for v in value.values():
             numbers |= extract_numbers_from_value(v)

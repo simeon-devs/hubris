@@ -7,6 +7,7 @@ import type {
   AgentQueryRequest,
   AgentQueryResponse,
   AgentSpec,
+  AlertInfo,
   BottleneckResponse,
   CustomerCountBreakResponse,
   DecisionBrief,
@@ -18,6 +19,7 @@ import type {
   OptimizeRequest,
   OptimizeResponse,
   RefreshDistancesResponse,
+  RouteCostResponse,
   SavedScenarioInfo,
   ScenarioModuleInfo,
   SimulateRequest,
@@ -51,6 +53,17 @@ export function getNetwork(scenarioId?: string | null): Promise<NetworkMapRespon
 
 export function refreshDistances(): Promise<RefreshDistancesResponse> {
   return request("/network/refresh-distances", { method: "POST" });
+}
+
+export function getRouteCost(
+  fromHub: string,
+  toZone: string,
+  scenarioId?: string | null
+): Promise<RouteCostResponse> {
+  const scenario = scenarioId ? `&scenario_id=${encodeURIComponent(scenarioId)}` : "";
+  return request(
+    `/route-cost?from_hub=${encodeURIComponent(fromHub)}&to_zone=${encodeURIComponent(toZone)}${scenario}`
+  );
 }
 
 export function getOpportunities(scenarioId?: string | null): Promise<OpportunitiesResponse> {
@@ -116,8 +129,36 @@ export function deleteAgent(name: string): Promise<void> {
   return request(`/agents/${encodeURIComponent(name)}`, { method: "DELETE" });
 }
 
-export function ingest(file: File): Promise<IngestResponse> {
+export function ingest(
+  file: File,
+  options?: { columnOverrides?: Record<string, Record<string, string>>; aggregateZonesToH3?: boolean }
+): Promise<IngestResponse> {
   const formData = new FormData();
   formData.append("file", file);
+  if (options?.columnOverrides) {
+    formData.append("column_overrides", JSON.stringify(options.columnOverrides));
+  }
+  if (options?.aggregateZonesToH3) {
+    formData.append("aggregate_zones_to_h3", "true");
+  }
   return request("/ingest", { method: "POST", body: formData });
+}
+
+export function deleteSavedScenario(scenarioId: string): Promise<void> {
+  return request(`/scenarios/saved/${encodeURIComponent(scenarioId)}`, { method: "DELETE" });
+}
+
+export function getAlerts(): Promise<AlertInfo[]> {
+  return request("/alerts");
+}
+
+export function acknowledgeAlert(alertId: number): Promise<void> {
+  return request(`/alerts/${alertId}/acknowledge`, { method: "PATCH" });
+}
+
+/** Absolute URL for a backend file-download endpoint (reports/exports).
+ *  Downloads navigate the browser straight to the API — the backend sets
+ *  Content-Disposition: attachment; nothing is computed client-side. */
+export function exportUrl(path: string): string {
+  return `${API_URL}${path}`;
 }

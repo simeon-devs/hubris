@@ -20,7 +20,7 @@ class DemandScaleScenario(ScenarioModule):
         factor = params["factor"]
         emirate = params.get("emirate")
 
-        copy = model.model_copy(deep=True)
+        copy = model.model_copy(deep=True, update={"flow_volumes": None})  # structure changed - stale flow split must not survive
         for zone in copy.zones:
             if emirate is not None and zone.emirate != emirate:
                 continue

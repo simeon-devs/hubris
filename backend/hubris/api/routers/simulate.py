@@ -5,6 +5,7 @@ reference via `scenario_id` — baseline and scenario coexist (T-10)."""
 
 from fastapi import APIRouter, HTTPException
 
+from hubris.agents.monitor import notify_state_changed
 from hubris.agents.scenario_utils import apply_and_reassign
 from hubris.agents.tools.simulate_scenario import SimulateScenarioTool
 from hubris.api.schemas import SimulateRequest, SimulateResponse
@@ -40,5 +41,9 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
             req.save_as, reassigned_model, label=f"{req.save_as} ({req.scenario_name})"
         )
         scenario_id = req.save_as
+        # Monitoring agents watch every saved network variant (fire-and-forget).
+        notify_state_changed(
+            reassigned_model, trigger=f"scenario saved: {req.save_as} ({req.scenario_name})"
+        )
 
     return SimulateResponse(**result, scenario_id=scenario_id)

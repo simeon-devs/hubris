@@ -111,6 +111,7 @@ def test_all_registered_tools_are_agent_usable():
         "find_customer_count_break",
         "find_bottleneck_unlock",
         "generate_decision_brief",
+        "pursue_goal",  # goal-driven loop (EMXATLAS drop) — was missing from this exact-set check
     }
 
     tools = global_registry.as_agent_tools()
