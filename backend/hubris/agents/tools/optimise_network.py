@@ -29,6 +29,10 @@ class OptimiseNetworkTool(AgentTool):
         "(AED/parcel — use these directly, never divide objective_value by a "
         "demand count yourself), cost_to_serve_savings_per_parcel (use "
         "directly, never subtract the two cost_to_serve values yourself), "
+        "total_cost_before/total_cost_after/total_cost_savings (TOTAL AED per "
+        "period — for 'how much in total' questions use total_cost_savings "
+        "directly, never multiply a per-parcel figure by demand, and never "
+        "relabel a per-period figure as annual), "
         "delta_vs_baseline (% cost-to-serve change), rationale (includes "
         "hubs_total_count, hubs_open_count, hubs_closed_count — use these "
         "directly, never add/subtract them yourself to get a hub count), and "
@@ -66,7 +70,8 @@ class OptimiseNetworkTool(AgentTool):
         result = recommendation.model_dump()
 
         total_demand = sum(model.demand.values())
-        cost_to_serve_before = CostToServeMetric().compute(model, None).value
+        before = CostToServeMetric().compute(model, None)
+        cost_to_serve_before = before.value
         cost_to_serve_after = (
             round(recommendation.objective_value / total_demand, 4) if total_demand else 0.0
         )
@@ -75,6 +80,14 @@ class OptimiseNetworkTool(AgentTool):
         result["cost_to_serve_savings_per_parcel"] = round(
             cost_to_serve_before - cost_to_serve_after, 4
         )
+        # Wave-1 addition A: the live-observed fabrication was the agent
+        # multiplying savings_per_parcel x total_demand itself ("~29,088 AED
+        # annually") because no TOTAL saving existed in this JSON. Return it
+        # computed, so the agent has nothing left to compute.
+        total_cost_before = before.breakdown["total_cost"]
+        result["total_cost_before"] = total_cost_before
+        result["total_cost_after"] = recommendation.objective_value
+        result["total_cost_savings"] = round(total_cost_before - recommendation.objective_value, 2)
 
         resulting_model = apply_recommendation_changes(model, recommendation.changes)
         robustness = compute_robustness_band(

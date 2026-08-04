@@ -61,6 +61,12 @@ def test_optimise_network_matches_t09_hand_checked_result():
     result = OptimiseNetworkTool().run(model=_model(), optimizer_name="milp_cflp")
     assert result["changes"] == []
     assert result["objective_value"] == 2600.0
+    # Wave-1 addition A: totals are returned computed, never left for the
+    # agent to derive. Tiny fixture: baseline total = 700 transport + 1900
+    # fixed = 2600; already optimal -> savings exactly 0.
+    assert result["total_cost_before"] == 2600.0
+    assert result["total_cost_after"] == 2600.0
+    assert result["total_cost_savings"] == 0.0
 
 
 def test_optimise_network_ships_a_robustness_band_by_default():
