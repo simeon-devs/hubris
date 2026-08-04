@@ -78,6 +78,78 @@ scenario_results (
 )
 ```
 
+## 1a. Memory tables — the learning twin (W2)
+
+The twin improves the longer EMX uses it. Three tiers, one store
+(`MemoryStore` in `CLAUDE.md §4`). **Every numeric field carries `provenance`** naming the
+tool run that produced it — memory is evidence, not a fabrication loophole.
+
+```sql
+-- EPISODIC — what happened. One row per scenario run + its outcome.
+-- Feeds the Time Machine's "past" (W3) and answers "have we tried this before?"
+memory_episodes (
+  id            TEXT PRIMARY KEY,
+  scenario_id   TEXT,                -- nullable: ad-hoc runs have no saved scenario
+  scenario_name TEXT,                -- e.g. "close_hub", "demand_scale"
+  params        JSONB NOT NULL,      -- what was applied
+  kpis          JSONB NOT NULL,      -- computed result (cost_to_serve, utilisation, ...)
+  outcome       JSONB,               -- feasible?, unmet demand, recommendation taken?
+  provenance    TEXT NOT NULL,       -- tool/run id that produced the kpis
+  created_at    TIMESTAMPTZ DEFAULT now()
+)
+CREATE INDEX ON memory_episodes (scenario_name, created_at DESC);
+
+-- SEMANTIC — facts learned about THIS network, accumulated from real runs.
+-- e.g. key="hub.H5.binds_first", content={"under":"sharjah_growth","factor":2.73}
+memory_facts (
+  id          TEXT PRIMARY KEY,
+  key         TEXT NOT NULL,         -- stable dotted key, upserted on re-observation
+  content     JSONB NOT NULL,
+  confidence  DOUBLE PRECISION,      -- grows with corroborating observations
+  provenance  TEXT NOT NULL,         -- tool/run id — never an LLM assertion
+  observed_count INTEGER DEFAULT 1,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  updated_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (key)
+)
+
+-- PROCEDURAL — decision patterns and agent-written heuristics applied in later sessions.
+-- The agent-writable block: an agent records a heuristic via a tool that stamps provenance.
+memory_heuristics (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  rule        JSONB NOT NULL,        -- {"when": {...}, "then": {...}} — machine-applicable
+  rationale   TEXT,                  -- plain-English why, for the planner
+  author      TEXT NOT NULL,         -- agent name, or "human"
+  provenance  TEXT NOT NULL,         -- the run that justified it
+  active      BOOLEAN DEFAULT true,  -- a planner can retire a heuristic without deleting it
+  times_applied INTEGER DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (name)
+)
+
+-- Alerts pushed by monitoring agents (W4). Kept with memory: an alert is an episode
+-- the twin generated on its own initiative.
+memory_alerts (
+  id           TEXT PRIMARY KEY,
+  agent_name   TEXT NOT NULL,
+  severity     TEXT NOT NULL,        -- info | warning | critical
+  finding      JSONB NOT NULL,       -- computed figures behind the alert
+  recommended_action JSONB,
+  brief_id     TEXT,                 -- link to the generated decision brief
+  acknowledged BOOLEAN DEFAULT false,
+  provenance   TEXT NOT NULL,
+  created_at   TIMESTAMPTZ DEFAULT now()
+)
+CREATE INDEX ON memory_alerts (acknowledged, created_at DESC);
+```
+
+**Design notes**
+- `memory_facts.key` is a stable dotted key so re-observing a fact **upserts and raises `confidence`** rather than duplicating. A fact observed once is not the same as one observed twenty times, and the UI should be able to say which.
+- `memory_heuristics.rule` is JSON, not prose, precisely so it can be *applied* automatically, not just displayed. Prose goes in `rationale`.
+- `active` + `times_applied` make the procedural tier auditable: a planner can see which agent-written rule is influencing recommendations, and switch it off.
+- These tables are the **first real consumer of the Postgres layer**, which the audit found was dead at runtime (migrations ran; nothing read or wrote). W2 is what makes `orm.py`/`db_loader.py` load-bearing.
+
 Optional if the data supports it:
 
 ```sql

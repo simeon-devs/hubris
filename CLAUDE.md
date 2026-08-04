@@ -13,10 +13,24 @@ Hubris — a **network digital twin** for EMX (7X's logistics arm), track: Predi
 
 **Agents orchestrate and explain. The deterministic engine computes. No agent ever invents a number.**
 
-Every figure an agent reports must come from a tool call that ran real code. When you build an agent or a tool:
+Every figure an agent reports must come from a tool call that ran real code. This is enforced at **three** layers, and all three are mandatory:
+
+1. **Structural** — the agent can only obtain numbers by calling a tool; tools return structured JSON from the engine. The LLM never sees raw tables.
+2. **Instructional** — the system prompt forbids arithmetic, estimation, and recomputation (`agents/runner.py`).
+3. **Verification (runtime)** — every answer is checked against the actual tool results it received, *before* it reaches the API response. Any number in the prose that is not traceable to a tool result is caught, and the answer is regenerated or flagged. See §4's `ProvenanceVerifier` contract.
+
+> **Layer 3 is not optional, and layers 1–2 are not sufficient without it.**
+> This was measured, not assumed: with layers 1–2 only, a seeded agent fabricated a
+> figure in **3 of 5 consecutive live runs** — it multiplied two real tool numbers
+> together and presented the product ("~29,088 AED annually") as fact. A prompt is a
+> request, not a guarantee. See `STATUS.md`.
+
+When you build an agent or a tool:
 - The tool returns structured JSON from the engine.
 - The agent is instructed to reference tool outputs and must not emit numeric claims that aren't present in a tool result.
+- **The answer passes through the verifier before anyone sees it.** Never add a code path that returns agent prose to a user without verification.
 - If you catch yourself letting the LLM estimate a cost, utilisation, distance, or saving — stop. Route it through the engine.
+- If a planner legitimately needs a derived figure (a total, a ratio, a delta), **add a tool that returns it directly**. Do not relax the rule to let the agent do the arithmetic.
 
 Breaking this rule loses the single most important scoring criterion (AI Implementation Quality). It is non-negotiable.
 
@@ -91,6 +105,55 @@ class AgentTool(ABC):
     def run(self, **kwargs) -> dict: ...    # returns COMPUTED JSON only
 ```
 
+### The verification contract (W1 — existential)
+
+```python
+class VerificationVerdict(BaseModel):
+    """Attached to EVERY agent answer before it leaves the backend."""
+    status: str                            # "verified" | "flagged" | "regenerated"
+    untraceable_figures: list[float]       # numbers in the prose with no tool source
+    attempts: int                          # how many regeneration passes were used
+    checked_against: list[str]             # tool names whose results were the evidence
+
+class ProvenanceVerifier(ABC):
+    """Wraps an agent run. The ONLY sanctioned path from LLM prose to a user."""
+    @abstractmethod
+    def verify(self, answer: str, tool_results: list[dict],
+               question: str | None = None) -> VerificationVerdict: ...
+```
+
+Policy: on `flagged`, **regenerate once** with the offending figures named back to the
+agent; if it still fails, return the answer with `status="flagged"` and the figures
+listed so the UI can mark them — never silently emit unverified prose.
+
+### The memory contract (W2 — the learning twin)
+
+```python
+class MemoryRecord(BaseModel):
+    kind: str                              # "episodic" | "semantic" | "procedural"
+    key: str
+    content: dict
+    provenance: str                        # tool/run id that produced it — memory is evidence too
+    confidence: float | None = None
+    created_at: datetime
+
+class MemoryStore(ABC):
+    """Postgres-backed. The twin's ability to learn across sessions."""
+    @abstractmethod
+    def record_episode(self, scenario_id: str, params: dict,
+                       kpis: dict, outcome: dict) -> str: ...
+    @abstractmethod
+    def record_fact(self, key: str, content: dict, provenance: str) -> str: ...
+    @abstractmethod
+    def record_heuristic(self, name: str, rule: dict, provenance: str) -> str: ...
+    @abstractmethod
+    def recall(self, kind: str, query: dict, limit: int = 10) -> list[MemoryRecord]: ...
+```
+
+**Memory obeys the same rule as everything else:** an agent may *write* a heuristic, but
+every numeric field it stores must carry `provenance` pointing at the tool run that
+produced it. Memory is not a loophole for fabrication.
+
 ## 5. The registry & agent auto-discovery
 
 ```python
@@ -128,6 +191,19 @@ Plugins self-register at startup (decorator or entry-point scan). The agent laye
 
 ### Add / customise an agent (Agent Builder)
 An agent is: a name, a plain-English goal/system prompt, an allowed subset of registry tools, and an autonomy mode (on-demand | monitoring). Persist it; it works immediately because its tools already compute. Never give an agent a way to answer with numbers that didn't come from a tool.
+
+`monitoring` autonomy means the agent is **actually scheduled and self-runs** (W4) — it
+scans, runs a real simulation, and emits an alert card. Do not accept an autonomy mode
+that is validated and then ignored.
+
+### Add a memory
+1. Decide the tier: **episodic** (what happened — a scenario run and its outcome), **semantic** (a fact learned about this network), or **procedural** (a decision pattern / heuristic to apply later).
+2. Write through `MemoryStore`, never straight to SQLAlchemy — the contract is what keeps provenance mandatory.
+3. Every numeric field needs a `provenance` string naming the tool run that produced it.
+4. If an *agent* writes it, it must go through the `record_heuristic` tool, which stamps provenance automatically.
+
+### Expose a tool over MCP
+Registry tools are exposed over MCP (W6) by the adapter, not one-by-one. Implement `AgentTool`, register it, and it appears on the MCP surface automatically — the same property that makes it available to every agent. Do not hand-write per-tool MCP definitions.
 
 ## 7. Conventions
 

@@ -64,8 +64,27 @@
 | T-28 | Real dataset ingestion + calibration (EVENT DAY) | 7 Event | A | TODO |
 | T-29 | Baseline validation + sensitivity + sanity checks | 7 Event | A/D | TODO |
 | T-30 | Demo seed scenario + pitch + Q&A rehearsal | 7 Event | L | TODO |
+| **T-33** | **W1 · Runtime provenance verification** | **8 Integrity** | **A** | **TODO — DO FIRST** |
+| T-34 | Wire the goal-driven loop (tool + route + UI) | 8 Integrity | B | TODO |
+| T-35 | Turn on H3 zoning in /ingest | 8 Integrity | A | TODO |
+| T-36 | Expose all 6 scenarios in ScenarioPanel | 8 Integrity | C | TODO |
+| T-37 | Fix the >100% utilisation artifact | 8 Integrity | A | TODO |
+| T-31 | Reconstructed-baseline labelling | 8 Integrity | B | TODO |
+| T-32 | Evidence-labelling of engine inputs | 8 Integrity | A | TODO |
+| T-38 | W2a · Memory core (schema, store, episodic) | 9 Learning | B | TODO |
+| T-39 | W2b · Semantic + procedural + agent heuristics | 9 Learning | B | TODO |
+| T-40 | W4 · Closed-loop autonomous monitoring | 9 Learning | B | TODO |
+| T-41 | W5 · Multi-agent swarm + adversarial review | 9 Learning | B | TODO (at risk) |
+| T-42 | W3 · Time Machine (temporal navigation) | 9 Learning | C | TODO (at risk) |
+| T-43 | W6 · Hubris as an MCP server | 9 Learning | A | TODO |
 
 **Build order:** finish Phase 0 → 1 before anything else (it's the critical path). Phases 2 and 3 can run in parallel once 0–1 exist. Phase 4 as soon as the engine is stable. Phase 5 is the differentiator — do it before stretch. Phase 6 only if core is solid. Phase 7 is the event day itself.
+
+> **Superseding rule (post-audit):** **T-33 outranks everything above.** The `STATUS.md`
+> audit measured agents fabricating numbers in 3 of 5 live runs with no runtime check to
+> catch it. Until the provenance gate is live, every other ticket is building on a claim we
+> cannot currently defend. See the **BUILD PLAN** at the end of this file for wave ordering,
+> parallelism and risk flags.
 
 ---
 
@@ -299,6 +318,210 @@ Log:
 **T-30 · Demo seed scenario + pitch + Q&A rehearsal** — Depends on: all core. Done when: one always-renders scenario seeded; pitch built; `VISION.md §8b` answers rehearsed out loud.
 Log:
 - PARTIAL (seeded scenario only) — Claude — 2026-08-01 — the **"one always-renders scenario seeded"** clause is done; **pitch + Q&A rehearsal remain with Sims (owner L)** and are deliberately untouched. `backend/hubris/data/demo_scenario.py` + `seed_demo_scenario()` in `api/state.py`, called from the FastAPI lifespan: seeds a `demo_surge` scenario at startup so the demo path is a dropdown change, never a live rebuild (BUILD_SPEC §13 "never debug live"). Deliberately a STRESS scenario (Sharjah demand ×5), not the pristine baseline — chosen empirically as the smallest surge where every signature feature has something real to say: on the untouched baseline `find_bottleneck_unlock` honestly reports "nothing binding" and the scanner's far-hub-service finder is empty, which is truthful but shows T-21/T-23 at their least interesting. Under the seed: all 3 inefficiency types fire (9 findings), the bottleneck unlock returns a real verified recommendation (H5, +307 units → 393.41 AED/period saved), and the decision brief gains a populated "What it unblocks" section. Always-renders guarantees, both test-asserted: the seeded flow is **feasible** (no unmet demand → no blank/red view), and `seed_demo_scenario` **returns None instead of raising** on any failure so a broken seed can never stop the app booting. Also resilient to the event-day dataset: the target emirate is only used if it actually exists in the loaded data, else the surge goes network-wide. Supporting work: `AppState.scenario_labels` + `GET /scenarios/saved`, and a header scenario picker in the frontend that switches map, KPIs, Insights and Brief together (`scenario_id` threaded through every panel and the opportunity/bottleneck/threshold/brief API helpers). To test: `docker run --rm --network hubris_default -e DATABASE_URL=... -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest tests/ -q` → **138 passed, 9 skipped** (now includes `test_db.py` against the live compose db); `cd frontend && npm run build` clean. Verified live via Playwright: picker reads `["Baseline","Demo: Sharjah peak surge (5x)"]`, selecting the demo switches every panel, and the brief renders end to end.
+
+### Phase 8 — Integrity & reach (audit remediation + free wins)
+
+> Opened after the `STATUS.md` audit. Phase 8 fixes what the audit proved false and lights
+> up what was already built but unreachable. **T-33 is the highest-priority ticket in the
+> entire project** — ahead of every Phase 5–7 item.
+
+**T-33 · W1 · Runtime provenance verification ("the AI that cannot lie")** — **EXISTENTIAL, DO FIRST**
+Contract: `ProvenanceVerifier.verify(answer, tool_results, question) -> VerificationVerdict` (`CLAUDE.md §4`); gate sits between the agent layer and the API (`ARCHITECTURE.md` module 5b). Depends on: nothing (the checker already exists in `agents/provenance.py`, unused).
+Done when: `run_agent_query` calls the verifier on **every** path (workforce, custom agent, goal loop, monitoring, MCP); a flagged answer triggers **one** regeneration pass with the offending figures named back to the agent; the verdict is on `AgentQueryResponse` and rendered as a badge in `AgentChat.tsx`, naming the untraceable figure when flagged; there is **no code path** returning agent prose without a verdict; `runner.py`'s docstring no longer claims something the code doesn't do; and a test asserts a deliberately-fabricating agent is caught rather than passed through.
+Log:
+
+**T-34 · Wire the goal-driven loop (tool + route + UI)**
+Contract: `AgentTool` wrapper over `run_goal_loop` + `POST /goal` + a UI control. Depends on: T-13 (built), T-33 (its output must be verified).
+Done when: `run_goal_loop` is reachable from the agent chat, an API route, and a visible UI control; the returned **path explored** is rendered, not just the final answer; a test drives it through the API.
+Log:
+
+**T-35 · Turn on H3 zoning in `/ingest`**
+Contract: `ExcelDataConnector.load(aggregate_zones_to_h3=…)` surfaced as an ingest option. Depends on: T-19 (built).
+Done when: `/ingest` accepts an H3 toggle + resolution, the UI upload control exposes it, and an API test proves granular points collapse to hex zones through the real endpoint.
+Log:
+
+**T-36 · Expose all 6 scenarios in ScenarioPanel**
+Contract: the panel builds its controls from `GET /scenarios`' `params_schema`, not a hard-coded union type. Depends on: T-10, T-17.
+Done when: `move_hub`, `add_hub` and `add_customer` are usable from the UI alongside the existing three; adding a 7th scenario module requires **no frontend change**.
+Log:
+
+**T-37 · Fix the >100% utilisation artifact**
+Contract: distinguish assignment-based from flow-based utilisation (`ARCHITECTURE.md §3`, the "five concepts" discipline). Depends on: T-07, T-08.
+Done when: no view can report a hub above 100% while the flow is feasible; the two quantities are separately named in the API; the seeded demo scenario shows the corrected figure; T-07's hand-checked fixtures still pass or are re-derived with the change explained in the log.
+Log:
+
+**T-31 · Reconstructed-baseline labelling**
+Contract: baseline provenance surfaced through API → UI → brief. Depends on: T-08, T-24.
+Done when: whenever the baseline is our nearest-hub proxy rather than a real `current_assignments` table, every surface reporting an improvement says so and states it is **not** a description of EMX's current practice; the decision brief carries the label; a test asserts the flag flips when real assignments are ingested.
+Log:
+
+**T-32 · Evidence-labelling of engine inputs**
+Contract: one assumption registry; every parameter tagged `verified` / `derived` / `assumed` with a source where one exists. Depends on: none (do before T-28).
+Done when: `ROAD_FACTOR`, `AVG_SPEED_KMH`, scanner thresholds, Monte Carlo defaults, demo-surge factor and all synthetic cost parameters live in one labelled registry; `GET /assumptions` exposes it; the UI can show "this number rests on N assumed inputs"; nothing numeric is defined outside it.
+Log:
+
+### Phase 9 — The learning twin & platform reach
+
+**T-38 · W2a · Memory core — schema, `MemoryStore`, episodic tier**
+Contract: `MemoryStore` (`CLAUDE.md §4`) over the `memory_*` tables (`SCHEMA.md §1a`). Depends on: T-05 (schema exists), T-33.
+Done when: Alembic migration creates all four `memory_*` tables; **every** `/simulate` and `/optimize` run writes an episode with provenance; `GET /memory/episodes` returns them; the Postgres layer is no longer dead at runtime; a test proves an episode survives a process restart.
+Log:
+
+**T-39 · W2b · Semantic + procedural memory, agent-writable heuristics**
+Contract: `record_fact` / `record_heuristic` / `recall` + a `record_heuristic` **agent tool**. Depends on: T-38.
+Done when: facts upsert on re-observation and raise `confidence`; an agent can record a heuristic that is stored with author + provenance and **applied** in a later session (demonstrated end-to-end, not just stored); a planner can retire a heuristic via `active=false`; provenance is mandatory at the contract boundary — a fact without it is rejected.
+Log:
+
+**T-40 · W4 · Closed-loop autonomous monitoring**
+Contract: scheduler runs `monitoring`-autonomy agents; alerts land in `memory_alerts`. Depends on: T-38, T-14, T-33.
+Done when: `capacity_watchdog` self-runs on a schedule with no user action, **runs a real simulation** (not a cached-KPI threshold check), writes an alert with computed finding + recommended action + brief link, and the UI shows an alert card that can be acknowledged; a test proves the scheduled path produces an alert from a synthetic breach.
+Log:
+
+**T-41 · W5 · Multi-agent swarm with adversarial review**
+Contract: stateless specialists + handoff tools; Risk agent challenges Optimizer, both computed, resolved pre-user. Depends on: T-33, T-12.
+Done when: an optimiser recommendation triggers a Risk challenge that runs a **real** stress simulation; both positions carry engine numbers; the resolved answer surfaces the disagreement and its resolution; the transcript shows genuine handoffs, not one router hop; and the whole exchange passes the T-33 verifier.
+Log:
+
+**T-42 · W3 · Time Machine (temporal navigation)**
+Contract: `GET /timeline` over episodic memory + forward projections; scrubber drives the map. Depends on: T-38 (past), T-16 (map).
+Done when: a scrubber under the map moves through recorded past decisions and forward projections; the map re-renders live as it moves; **dropped flows grey out and new flows highlight**; every state shown came from a stored episode or a real projection — never an interpolation invented in the browser.
+Log:
+
+**T-43 · W6 · Hubris as an MCP server**
+Contract: MCP surface generated from `registry.as_agent_tools()`. Depends on: T-03, T-33.
+Done when: an external MCP client can list and call the twin's tools and get identical JSON to the internal path; registering a new plugin publishes it to MCP with **no** per-tool wiring; agent-facing responses route through the T-33 gate; documented well enough that a judge can point their own client at it.
+Log:
+
+---
+
+## BUILD PLAN
+
+> Ordering, parallelism, and an honest read on what lands. Owners: **Simeon** (engine/core
+> + integrity), **Omair** (agents/memory), **Nathi** (frontend). Reassign freely — the
+> dependencies matter more than the names.
+
+### Execution order
+
+**Wave 0 — stop the bleeding (blocks everything).**
+`T-33` alone. Nobody starts anything else until the provenance gate is live, because every
+feature after it produces agent prose that must pass through it, and retrofitting a gate is
+strictly harder than building on top of one. Realistically half a day; it is mostly wiring
+code that already exists and is already tested.
+
+**Wave 1 — free wins, fully parallel.** Independent of each other; only `T-34` waits on `T-33`.
+
+| Ticket | Owner | Why it's cheap |
+|---|---|---|
+| `T-34` goal loop wiring | Omair | Implementation + tests exist; needs a tool, a route, a button |
+| `T-35` H3 in `/ingest` | Simeon | One parameter through one endpoint |
+| `T-36` all 6 scenarios | Nathi | Panel becomes schema-driven; removes future work |
+| `T-37` >100% utilisation | Simeon | Small, but touches a hand-checked metric — do it carefully |
+| `T-32` assumption registry | Simeon | Pure refactor; **do before T-28**, it gets harder once real data lands |
+| `T-31` baseline labelling | Omair | Mostly plumbing a flag to three surfaces |
+
+**Wave 2 — the learning twin.** `T-38` → `T-39`. Strictly sequential; `T-38` is the
+foundation (schema + store + episodic writes) and is the ticket that finally makes Postgres
+load-bearing. `T-39` is where the *demo* lives — an agent writing a heuristic that changes a
+later answer is the moment "learning twin" stops being a slide.
+
+**Wave 3 — parallel, once memory exists.**
+- `T-42` Time Machine (Nathi) — needs `T-38`'s episodes for "past".
+- `T-40` monitoring (Omair) — needs `T-38` for alert storage.
+- `T-43` MCP (Simeon) — needs only the registry + `T-33`; can actually start in Wave 2.
+
+**Wave 4 — if and only if Waves 0–3 are green.**
+`T-41` adversarial swarm. Deliberately last: highest LLM-behaviour risk, and it is the one
+feature whose failure mode is *live, on stage, unpredictably*.
+
+### Dependency graph (critical path in bold)
+
+```
+  **T-33** ──┬── T-34 ──────────────────────────────────┐
+             ├── T-43 (MCP)                             │
+             ├── **T-38** ── **T-39** ──┬── T-40        │
+             │                          └── T-42        ├── demo
+             └── T-41  (last, riskiest)                 │
+  T-32, T-31, T-35, T-36, T-37  (independent) ──────────┘
+```
+
+Critical path: **T-33 → T-38 → T-39**. Everything else can be cut without breaking the
+narrative. Protect that chain first.
+
+### Parallelism by person
+
+| Wave | Simeon | Omair | Nathi |
+|---|---|---|---|
+| 0 | **T-33** | (review T-33) | prep verification badge UI |
+| 1 | T-35, T-37, T-32 | T-34, T-31 | T-36, badge UI |
+| 2 | T-43 (MCP) | **T-38 → T-39** | T-42 scaffolding (mock data) |
+| 3 | T-43 finish | T-40 | **T-42** live on real episodes |
+| 4 | hardening / rehearsal | T-41 *(only if green)* | polish, demo path |
+
+Nathi is the constraint in Waves 2–3 — the Time Machine is the largest single frontend
+build in the project. Starting its scaffolding against mock data during Wave 2, then
+swapping to real episodes, is what keeps it off the critical path.
+
+### Honest estimate
+
+**Will land (high confidence):** T-33, T-34, T-35, T-36, T-37, T-31, T-32. These are small,
+mostly wiring, and mostly against code that already exists and is tested.
+
+**Should land (medium):** T-38, T-39, T-43. Real builds, but well-bounded. The MCP server is
+less work than it sounds precisely because the registry already produces the tool list.
+
+**At risk (genuinely uncertain):** T-42 Time Machine, T-40 monitoring.
+
+**Likely to be cut:** T-41 adversarial swarm.
+
+---
+
+## RISK FLAGS — read before committing to this scope
+
+**1. This plan is roughly 2× what the remaining time supports. Someone must choose.**
+Eleven tickets, three people. The waves are ordered so that cutting from the bottom is safe:
+lose T-41, then T-40, then T-42, and the build still tells a complete story. Cutting upward
+from T-33 breaks the pitch. Decide the cut line deliberately now rather than at 03:00.
+
+**2. T-41 (adversarial swarm) is the most likely to destabilise the demo. My recommendation: cut it, or timebox it hard behind a feature flag.**
+Multi-agent handoffs multiply LLM latency and failure modes — an answer now needs two or
+three agents to behave, in sequence, live. We already have measured evidence that a *single*
+agent misbehaves 60% of the time on one prompt. The honest version of this feature is
+already 80% delivered by the existing Risk role plus Monte Carlo bands: the Optimizer
+recommends, the robustness band challenges it with real numbers. If it is built, it must be
+behind a toggle that falls back to the current single-specialist path, and the demo must not
+depend on it.
+
+**3. T-42 (Time Machine) is the highest demo *value* and the highest frontend *cost*. Do not let it start late.**
+It is the most legible feature in the build — a judge understands scrubbing a map instantly.
+But it is a real piece of interaction engineering: timeline state, map re-render on scrub,
+flow enter/exit transitions. Scaffold it in Wave 2 against mock data. If it slips past
+Wave 3, cut it rather than shipping a janky scrubber — a stuttering timeline reads worse
+than not having one.
+
+**4. W2's "forward" half is weaker than it sounds.**
+"Forward into forecast futures" implies a demand forecast we do not have (T-25, still TODO).
+Until then, "forward" means scrubbing across *scenario projections*, not a learned forecast.
+Say that plainly in the pitch. Claiming forecast we don't have is exactly the failure mode
+we just spent an audit fixing.
+
+**5. T-40's scheduler is a demo-fragility risk.**
+A background job that self-runs during a live demo is a background job that can throw during
+a live demo. Requirements: it must never raise into the request path, must be pausable from
+the UI, and there must be a pre-seeded alert so the card is populated even if the scheduler
+is switched off for the pitch.
+
+**6. T-37 touches a signed-off, hand-checked metric.**
+`cost_to_serve` and `utilization` both read `model.assignments`. Changing the utilisation
+definition can move the headline ~5% number. Do not let this be a silent fix: whatever
+changes, re-derive T-07's fixtures and record the before/after in the ticket log.
+
+**7. Free wins are free *now* and expensive after T-28.**
+T-32 (assumption registry) and T-35 (H3) get materially harder once the real dataset lands
+and everything is in flux. Do them in Wave 1 or accept they won't happen.
+
+**8. The 138-passing-tests number still does not cover the agent layer.**
+All nine skipped tests are the LLM ones. After T-33, add a CI path that runs the live agent
+tests with a key — otherwise the guardrail's own regression test is one nobody runs.
 
 ---
 

@@ -39,21 +39,41 @@
    └──────────────┬───────────────────┘
                   ▼
    ┌──────────────────────────────────┐
-   │ 5. Agent layer (LangGraph/Claude) │  multi-agent workforce · Agent Builder ·
-   │    tools = registry.as_tools()    │  goal-driven loop · scanner/threshold/
-   │    (agents call tools, never       │  unlock/decision-brief
+   │ 5. Agent layer (LangGraph/Claude) │  adversarial swarm (handoffs) · Agent
+   │    tools = registry.as_tools()    │  Builder · goal-driven loop · monitoring
+   │    (agents call tools, never       │  agents · scanner/threshold/unlock/brief
    │     compute numbers)              │
    └──────────────┬───────────────────┘
                   ▼
-   ┌──────────────────────────────────┐
-   │ 6. API (FastAPI)                  │  /ingest /kpis /simulate /optimize
-   │                                   │  /agent/query /agents (CRUD) /scenarios
-   └──────────────┬───────────────────┘
+   ┌══════════════════════════════════┐
+   ║ 5b. PROVENANCE GATE  (W1)         ║  every answer checked against the tool
+   ║     verify → regenerate → flag    ║  results it actually received. NOTHING
+   ║     MANDATORY — no bypass path    ║  reaches step 6 unverified.
+   └══════════════┬═══════════════════┘
                   ▼
    ┌──────────────────────────────────┐
-   │ 7. Frontend (Next.js + deck.gl)   │  map · KPI cards · scenario panel ·
-   │                                   │  agent chat · Agent Builder · brief view
-   └──────────────────────────────────┘
+   │ 6. API (FastAPI)                  │  /ingest /kpis /simulate /optimize
+   │                                   │  /agent/query /agents /scenarios
+   │                                   │  /memory /timeline /alerts
+   └──────┬───────────────────┬────────┘
+          ▼                   ▼
+   ┌──────────────────┐  ┌──────────────────────────────────┐
+   │ 7. Frontend      │  │ 8. MCP server (W6)                │
+   │ map · KPI cards  │  │ registry tools exposed over MCP   │
+   │ scenario panel   │  │ so ANY external AI can drive the  │
+   │ agent chat (+ver-│  │ twin. Auto-published from the     │
+   │ ification badge) │  │ registry — no per-tool wiring.    │
+   │ Time Machine     │  └──────────────────────────────────┘
+   │ alert cards      │
+   └──────────────────┘
+
+   ┌──────────────────────────────────────────────────────────┐
+   │ MEMORY (W2) — Postgres, spans every step above            │
+   │  episodic: every scenario run + outcome                   │
+   │  semantic: facts learned about THIS network               │
+   │  procedural: decision patterns + agent-written heuristics │
+   │  → feeds the Time Machine's past, and later sessions      │
+   └──────────────────────────────────────────────────────────┘
 ```
 
 ## 3. Module responsibilities & interfaces
@@ -67,8 +87,11 @@
 | 3c | MILP recommender | Hub open/close/move + fleet mix | `OptimizerStrategy.optimize(model, objective, constraints) -> Recommendation` |
 | 4 | Registry | Discover/hold plugins; expose as agent tools | `registry.get/all/as_agent_tools()` |
 | 5 | Agent layer | Orchestrate tools, explain results | LangGraph graph; tools wrap the engine |
+| 5b | **Provenance gate (W1)** | **Verify every answer against its own tool results; regenerate or flag** | `ProvenanceVerifier.verify(answer, tool_results) -> VerificationVerdict` |
+| 5c | **Memory (W2)** | **Record episodes/facts/heuristics; recall them in later sessions** | `MemoryStore.record_*/recall()` |
 | 6 | API | Expose everything over HTTP | REST/JSON (FastAPI) |
 | 7 | Frontend | Visualise + interact | React components → API |
+| 8 | **MCP server (W6)** | **Publish registry tools to external AI/systems** | MCP tool surface generated from `registry.as_agent_tools()` |
 
 ## 4. The unified `NetworkModel`
 
@@ -78,7 +101,24 @@ Holds: `hubs`, `zones`, `fleet_types`, `demand`, `od_matrix`, `assignments`, plu
 
 ## 5. Why the agent never computes
 
-Agent tools are thin wrappers over modules 3a–3c. A tool returns **computed JSON**; the agent composes prose and chooses the next tool. The arithmetic lives in Python/solver. This is enforced structurally: agents are given tool outputs and a schema that expects them to *cite* tool results, not emit free-floating numbers. See `CLAUDE.md` for the enforcement pattern.
+Agent tools are thin wrappers over modules 3a–3c. A tool returns **computed JSON**; the agent composes prose and chooses the next tool. The arithmetic lives in Python/solver.
+
+Enforcement is **three layers, and the third is the one that actually holds**:
+
+1. **Structural** — the agent's only route to a number is a tool call. It never sees raw tables.
+2. **Instructional** — the system prompt forbids arithmetic, estimation and recomputation.
+3. **Verification (module 5b)** — the answer is parsed for numeric claims and each is matched against the tool results that run actually returned. Unmatched figures trigger a regeneration pass; a second failure returns `status="flagged"` with the figures named.
+
+> **Do not describe layers 1–2 as sufficient.** They were, briefly, all we had, and a seeded
+> agent fabricated a number in **3 of 5 consecutive live runs** — it multiplied
+> `savings_per_parcel × total_demand` and reported the product as an annual saving. The
+> structural layer was working perfectly at the time; the agent simply did arithmetic on two
+> legitimate tool outputs. Only module 5b catches that class of error.
+
+**Architectural consequence:** module 5b is on the critical path between the agent layer and
+the API. There is deliberately no bypass — `run_agent_query` returns a verified result or a
+flagged one, never raw prose. Any new agent surface (monitoring alerts, swarm output, MCP
+responses) routes through the same gate.
 
 ## 6. Tech stack (confirmed)
 

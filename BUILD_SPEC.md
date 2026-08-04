@@ -54,16 +54,60 @@ Built bottom-up, in this priority order:
 
 Agents are **compositions of tool-plugins** from the registry (see `CLAUDE.md`). The LLM (Claude API via LangGraph) decides *which* tools to call and explains results — it never computes numbers.
 
-**5.1 Multi-agent workforce** — specialist agents mirroring EMX roles:
+**5.0 Runtime provenance verification — "the AI that cannot lie" (W1, existential)**
+Every agent answer is checked against the tool results it actually received *before* it
+leaves the backend. Numbers in the prose with no traceable tool source are caught; the
+answer is regenerated once, and if it still fails it is returned marked `flagged` with the
+untraceable figures named. The verdict rides on the API response and is rendered in the UI.
+
+This is not belt-and-braces — it is the load-bearing enforcement. Measured: with prompt-only
+enforcement, a seeded agent fabricated a figure in **3 of 5 consecutive live runs** (it
+multiplied two real tool numbers and presented the product as fact). See `STATUS.md`.
+**No code path may return agent prose to a user without passing the verifier.**
+
+**5.1 Multi-agent swarm with adversarial review (W5)** — specialist agents mirroring EMX roles:
 - **Network Analyst** — reads current state, finds bottlenecks.
 - **Scenario Strategist** — proposes what-ifs.
 - **Optimizer** — drives the solver.
 - **Cost Analyst** — cost-to-serve decomposition, shadow prices.
 - **Risk / Devil's Advocate** — stress-tests recommendations (demand +30%).
 
+These are **stateless specialists connected by handoff tools**, not a router that picks one
+and stops. The defining behaviour is **adversarial review**: when the Optimizer produces a
+recommendation, the Risk agent is obliged to *challenge* it — and the challenge is computed
+(a real stress simulation / robustness band), not rhetorical. Both sides are resolved into a
+single answer before the planner sees it, and the disagreement itself is surfaced: *"Optimizer
+recommends closing H1/H3/H5/H7; Risk found it holds to +20% demand but breaks at +35%."*
+
+That is the thing a router-plus-specialist cannot do, and it is why the swarm is worth
+building rather than described.
+
 **5.2 Agent Builder (no-code)** — a planner defines a new agent: name, plain-English goal, allowed tools (from the registry), autonomy (on-demand vs monitoring). It registers and works immediately. This is the signature "customisation" feature and the live-demo highlight.
 
-**5.3 Goal-driven optimisation loop** — an agent takes a natural-language objective ("cut cost 5%, no hub over 90%") and autonomously runs simulate → optimise → evaluate until satisfied, returning the answer **plus the path explored**. The optimiser is the agent's tool, not the whole show.
+**5.3 Goal-driven optimisation loop** — an agent takes a natural-language objective ("cut cost 5%, no hub over 90%") and autonomously runs simulate → optimise → evaluate until satisfied, returning the answer **plus the path explored**. The optimiser is the agent's tool, not the whole show. It must be reachable as a **registry tool, an API route, and a UI control** — an implementation nobody can invoke does not count as built.
+
+**5.4 The learning twin — three-tier memory (W2)**
+The twin gets better the longer EMX uses it. Backed by Postgres (see `SCHEMA.md §1a`):
+- **Episodic** — every scenario run, its params, its KPIs, and its outcome. "What have we already tried?"
+- **Semantic** — facts learned about *this* network ("H5 binds first under Sharjah growth"). Accumulated from real runs, never asserted.
+- **Procedural** — decision patterns and **agent-written heuristics** that get applied in later sessions ("when a structural gap persists ≥4 weeks, prefer permanent capacity").
+
+An agent can *record* a heuristic via a tool, which stamps provenance automatically. Memory
+carries the same guarantee as everything else: every stored number names the tool run that
+produced it. **Memory is not a fabrication loophole.**
+
+**5.5 Closed-loop autonomous monitoring (W4)** — `monitoring` autonomy becomes real.
+`capacity_watchdog` self-runs on a schedule, scans the network, **runs an actual simulation**
+(not a threshold check on cached KPIs), and pushes an alert card carrying a computed finding,
+a recommended action, and a link to the generated decision brief. This closes the loop:
+observe → simulate → recommend → record to episodic memory.
+
+**5.6 Hubris as an MCP server (W6)** — the registry's tools (`get_kpis`, `simulate_scenario`,
+`optimise_network`, `scan_opportunities`, …) are exposed over the Model Context Protocol, so
+any external AI or system can operate the network twin. Because the adapter reads the
+registry, **registering a plugin publishes it to MCP automatically** — the same property that
+makes it available to every internal agent. Architectural credibility: the twin is a
+platform, not an app.
 
 ## 6. Operator-useful features (the "we never thought of that" tier)
 
@@ -73,6 +117,7 @@ All ride the same engine + loop machinery, so they're cheap together:
 - **Threshold / break-even finder** — "at what demand growth does Hub B need expanding? how many customers before SLA breaks?" Drives the loop to find the tipping point.
 - **Prescriptive bottleneck unlock** — turns the LP duals into "the cheapest way to unblock is +N units at Hub B, costing X, unlocking Y."
 - **Auto decision-brief** — generates the one-page leadership business case (current state, change, cost/risk, what it unblocks, sensitivity).
+- **Time Machine — temporal navigation (W3)** — a scrubber over the map. Drag **back** through recorded history and past decisions (from episodic memory), **forward** into forecast futures. The map re-renders live as you scrub. Paired with **active/inactive flow visuals**: routes that drop out go grey, routes taking over the volume highlight — so a planner *sees* the network reshape rather than reading a diff table. This is the single most demo-legible feature in the build.
 
 ## 7. Accuracy backbone
 
@@ -81,33 +126,48 @@ All ride the same engine + loop machinery, so they're cheap together:
 
 ## 8. Stretch (only if core is solid)
 
-- **Demand forecast** (Prophet/statsmodels) — twin projects forward; scanner pre-empts problems.
-- **Institutional memory** (Qdrant) — recalls past scenarios and decision rationale semantically.
+- **Demand forecast** (Prophet/statsmodels) — twin projects forward; scanner pre-empts problems. *Also unlocks the forward half of the Time Machine (W3); until it exists, "forward" scrubs over scenario projections rather than a learned forecast.*
 - **SimPy waves** — throughput/queueing for the two-wave question.
+
+*(Institutional memory has been promoted out of Stretch — it is now W2, backed by Postgres rather than Qdrant. Semantic vector search over memory stays optional; the three-tier store does not.)*
 
 ## 9. Feature tiers (build in this order — do not invert)
 
 | Tier | Must contain | Why |
 |------|--------------|-----|
-| **CORE (must work)** | Ingestion → unified view → cost calculator + min-cost flow baseline → one live what-if that recomputes → multi-agent workforce answering with real numbers → goal-driven loop → MILP recommender w/ greedy fallback | This alone is a winning, honest build. |
-| **ACCURACY** | Real road distances + H3, Monte Carlo confidence bands | Makes the ~5% believable to a logistics judge. |
-| **SIGNATURE (pick the demo flexes)** | Agent Builder (2–3 real templates), opportunity scanner, threshold finder, prescriptive unlock, auto decision-brief | The "we never thought of that" differentiators. |
-| **STRETCH** | Forecast, Qdrant memory, SimPy waves | Upside; cut without hesitation if time is tight. |
+| **EXISTENTIAL** | **W1 runtime provenance verification** | Without it the central claim is false, and it has been *measured* false (3/5 live runs fabricated). Everything else is worth less if this is missing. Ship it before any new feature. |
+| **CORE (must work)** | Ingestion → unified view → cost calculator + min-cost flow baseline → one live what-if that recomputes → agents answering with real numbers → goal-driven loop (**reachable**) → MILP recommender w/ greedy fallback | This alone is a winning, honest build. |
+| **ACCURACY** | Real road distances + H3 (**wired into `/ingest`**), Monte Carlo confidence bands, reconstructed-baseline labelling, evidence-labelled inputs | Makes the ~5% believable to a logistics judge — and defensible under questioning. |
+| **SIGNATURE (pick the demo flexes)** | Agent Builder (2–3 real templates), opportunity scanner, threshold finder, prescriptive unlock, auto decision-brief, **Time Machine (W3)**, **learning twin (W2)** | The "we never thought of that" differentiators. |
+| **PLATFORM** | **MCP server (W6)**, closed-loop monitoring (W4), adversarial swarm (W5) | Proves this is a platform other systems can drive, not a demo app. |
+| **STRETCH** | Forecast, SimPy waves, vector search over memory | Upside; cut without hesitation if time is tight. |
+
+**Anti-scope rule (learned the hard way):** a feature is not built until a user can *reach*
+it. The audit found three fully-implemented, fully-tested capabilities — the goal loop, H3
+zoning, and the Postgres layer — that no user could invoke. Wiring is part of the ticket, not
+a follow-up.
 
 ## 10. Frontend spec (Next.js + deck.gl)
 
 - **Map** — hubs coloured by utilisation (green→red), ArcLayer flows hub→zone, demand heat.
-- **KPI cards** — total cost-to-serve, avg utilisation, % coverage, % of decisions answerable on-platform.
-- **Scenario panel** — toggle hubs, sliders for demand growth and fleet cost, "Simulate" → before/after diff.
-- **Agent chat** — ask questions, get computed+explained answers; shows which tool produced each number.
+- **KPI cards** — total cost-to-serve, avg utilisation, % coverage, spare capacity.
+- **Scenario panel** — toggle hubs, sliders for demand growth and fleet cost, "Simulate" → before/after diff. **All registered scenario modules must appear** — the panel is generated from `GET /scenarios`, never a hard-coded subset.
+- **Agent chat** — ask questions, get computed+explained answers; shows which tool produced each number, **plus a verification badge** (`verified` / `flagged`) from W1. A flagged answer names the untraceable figure inline — we show our own guardrail catching a mistake rather than hiding it.
 - **Agent Builder panel** — create/configure agents.
 - **Decision-brief view** — the generated one-pager, exportable.
+- **Time Machine scrubber (W3)** — a timeline under the map; drag to move through past decisions and forward projections, map re-renders live, dropped flows grey out and new flows highlight.
+- **Alert cards (W4)** — pushed by monitoring agents: finding, recommended action, link to the brief.
+
+**Frontend honesty rule:** display only numbers the API returned. No client-side arithmetic
+on engine figures — if the UI needs a derived value, the API returns it.
 
 No browser storage APIs; state in React. Distances/heavy compute happen server-side (FastAPI), streamed to the UI.
 
 ## 11. KPI & validation strategy
 
 - **Baseline (critical for the 5% claim):** cost-to-serve on the *current* assignment if the sheet has it; else a nearest-hub/status-quo proxy. Optimised cost from the flow/MILP. Improvement = `(C0 − C*) / C0`, reported per emirate and network-wide, **decomposed** by source.
+- **Reconstructed-baseline labelling (T-31):** when the baseline is our own nearest-hub proxy rather than EMX's real assignment, it must be labelled a **reconstructed baseline** everywhere it appears — API, UI, and brief — with the explicit statement that it is *not* a description of EMX's actual current practice. Our entire improvement claim is measured against it; a judge will ask what it is, and the answer must already be on screen.
+- **Evidence-labelled inputs (T-32):** every engine input parameter carries an evidence status — `verified` (from the dataset/brief, cited), `derived` (computed from a verified figure via a stated formula), or `assumed` (a configurable placeholder). Today `ROAD_FACTOR=1.3`, `AVG_SPEED_KMH=40`, the scanner thresholds and every synthetic cost are unlabelled assumptions scattered across modules. One registry, one status per parameter. This extends the no-fabrication guarantee from *outputs* to *inputs*.
 - **Sensitivity:** show the saving holds across demand +10/20/30% (Monte Carlo re-solve).
 - **Sanity checks:** flow conservation (in = demand), no capacity violated, coverage ≥ current.
 - **80% metric:** a fixed checklist of ~10 canonical planning questions; coverage = answered-automatically / total. Put the checklist on a slide; state clearly it's a proxy.
