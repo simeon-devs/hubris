@@ -77,7 +77,7 @@
 | ~~T-41~~ | ~~W5 · Multi-agent swarm + adversarial review~~ | 9 Learning | — | **CUT — Sims — 2026-08-04** |
 | T-42 | W3 · Time Machine (temporal navigation) | 9 Learning | C | TODO |
 | T-43 | W6 · Hubris as an MCP server | 9 Learning | A | TODO |
-| T-44 | Live-agent CI path (guardrail regression) | 8 Integrity | A | TODO |
+| T-44 | Live-agent CI path (guardrail regression) | 8 Integrity | A | REVIEW |
 
 **Build order:** finish Phase 0 → 1 before anything else (it's the critical path). Phases 2 and 3 can run in parallel once 0–1 exist. Phase 4 as soon as the engine is stable. Phase 5 is the differentiator — do it before stretch. Phase 6 only if core is solid. Phase 7 is the event day itself.
 
@@ -401,6 +401,8 @@ Log:
 Contract: a test path that runs the 9 live-LLM tests with a real `ANTHROPIC_API_KEY`, immediately after T-33 lands. Depends on: T-33.
 Done when: a documented, one-command way to run the full suite *including* the live agent tests exists (compose-based or CI secret); the live no-fabrication tests are **required, not skippable, for every ticket after T-33** — a ticket's REVIEW log must show a green live-agent run, and the leader's checklist enforces it; flake handling is defined (a fabrication failure is a real failure, never retried into green).
 Log:
+- WIP — Claude — 2026-08-04
+- REVIEW — Claude — 2026-08-04 — `scripts/test-live.sh`: the one-command live gate. Env-var key wins, `.env` fallback; **fail-fast preflight** (a 1-token API ping) turns a dead/unfunded key into a clear ~2-second exit-3 with the API's own error text instead of 9 confusing test errors; compose-network precondition check (exit 5); runs the full suite with the key and DB; **fails (exit 4) if the live tests were SKIPPED rather than run** — a green that silently skipped the guardrail is impossible; **no retry logic exists in the script by design** (build rule 5 — a red run is a red run). README documents it; the Leader's follow-up loop now requires a green run in every REVIEW log from this ticket onward. Same command works in CI with the key as a secret. **How a user reaches it:** `./scripts/test-live.sh` from the repo root. Verified: exit-2 (no key anywhere) and exit-3 (key present but out of credits — probed against the real current outage) both demonstrated live; the wrapped pytest command is byte-identical to the one that ran green 5x consecutively for T-33 (runs A–E, 157 passed each). **⚠ The script's own end-to-end GREEN run is blocked: the API key exhausted its credits during T-33's proof runs. Top up, then `./scripts/test-live.sh` must print "LIVE GATE GREEN" before any Wave-1 ticket enters REVIEW.**
 
 ---
 
@@ -555,5 +557,6 @@ fabrication failure is a real failure; it is never retried into green.
 
 - Scan the **Index** — anything in `REVIEW` is waiting on you; anything `BLOCKED` needs unblocking now.
 - To review: pull the branch, confirm it registers, run its fixture test, check it against "Done when." Then set `DONE` or bounce it back to `WIP` with a log note.
+- **Live gate (from T-44 on):** a ticket's REVIEW log must include a green `./scripts/test-live.sh` run (the 9 live no-fabrication tests RUN, not skipped). A red run is recorded as red — never re-rolled into green. No green live run → not `DONE`.
 - Protect the build order: don't let Phase 5/6 tickets go `WIP` while Phase 0–1 has open tickets.
 - The one check that overrides everything: does any agent output a number that didn't come from a tool? If yes, that ticket is not `DONE`, no matter how good it looks.

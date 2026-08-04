@@ -46,6 +46,19 @@ docker run --rm --network hubris_default \
 
 Tests that need a live `ANTHROPIC_API_KEY` or network access skip themselves automatically, so a clean checkout is always green.
 
+**The live gate (required for every ticket's REVIEW from T-44 onward):**
+
+```bash
+./scripts/test-live.sh
+```
+
+One command; runs the FULL suite including the 9 live LLM tests — the no-fabrication
+guardrail's only live-fire regression. It fails fast (seconds, with the reason) if the key
+is missing, dead, or out of credits, and fails if the live tests were skipped rather than
+run. It contains **no retry logic on purpose**: a fabrication failure is a real failure and
+goes in the ticket log as a red run — never re-rolled into green. In CI, the same command
+works with `ANTHROPIC_API_KEY` supplied as a secret.
+
 ## The documents (read in this order)
 
 | File | For whom | What it gives you |
