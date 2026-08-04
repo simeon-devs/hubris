@@ -56,6 +56,18 @@ def _args_schema(tool: AgentTool) -> type:
     return create_model(f"{tool.name}_Args", **fields)  # type: ignore[call-overload]
 
 
+def _apply_heuristics_safe(tool_name: str, result):
+    """T-39: attach matching stored heuristics to this tool's result —
+    memory influencing attention/explanation, never computation. Lazy
+    import + best-effort, same zero-hard-dependency rule as episodes."""
+    try:
+        from hubris.memory.apply import apply_heuristics
+
+        return apply_heuristics(tool_name, result)
+    except Exception:  # noqa: BLE001
+        return result
+
+
 def _record_tool_episode(tool_name: str, kwargs: dict, result: dict) -> None:
     """Best-effort, graceful — import inside the function so the adapter
     has zero hard dependency on the memory layer."""
@@ -105,6 +117,7 @@ def to_langchain_tool(tool: AgentTool, model: NetworkModel) -> StructuredTool:
             result = tool.run(model=model, **kwargs)
             if tool.name in _EPISODE_TOOLS:
                 _record_tool_episode(tool.name, kwargs, result)
+            result = _apply_heuristics_safe(tool.name, result)
             return result
         except Exception as exc:  # noqa: BLE001
             # Graceful-fallback rule (build rule 4 / CLAUDE.md §7 "the demo

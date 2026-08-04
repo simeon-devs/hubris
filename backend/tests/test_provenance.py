@@ -13,6 +13,19 @@ def test_extract_numbers_from_text():
     assert extract_numbers_from_text(text) == [57.09, 11.89, 1234.0]
 
 
+def test_provenance_run_ids_are_never_numeric_claims():
+    # Live-found (T-39): quoting the run id that PROVES provenance must not
+    # itself be flagged as fabrication.
+    text = "Source: engine computation from run `find_demand_growth_break:15be3c67c762`."
+    assert extract_numbers_from_text(text) == []
+    assert find_unexplained_numbers(text, [{"growth_pct": 172.66}]) == []
+
+
+def test_identifier_stripping_keeps_real_numeric_claims():
+    text = "Hub H5 breaks at 172.66% (run 15be3c67c762), costing 57.09 AED."
+    assert extract_numbers_from_text(text) == [172.66, 57.09]
+
+
 def test_rounded_number_is_traceable():
     assert is_traceable(57.09, {57.0949})
     assert is_traceable(57, {57.0949})  # both round to 57

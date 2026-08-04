@@ -9,16 +9,26 @@ from hubris.core.db_loader import load_raw_tables, read_raw_tables
 from hubris.data.synthetic import generate_synthetic_raw_tables
 
 
-def _clear_all_tables() -> None:
+# T-39 live-found footgun: this used to sweep Base.metadata.sorted_tables,
+# which — once the memory_* models joined the metadata — made EVERY full
+# suite run (including the live gate) silently erase the twin's learned
+# memory on the shared compose db. Scope the cleanup to the canonical
+# tables this test actually exercises; the learning twin's memory is not
+# ours to wipe.
+_CANONICAL_TABLES = ("scenario_results", "scenarios", "current_assignments",
+                     "od_matrix", "fleet_types", "zones", "hubs")
+
+
+def _clear_canonical_tables() -> None:
     with engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            conn.execute(table.delete())
+        for name in _CANONICAL_TABLES:
+            conn.execute(Base.metadata.tables[name].delete())
 
 
 def test_synthetic_data_persists_and_reloads():
     raw = generate_synthetic_raw_tables()
 
-    _clear_all_tables()
+    _clear_canonical_tables()
     session = SessionLocal()
     try:
         load_raw_tables(session, raw)
@@ -39,4 +49,4 @@ def test_synthetic_data_persists_and_reloads():
         raw.current_assignments, ("zone_id", "hub_id")
     )
 
-    _clear_all_tables()
+    _clear_canonical_tables()

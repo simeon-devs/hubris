@@ -9,6 +9,7 @@ from hubris.agents.scenario_utils import apply_and_reassign
 from hubris.agents.tools.simulate_scenario import SimulateScenarioTool
 from hubris.api.schemas import SimulateRequest, SimulateResponse
 from hubris.api.state import state
+from hubris.memory.apply import apply_heuristics
 from hubris.memory.store import memory
 from hubris.core.registry import SCENARIO
 from hubris.core.registry import registry as global_registry
@@ -57,4 +58,5 @@ def simulate(req: SimulateRequest) -> SimulateResponse:
         source="api:/simulate",
     )
 
+    result = apply_heuristics("simulate_scenario", result)  # T-39
     return SimulateResponse(**result, scenario_id=scenario_id)

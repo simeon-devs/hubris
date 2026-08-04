@@ -15,8 +15,17 @@ import re
 # "3" in hub id "H3") — those are identifiers, not numeric claims.
 _NUMBER_RE = re.compile(r"(?<![A-Za-z])-?\d[\d,]*(?:\.\d+)?")
 
+# T-39 live-found false positive: an agent citing a provenance run id
+# verbatim ("run `find_demand_growth_break:15be3c67c762`") was flagged —
+# the lookbehind can't shield digits INSIDE mixed alphanumeric tokens
+# ("...c762" -> "62"). Any token mixing letters and digits is an
+# identifier, never a numeric claim; strip them wholesale first. Citing
+# your source must never read as fabrication.
+_IDENTIFIER_TOKEN_RE = re.compile(r"\b(?=[0-9A-Za-z]*[A-Za-z])(?=[0-9A-Za-z]*\d)[0-9A-Za-z]+\b")
+
 
 def extract_numbers_from_text(text: str) -> list[float]:
+    text = _IDENTIFIER_TOKEN_RE.sub(" ", text)
     numbers = []
     for match in _NUMBER_RE.findall(text):
         cleaned = match.replace(",", "")

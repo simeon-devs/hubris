@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from hubris.agents.tools.optimise_network import OptimiseNetworkTool
 from hubris.api.schemas import OptimizeRequest, OptimizeResponse
 from hubris.api.state import state
+from hubris.memory.apply import apply_heuristics
 from hubris.memory.store import memory
 from hubris.core.registry import OPTIMIZER
 from hubris.core.registry import registry as global_registry
@@ -55,4 +56,5 @@ def optimize(req: OptimizeRequest) -> OptimizeResponse:
         scenario_id=req.scenario_id,
         source="api:/optimize",
     )
+    result = apply_heuristics("optimise_network", result)  # T-39
     return OptimizeResponse(**result)

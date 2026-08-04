@@ -14,6 +14,7 @@ class SimulateRequest(BaseModel):
 
 class SimulateResponse(BaseModel):
     scenario_name: str
+    applied_heuristics: list[dict[str, Any]] = []  # T-39
     params: dict[str, Any]
     baseline_kpis: dict[str, Any]
     scenario_kpis: dict[str, Any]
@@ -43,6 +44,9 @@ class RobustnessBandInfo(BaseModel):
 
 class OptimizeResponse(BaseModel):
     changes: list[dict[str, Any]]
+    # T-39: stored heuristics that matched this run — the twin visibly
+    # using what it learned (annotation-only; never changes computation).
+    applied_heuristics: list[dict[str, Any]] = []
     objective_value: float
     delta_vs_baseline: dict[str, float]
     rationale: dict[str, Any]

@@ -1,0 +1,155 @@
+{
+  "_what_this_is": "T-39 (Sims' Wave-2 note 3): the concrete 'it learns' story, captured live through the real API. 1-LEARN: a risk-routed chat question measures H5's demand-growth break; the engine auto-records the FACT hub.H5.demand_growth_break (2.7266x / 172.66%) with engine provenance, and the agent records the number-free heuristic 'scrutinise_hottest_hub_robustness_before_closure' (author risk_analyst, auto-stamped provenance). 2-APPLY: a later POST /optimize response carries that heuristic in applied_heuristics \u2014 annotation only; every computed figure is untouched. 3-RECALL: a chat question about H5 recalls the engine-written fact and cites it with its run id \u2014 verification: verified. In an earlier capture the agent's FIRST record_heuristic attempt smuggled 172.66 into the advice and was rejected by the number-free guard with an instructive error, then retried clean \u2014 the guard working live.",
+  "step1_learn": {
+    "answer": "## Summary\n\n**Hub H5 breaks at demand growth of 2.73\u00d7 (172.66%):**\n- Growth factor threshold: **2.73**\n- At this point, hub utilization reaches **100%** and capacity constraint becomes binding (dual = -1.19).\n- Current demand does not already exceed this hub's capacity.\n\n**Heuristic recorded for future optimization runs** (ID: `401e75c93ec54cfc9f01c2d2ed3dcd23`):  \nFuture `optimise_network` calls will now be reminded to examine the robustness band of the hottest hub before accepting closure recommendations, ensuring proposed configurations remain feasible under realistic demand variation scenarios.",
+    "tool_calls": [
+      {
+        "tool": "find_demand_growth_break",
+        "args": {
+          "hub_id": "H5"
+        },
+        "result": {
+          "hub_id": "H5",
+          "threshold_found": true,
+          "already_broken_at_current_demand": false,
+          "growth_factor_threshold": 2.7266,
+          "growth_pct_threshold": 172.66,
+          "iterations": 9,
+          "hub_utilization_pct": 100.0,
+          "hub_dual": -1.19,
+          "unmet_demand": {}
+        }
+      },
+      {
+        "tool": "record_heuristic",
+        "args": {
+          "name": "scrutinise_hottest_hub_robustness_before_closure",
+          "when_tool": "optimise_network",
+          "advice": "Before accepting a hub closure recommendation, scrutinise the robustness band (cost_to_serve_p10/p50/p90) of the hottest (most-utilised) hub in the proposed configuration. Verify that the Monte Carlo holds_under_variation result confirms the closure is safe across demand swings matching or exceeding the hub's measured break threshold.",
+          "rationale": "Hub capacity breaks are sharp: a hub's break point reveals the maximum demand growth it can absorb before constraint binding forces cascading reassignments or unmet demand. Closure recommendations that assume steady-state demand may be fragile if demand growth is foreseeable; the robustness band directly measures whether the new network remains feasible under demand variation, so it is the ground truth for safety.",
+          "author": "risk_analyst"
+        },
+        "result": {
+          "recorded": true,
+          "heuristic_id": "401e75c93ec54cfc9f01c2d2ed3dcd23",
+          "name": "scrutinise_hottest_hub_robustness_before_closure",
+          "applies_to_tool": "optimise_network",
+          "note": "will be attached to that tool's results in future runs until retired"
+        }
+      }
+    ],
+    "verification": {
+      "status": "verified",
+      "untraceable_figures": [],
+      "attempts": 1,
+      "checked_against": [
+        "find_demand_growth_break",
+        "record_heuristic"
+      ]
+    },
+    "role": "risk_analyst",
+    "agent_name": null
+  },
+  "step2_apply_optimize_response": {
+    "changes": [
+      {
+        "action": "close_hub",
+        "hub_id": "H1"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "H3"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "H5"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "H7"
+      }
+    ],
+    "applied_heuristics": [
+      {
+        "name": "scrutinise_hottest_hub_robustness_before_closure",
+        "advice": "Before accepting a hub closure recommendation, scrutinise the robustness band (cost_to_serve_p10/p50/p90) of the hottest (most-utilised) hub in the proposed configuration. Verify that the Monte Carlo holds_under_variation result confirms the closure is safe across demand swings matching or exceeding the hub's measured break threshold.",
+        "rationale": "Hub capacity breaks are sharp: a hub's break point reveals the maximum demand growth it can absorb before constraint binding forces cascading reassignments or unmet demand. Closure recommendations that assume steady-state demand may be fragile if demand growth is foreseeable; the robustness band directly measures whether the new network remains feasible under demand variation, so it is the ground truth for safety.",
+        "author": "risk_analyst",
+        "provenance": "agent:record_heuristic:risk_analyst:1f24d2ab9d32"
+      }
+    ],
+    "objective_value": 215449.92,
+    "delta_vs_baseline": {
+      "cost_to_serve_pct": -11.89
+    },
+    "rationale": {
+      "hubs_open": [
+        "H2",
+        "H4",
+        "H6",
+        "H8",
+        "H9"
+      ],
+      "hubs_open_count": 5,
+      "hubs_total_count": 9,
+      "hubs_closed_count": 4,
+      "hubs_opened_count": 0,
+      "solver_status": "Optimal",
+      "solver": "milp_cflp"
+    },
+    "cost_to_serve_before": 57.0949,
+    "cost_to_serve_after": 50.3035,
+    "cost_to_serve_savings_per_parcel": 6.7914,
+    "robustness": {
+      "demand_variation_pct": 20.0,
+      "trials": 50,
+      "cost_to_serve_p10": 35.8786,
+      "cost_to_serve_p50": 36.1068,
+      "cost_to_serve_p90": 36.4401,
+      "feasible_pct": 100.0,
+      "holds_under_variation": true
+    }
+  },
+  "step3_recall": {
+    "answer": "Based on the twin's memory, here's what we know about **hub H5** from previous analysis:\n\n**Demand Growth Break Point:**\n- **Growth threshold:** 172.66% increase in demand before hub H5 reaches capacity constraints\n- **Growth factor:** 2.73\u00d7 the current baseline demand\n- **Utilization at break point:** 100% (full capacity)\n- **Confidence:** 0.5 (moderate; based on 1 observed scenario from engine run `cf25e6f89d38`)\n\nThis tells us that H5 has a measured runway for demand growth. If demand at H5 grows by 172.66%, the hub will hit full capacity. This break point was computed deterministically in a previous optimization run, so it's a reliable baseline for capacity planning.\n\nWould you like me to check H5's current utilization and spare capacity, or explore how this break point compares to projected demand growth?",
+    "tool_calls": [
+      {
+        "tool": "recall_memory",
+        "args": {
+          "kind": "semantic",
+          "key_prefix": "hub.H5."
+        },
+        "result": {
+          "available": true,
+          "kind": "semantic",
+          "records": [
+            {
+              "kind": "semantic",
+              "key": "hub.H5.demand_growth_break",
+              "content": {
+                "growth_pct_threshold": 172.66,
+                "growth_factor_threshold": 2.7266,
+                "hub_utilization_pct_at_break": 100.0,
+                "observed_count": 1
+              },
+              "provenance": "engine:find_demand_growth_break:cf25e6f89d38",
+              "confidence": 0.5,
+              "created_at": "2026-08-04T12:15:51.818793+00:00"
+            }
+          ],
+          "total_returned": 1
+        }
+      }
+    ],
+    "verification": {
+      "status": "verified",
+      "untraceable_figures": [],
+      "attempts": 1,
+      "checked_against": [
+        "recall_memory"
+      ]
+    },
+    "role": "network_analyst",
+    "agent_name": null
+  }
+}

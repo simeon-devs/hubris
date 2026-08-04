@@ -118,7 +118,7 @@ def find_demand_growth_break(
             lower = mid
         iterations += 1
 
-    return {
+    result = {
         "hub_id": hub_id,
         "threshold_found": True,
         "already_broken_at_current_demand": False,
@@ -127,6 +127,28 @@ def find_demand_growth_break(
         "iterations": iterations,
         **evidence,
     }
+    _record_break_fact(hub_id, result)
+    return result
+
+
+def _record_break_fact(hub_id: str, result: dict) -> None:
+    """T-39: the engine memorises its own measured finding as a semantic
+    fact — numeric memory is ENGINE-written with computed values, never
+    agent-written. Re-measuring upserts and raises confidence. Best-effort."""
+    try:
+        from hubris.memory.store import memory, new_provenance
+
+        memory.record_fact(
+            key=f"hub.{hub_id}.demand_growth_break",
+            content={
+                "growth_factor_threshold": result["growth_factor_threshold"],
+                "growth_pct_threshold": result["growth_pct_threshold"],
+                "hub_utilization_pct_at_break": result["hub_utilization_pct"],
+            },
+            provenance=new_provenance("engine:find_demand_growth_break"),
+        )
+    except Exception:  # noqa: BLE001
+        return
 
 
 def _emirate_zone_centroid(model: NetworkModel, emirate: str) -> tuple[float, float]:

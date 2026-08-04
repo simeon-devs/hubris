@@ -21,18 +21,27 @@ from hubris.core.registry import registry as global_registry
 ROLE_TOOLS: dict[str, set[str]] = {
     # T-21/T-23: opportunity scanning and bottleneck unlock are exactly a
     # Network Analyst question ("read current state, find bottlenecks").
+    # T-39: every role can consult the twin's memory ("have we tried this
+    # before?"); only optimizer/risk write heuristics.
     "network_analyst": {
         "get_kpis",
         "find_spare_capacity",
         "scan_opportunities",
         "find_bottleneck_unlock",
+        "recall_memory",
     },
-    "scenario_strategist": {"simulate_scenario", "compare_scenarios"},
+    "scenario_strategist": {"simulate_scenario", "compare_scenarios", "recall_memory"},
     # T-24: leadership briefs are the optimizer role's natural next step
     # after a recommendation.
     # T-34: the goal-driven loop is the optimizer's own machinery.
-    "optimizer": {"optimise_network", "generate_decision_brief", "run_goal_loop"},
-    "cost_analyst": {"get_kpis"},
+    "optimizer": {
+        "optimise_network",
+        "generate_decision_brief",
+        "run_goal_loop",
+        "recall_memory",
+        "record_heuristic",
+    },
+    "cost_analyst": {"get_kpis", "recall_memory"},
     # T-20: robustness/stress-test questions need optimise_network's Monte
     # Carlo band (holds_under_variation, feasible_pct) — the only tool that
     # actually computes robustness, not just before/after point estimates.
@@ -45,6 +54,8 @@ ROLE_TOOLS: dict[str, set[str]] = {
         "optimise_network",
         "find_demand_growth_break",
         "find_customer_count_break",
+        "recall_memory",
+        "record_heuristic",
     },
 }
 

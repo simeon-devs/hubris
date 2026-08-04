@@ -416,6 +416,51 @@ def test_demo_path_survives_memory_being_down(client, monkeypatch):
     assert body == {"available": False, "episodes": [], "total_returned": 0}
 
 
+def test_memory_facts_heuristics_endpoints_and_retire_switch(client):
+    import uuid as _uuid
+    from hubris.memory.store import memory as _memory, new_provenance as _prov
+
+    if not _memory.available():
+        pytest.skip("requires the live compose db (DATABASE_URL)")
+
+    tag = _uuid.uuid4().hex[:6]
+    _memory.record_fact(f"test.api.{tag}", {"x": 42.5}, provenance=_prov("test"))
+    _memory.record_heuristic(
+        name=f"api-h-{tag}",
+        rule={"when": {"tool": "optimise_network"}, "then": {"advise": "check the hottest hub first"}},
+        rationale="test",
+        author="test",
+        provenance=_prov("test"),
+    )
+
+    try:
+        facts = client.get("/memory/facts", params={"key_prefix": f"test.api.{tag}"}).json()
+        assert facts["available"] is True and facts["total_returned"] == 1
+    finally:
+        from sqlalchemy.orm import Session as _S
+        from hubris.core.orm import MemoryFactORM as _F
+
+        with _S(_memory._get_engine()) as _sess:
+            _sess.query(_F).filter(_F.key == f"test.api.{tag}").delete()
+            _sess.commit()
+
+    # the stored heuristic is applied on a REAL /optimize call
+    body = client.post("/optimize", json={}).json()
+    assert f"api-h-{tag}" in {h["name"] for h in body["applied_heuristics"]}
+
+    # planner retires it -> next run no longer carries it
+    r = client.post(f"/memory/heuristics/api-h-{tag}/active", json={"active": False})
+    assert r.status_code == 200
+    body2 = client.post("/optimize", json={}).json()
+    assert f"api-h-{tag}" not in {h["name"] for h in body2["applied_heuristics"]}
+
+    heuristics = client.get("/memory/heuristics").json()
+    mine = [h for h in heuristics["heuristics"] if h["key"] == f"api-h-{tag}"]
+    assert mine and mine[0]["content"]["active"] is False  # retired, not deleted
+
+    assert client.post("/memory/heuristics/nope/active", json={"active": False}).status_code == 404
+
+
 def test_baseline_provenance_is_labelled_end_to_end(client):
     # T-31: the synthetic baseline is a reconstruction and says so on every
     # surface — /network, /kpis' network_summary, and the brief's summary.
