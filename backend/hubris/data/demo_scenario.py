@@ -18,6 +18,8 @@ otherwise the surge applies network-wide — so this still seeds against the
 real event-day dataset, not just the synthetic fixture.
 """
 
+from hubris.core import assumptions
+
 DEMO_SCENARIO_ID = "demo_surge"
 DEMO_SCENARIO_LABEL = "Demo: Sharjah peak surge (5x)"
 
@@ -25,8 +27,9 @@ DEMO_SCENARIO_LABEL = "Demo: Sharjah peak surge (5x)"
 # surge at which every signature feature has something real to say
 # (all 3 inefficiency types + a binding hub with a verified unlock) while
 # min-cost flow still fully serves demand.
-DEMO_TARGET_EMIRATE = "Sharjah"
-DEMO_DEMAND_FACTOR = 5.0
+# T-32: values + evidence labels live in core/assumptions.py
+DEMO_TARGET_EMIRATE = assumptions.value("demo_target_emirate")
+DEMO_DEMAND_FACTOR = assumptions.value("demo_demand_factor")
 
 
 def demo_scenario_params(available_emirates: set[str]) -> dict:

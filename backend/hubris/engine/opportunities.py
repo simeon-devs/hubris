@@ -22,24 +22,26 @@ opportunity scanner is safe to surface even with no agent in the loop.
 
 from pydantic import BaseModel
 
+from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel
 from hubris.core.models import Hub
 from hubris.engine.geo import road_distance_km
 from hubris.plugins.metrics.spare_capacity import SpareCapacityMetric
 from hubris.plugins.metrics.utilization import UtilizationMetric
 
-MIN_OVERLAP_ZONES = 3  # below this, two hubs sharing a couple of edge zones is normal, not redundant
-PRIMARY_COST_RATIO = 1.15  # a hub is a zone's "primary" option within 15% of the cheapest cost
-MIN_EXCESS_COST_PER_UNIT = 1.0  # AED/parcel; filters out solver rounding noise, not real premiums
+# T-32: values + evidence labels live in core/assumptions.py
+MIN_OVERLAP_ZONES = assumptions.value("scanner_min_overlap_zones")
+PRIMARY_COST_RATIO = assumptions.value("scanner_primary_cost_ratio")
+MIN_EXCESS_COST_PER_UNIT = assumptions.value("scanner_min_excess_cost_per_unit")
 # "Overloaded"/"idle" are relative to the network's OWN average utilization,
 # not a fixed absolute number — a healthy network running at 15% average
 # still has a genuine rebalancing opportunity if one hub runs at 2x that
 # while another sits at half, and an absolute 80%/40% cutoff would miss it
 # entirely on an under-utilized network (or over-fire on a busy one).
-HIGH_UTILIZATION_RATIO = 1.5  # >= 1.5x the network average
-LOW_UTILIZATION_RATIO = 0.75  # <= 0.75x the network average
-MIN_OVERLOADED_UTILIZATION_PCT = 10.0  # floor so near-zero-everywhere networks don't flag noise
-NEARBY_KM = 120.0  # UAE is compact enough that this comfortably spans within-emirate pairs
+HIGH_UTILIZATION_RATIO = assumptions.value("scanner_high_utilization_ratio")
+LOW_UTILIZATION_RATIO = assumptions.value("scanner_low_utilization_ratio")
+MIN_OVERLOADED_UTILIZATION_PCT = assumptions.value("scanner_min_overloaded_utilization_pct")
+NEARBY_KM = assumptions.value("scanner_nearby_km")
 
 
 class DisplacedZone(BaseModel):

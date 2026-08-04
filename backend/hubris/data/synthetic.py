@@ -8,6 +8,7 @@ the same canonical shape this produces.
 
 import random
 
+from hubris.core import assumptions
 from hubris.core.models import RawTables
 from hubris.engine.baseline import build_nearest_hub_baseline
 from hubris.engine.geo import road_distance_km
@@ -88,7 +89,7 @@ FLEET_TYPES = [
     },
 ]
 
-AVG_SPEED_KMH = 40.0
+AVG_SPEED_KMH = assumptions.value("avg_speed_kmh")  # T-32
 
 
 def _jitter(rng: random.Random, center: tuple[float, float], spread_deg: float) -> tuple[float, float]:
@@ -163,6 +164,8 @@ def generate_synthetic_raw_tables(seed: int = 42) -> RawTables:
     # -with-capacity baseline").
     current_assignments = build_nearest_hub_baseline(hubs, zones, distances)
 
+    # T-31: assignments_provided stays False — the baseline below is a
+    # nearest-hub reconstruction, and every surface labels it as such.
     return RawTables(
         hubs=hubs,
         zones=zones,

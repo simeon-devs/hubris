@@ -9,6 +9,7 @@ from typing import Any
 
 import pandas as pd
 
+from hubris.core import assumptions
 from hubris.core.contracts import DataConnector
 from hubris.core.models import RawTables
 from hubris.core.registry import register_data_connector
@@ -21,7 +22,7 @@ from hubris.ingestion.schema_mapper import (
     resolve_table_mapping,
 )
 
-AVG_SPEED_KMH = 40.0
+AVG_SPEED_KMH = assumptions.value("avg_speed_kmh")  # T-32
 
 NUMERIC_FIELDS = {
     "lat",

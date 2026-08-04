@@ -14,12 +14,14 @@ inputs always produce the same band (CLAUDE.md's determinism convention).
 import numpy as np
 from pydantic import BaseModel
 
+from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel
 from hubris.engine.flow import solve_min_cost_flow
 
-DEFAULT_DEMAND_VARIATION_PCT = 20.0
-DEFAULT_TRIALS = 50
-DEFAULT_SEED = 42
+# T-32: values + evidence labels live in core/assumptions.py
+DEFAULT_DEMAND_VARIATION_PCT = assumptions.value("mc_demand_variation_pct")
+DEFAULT_TRIALS = assumptions.value("mc_trials")
+DEFAULT_SEED = assumptions.value("mc_seed")
 
 
 class RobustnessBand(BaseModel):

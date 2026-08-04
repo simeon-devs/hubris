@@ -2,13 +2,14 @@
 hub so it's immediately usable by flow/optimiser calls run against the
 resulting copy."""
 
+from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel, ScenarioModule
 from hubris.core.models import OD, Zone
 from hubris.core.registry import register_scenario
 from hubris.engine.cost_model import derive_od_cost, reference_cost_per_km
 from hubris.engine.geo import road_distance_km
 
-AVG_SPEED_KMH = 40.0
+AVG_SPEED_KMH = assumptions.value("avg_speed_kmh")  # T-32
 
 
 @register_scenario

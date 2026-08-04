@@ -7,13 +7,14 @@ always comes back (CLAUDE.md §7: "the demo never hangs")."""
 
 import pulp
 
+from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel, OptimizerStrategy, Recommendation
 from hubris.core.registry import register_optimizer
 from hubris.engine.constraints import max_utilization_constraint
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 from hubris.plugins.optimizers.greedy import GreedyOptimizer
 
-DEFAULT_TIME_LIMIT_SECONDS = 20.0
+DEFAULT_TIME_LIMIT_SECONDS = assumptions.value("milp_time_limit_seconds")  # T-32
 
 
 @register_optimizer

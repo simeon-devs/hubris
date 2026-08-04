@@ -298,6 +298,18 @@ def test_agent_query_unknown_agent_is_still_404_not_503(client):
     assert response.status_code == 404
 
 
+def test_assumptions_endpoint_serves_the_labelled_registry(client):
+    response = client.get("/assumptions")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] >= 20
+    assert set(body["counts_by_status"]) <= {"verified", "derived", "assumed"}
+    names = {a["name"] for a in body["assumptions"]}
+    assert {"road_factor", "avg_speed_kmh", "mc_trials", "demo_demand_factor"} <= names
+    # the honest number: most inputs are assumptions until T-28's real data
+    assert body["counts_by_status"]["assumed"] >= 10
+
+
 def test_agents_crud_lifecycle(client):
     create = client.post(
         "/agents", json={"name": "api_test_agent", "goal": "test", "allowed_tools": ["get_kpis"]}

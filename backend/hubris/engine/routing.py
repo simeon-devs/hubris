@@ -16,15 +16,19 @@ import os
 import httpx
 from pydantic import BaseModel
 
+from hubris.core import assumptions
+
 from hubris.core.contracts import NetworkModel
 from hubris.core.models import OD
 from hubris.engine.cost_model import derive_od_cost, reference_cost_per_km
 from hubris.engine.geo import road_distance_km
 
 OSRM_BASE_URL = os.environ.get("OSRM_BASE_URL", "https://router.project-osrm.org")
-OSRM_TIMEOUT_SECONDS = float(os.environ.get("OSRM_TIMEOUT_SECONDS", "8"))
+OSRM_TIMEOUT_SECONDS = float(
+    os.environ.get("OSRM_TIMEOUT_SECONDS", str(assumptions.value("osrm_timeout_seconds")))
+)
 
-AVG_SPEED_KMH_FALLBACK = 40.0
+AVG_SPEED_KMH_FALLBACK = assumptions.value("avg_speed_kmh")
 
 MODE_OSRM = "osrm"
 MODE_FALLBACK = "haversine_fallback"

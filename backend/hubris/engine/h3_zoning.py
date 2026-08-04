@@ -6,7 +6,9 @@ happens to provide."""
 
 import h3
 
-DEFAULT_H3_RESOLUTION = 7  # ~1.2km hex edge length; tune per dataset density
+from hubris.core import assumptions
+
+DEFAULT_H3_RESOLUTION = assumptions.value("h3_default_resolution")  # T-32
 
 
 def aggregate_to_h3_zones(points: list[dict], resolution: int = DEFAULT_H3_RESOLUTION) -> list[dict]:

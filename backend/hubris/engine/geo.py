@@ -4,7 +4,9 @@ replaces this with OSRM/Valhalla/ORS)."""
 
 import math
 
-ROAD_FACTOR = 1.3  # haversine x ~1.3 fallback per SCHEMA.md §2
+from hubris.core import assumptions
+
+ROAD_FACTOR = assumptions.value("road_factor")  # T-32: labelled in core/assumptions.py
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

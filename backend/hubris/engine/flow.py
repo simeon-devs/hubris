@@ -11,9 +11,10 @@ hang or raise (CLAUDE.md §7).
 from pydantic import BaseModel
 from scipy.optimize import linprog
 
+from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel
 
-OVERFLOW_PENALTY = 1_000_000.0
+OVERFLOW_PENALTY = assumptions.value("overflow_penalty")  # T-32
 
 
 class FlowResult(BaseModel):

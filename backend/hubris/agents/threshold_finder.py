@@ -21,15 +21,17 @@ never estimated or extrapolated):
 import math
 from collections import Counter
 
+from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel
 from hubris.engine.flow import solve_min_cost_flow
 from hubris.plugins.scenarios.add_customer import AddCustomerScenario
 
-DUAL_EPSILON = 1e-6
-DEFAULT_TOLERANCE = 0.01
-DEFAULT_MAX_GROWTH_FACTOR = 20.0
-DEFAULT_MAX_CUSTOMER_COUNT = 200
-DEFAULT_SLA_HOURS = 24.0
+DUAL_EPSILON = 1e-6  # numerical zero for LP duals; not a planning assumption
+# T-32: values + evidence labels live in core/assumptions.py
+DEFAULT_TOLERANCE = assumptions.value("threshold_tolerance")
+DEFAULT_MAX_GROWTH_FACTOR = assumptions.value("threshold_max_growth_factor")
+DEFAULT_MAX_CUSTOMER_COUNT = assumptions.value("threshold_max_customer_count")
+DEFAULT_SLA_HOURS = assumptions.value("default_sla_hours")
 
 
 def _scale_hub_zone_demand(model: NetworkModel, hub_id: str, factor: float) -> NetworkModel:
