@@ -60,7 +60,22 @@ def to_langchain_tool(tool: AgentTool, model: NetworkModel) -> StructuredTool:
         # (e.g. optimizer_name="milp_cflp"). Dropping None lets the tool's
         # real default apply either way.
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
-        return tool.run(model=model, **kwargs)
+        try:
+            return tool.run(model=model, **kwargs)
+        except Exception as exc:  # noqa: BLE001
+            # Graceful-fallback rule (build rule 4 / CLAUDE.md §7 "the demo
+            # never hangs"): a bad argument from the LLM (e.g.
+            # optimizer_name="MILP", live-observed) must reach the agent as
+            # a correctable tool RESULT, never crash the whole query —
+            # LangGraph's tool node re-raises unhandled tool exceptions.
+            return {
+                "error": f"{type(exc).__name__}: {exc}",
+                "tool": tool.name,
+                "hint": (
+                    "The tool itself is available — the arguments were invalid. "
+                    "Correct them per the tool description and call it again."
+                ),
+            }
 
     return StructuredTool.from_function(
         func=_call,

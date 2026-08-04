@@ -97,6 +97,23 @@ def test_compare_scenarios_against_baseline():
     assert result["delta_a_minus_b"]["cost_to_serve"] == round(63.0 - 2600 / 60, 4)
 
 
+def test_adapter_returns_bad_llm_arguments_as_correctable_error_not_a_crash():
+    # Live-observed during T-33's 5x runs: the LLM passed
+    # optimizer_name="MILP" (its own spelling) and the KeyError crashed the
+    # entire query via LangGraph's tool node. Build rule 4: the error must
+    # come back as a tool RESULT the agent can read and correct.
+    from hubris.agents.tool_adapter import to_langchain_tool
+
+    lc_tool = to_langchain_tool(OptimiseNetworkTool(), _model())
+
+    result = lc_tool.func(optimizer_name="MILP")
+
+    assert isinstance(result, dict)
+    assert "MILP" in result["error"]
+    assert result["tool"] == "optimise_network"
+    assert "call it again" in result["hint"]
+
+
 def test_all_registered_tools_are_agent_usable():
     load_plugins()
     registered_names = {t.name for t in global_registry.all(AGENT_TOOL)}

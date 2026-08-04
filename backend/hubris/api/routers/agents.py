@@ -43,6 +43,23 @@ def _parse_tool_calls(tool_calls: list[dict]) -> list[ToolCallTrace]:
     return traces
 
 
+def _run_guarded(run):
+    """Rule 4 (demo never crashes): an upstream LLM failure — API down, key
+    out of credits (observed live: anthropic.BadRequestError 'credit balance
+    is too low'), network — must surface as a clean 503 the UI can display,
+    never a raw 500 traceback. Deliberately AFTER the KeyError→404 handling
+    at each call site; deterministic endpoints (/kpis, /simulate, ...) are
+    untouched — the engine keeps answering even when the agent layer can't."""
+    try:
+        return run()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            503, f"Agent layer unavailable: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 @router.post("/agent/query", response_model=AgentQueryResponse)
 def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
     try:
@@ -52,26 +69,31 @@ def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
 
     if req.agent_name:
         try:
-            result = builder.run(req.agent_name, model, req.question)
+            builder.get(req.agent_name)  # 404 for unknown names, before the 503 guard
         except KeyError as exc:
             raise HTTPException(404, f"Unknown agent: {req.agent_name}") from exc
+        result = _run_guarded(lambda: builder.run(req.agent_name, model, req.question))
         return AgentQueryResponse(
             answer=result["answer"],
             tool_calls=_parse_tool_calls(result["tool_calls"]),
+            verification=result["verification"],
             agent_name=req.agent_name,
         )
 
     if req.mode == "single":
         tools = global_registry.all(AGENT_TOOL)
-        result = run_agent_query(model, tools, req.question)
+        result = _run_guarded(lambda: run_agent_query(model, tools, req.question))
         return AgentQueryResponse(
-            answer=result["answer"], tool_calls=_parse_tool_calls(result["tool_calls"])
+            answer=result["answer"],
+            tool_calls=_parse_tool_calls(result["tool_calls"]),
+            verification=result["verification"],
         )
 
-    result = run_workforce_query(model, req.question)
+    result = _run_guarded(lambda: run_workforce_query(model, req.question))
     return AgentQueryResponse(
         answer=result["answer"],
         tool_calls=_parse_tool_calls(result["tool_calls"]),
+        verification=result["verification"],
         role=result["role"],
     )
 

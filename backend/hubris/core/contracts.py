@@ -25,6 +25,8 @@ __all__ = [
     "ScenarioModule",
     "OptimizerStrategy",
     "AgentTool",
+    "VerificationVerdict",
+    "ProvenanceVerifier",
 ]
 
 
@@ -134,3 +136,36 @@ class AgentTool(ABC):
 
     @abstractmethod
     def run(self, **kwargs) -> dict: ...  # returns COMPUTED JSON only
+
+
+# ---- the provenance gate (T-33 / W1) ----
+class VerificationVerdict(BaseModel):
+    """Attached to EVERY agent answer before it leaves the backend.
+
+    status:
+      "verified"    — every figure in the answer traces to a tool result
+                      (or the user's own question) on the first pass.
+      "regenerated" — the first pass contained untraceable figures; one
+                      regeneration pass produced a clean answer.
+      "flagged"     — still untraceable after regeneration; the answer is
+                      returned WITH this verdict so the UI can mark it —
+                      never silently, never stripped of the warning.
+    """
+
+    status: str  # "verified" | "regenerated" | "flagged"
+    untraceable_figures: list[float] = []
+    attempts: int = 1
+    checked_against: list[str] = []  # tool names whose results were the evidence
+
+
+class ProvenanceVerifier(ABC):
+    """The runtime enforcement of the one rule that never moves. The ONLY
+    sanctioned path from LLM prose to a user runs through `verify`."""
+
+    @abstractmethod
+    def verify(
+        self,
+        answer: str,
+        tool_results: list[object],
+        question: str | None = None,
+    ) -> VerificationVerdict: ...

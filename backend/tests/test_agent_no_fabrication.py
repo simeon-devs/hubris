@@ -44,10 +44,19 @@ def _named_tools():
 def _assert_no_fabrication(result: dict, question: str) -> None:
     assert result["tool_calls"], "agent answered without calling any tool"
     tool_results = [json.loads(c["result"]) for c in result["tool_calls"]]
+    # Independent re-check with the raw checker — deliberately NOT trusting
+    # the runner's own verdict as the only evidence.
     unexplained = find_unexplained_numbers(result["answer"], tool_results, question=question)
     assert unexplained == [], (
         f"agent stated number(s) not present in any tool result: {unexplained}\n"
         f"answer: {result['answer']}"
+    )
+    # T-33: the runtime gate must have run and reached the same conclusion.
+    # A fabrication that survives regeneration surfaces as status="flagged"
+    # and is a REAL failure (build rule 5) — never retried into green.
+    verdict = result["verification"]
+    assert verdict["status"] in {"verified", "regenerated"}, (
+        f"gate let a flagged answer through: {verdict}"
     )
 
 

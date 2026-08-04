@@ -100,6 +100,7 @@ class WorkforceState(TypedDict):
     role: str
     answer: str
     tool_calls: list[dict]
+    verification: dict
 
 
 def _route_node(classifier: Classifier):
@@ -118,7 +119,12 @@ def _specialist_node(role: str, model: NetworkModel):
         tools = [t for t in global_registry.all(AGENT_TOOL) if t.name in tool_names]
         system_prompt = f"{NO_FABRICATION_SYSTEM_PROMPT}\n\nYour role: {ROLE_GOALS[role]}"
         result = run_agent_query(model, tools, state["question"], system_prompt=system_prompt)
-        return {**state, "answer": result["answer"], "tool_calls": result["tool_calls"]}
+        return {
+            **state,
+            "answer": result["answer"],
+            "tool_calls": result["tool_calls"],
+            "verification": result["verification"],
+        }
 
     return _node
 
@@ -141,9 +147,12 @@ def run_workforce_query(
     model: NetworkModel, question: str, classifier: Classifier | None = None
 ) -> dict:
     graph = build_workforce_graph(model, classifier)
-    result = graph.invoke({"question": question, "role": "", "answer": "", "tool_calls": []})
+    result = graph.invoke(
+        {"question": question, "role": "", "answer": "", "tool_calls": [], "verification": {}}
+    )
     return {
         "role": result["role"],
         "answer": result["answer"],
         "tool_calls": result["tool_calls"],
+        "verification": result["verification"],
     }

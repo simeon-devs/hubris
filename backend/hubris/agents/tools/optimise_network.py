@@ -21,9 +21,10 @@ class OptimiseNetworkTool(AgentTool):
     description = (
         "Run the network optimiser to recommend hub open/close changes that "
         "minimise cost, subject to constraints (e.g. "
-        "{'type':'max_utilization','value':0.9}). Defaults to the MILP "
-        "recommender, which falls back to a greedy heuristic on its own if it "
-        "can't solve in time — always returns a result. Returns: changes, "
+        "{'type':'max_utilization','value':0.9}). optimizer_name must be "
+        "exactly 'milp_cflp' or 'greedy' — omit it to use the default "
+        "('milp_cflp', which falls back to a greedy heuristic on its own if "
+        "it can't solve in time — always returns a result). Returns: changes, "
         "objective_value (total AED), cost_to_serve_before/cost_to_serve_after "
         "(AED/parcel — use these directly, never divide objective_value by a "
         "demand count yourself), cost_to_serve_savings_per_parcel (use "

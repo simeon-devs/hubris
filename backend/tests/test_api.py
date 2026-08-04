@@ -275,6 +275,29 @@ def test_ingest_replaces_the_baseline(client):
     assert len(net.json()["zones"]) == 3
 
 
+def test_agent_query_upstream_llm_failure_is_a_clean_503_not_a_crash(client, monkeypatch):
+    # T-33 hardening, rule 4: observed live — the Anthropic key ran out of
+    # credits and /agent/query returned a raw 500. Any agent-layer failure
+    # must degrade to a 503 the UI can display; engine endpoints stay up.
+    def _boom(*args, **kwargs):
+        raise RuntimeError("credit balance is too low")
+
+    monkeypatch.setattr("hubris.api.routers.agents.run_workforce_query", _boom)
+
+    response = client.post("/agent/query", json={"question": "anything"})
+    assert response.status_code == 503
+    assert "Agent layer unavailable" in response.json()["detail"]
+    assert "credit balance" in response.json()["detail"]
+
+    # the deterministic engine is untouched by an agent-layer outage
+    assert client.get("/kpis").status_code == 200
+
+
+def test_agent_query_unknown_agent_is_still_404_not_503(client):
+    response = client.post("/agent/query", json={"question": "q", "agent_name": "nope"})
+    assert response.status_code == 404
+
+
 def test_agents_crud_lifecycle(client):
     create = client.post(
         "/agents", json={"name": "api_test_agent", "goal": "test", "allowed_tools": ["get_kpis"]}
@@ -325,6 +348,8 @@ def test_live_agent_query_preserves_tool_provenance(client):
     assert body["role"] is not None
     assert body["tool_calls"], "no tool calls returned — provenance trail missing"
     assert isinstance(body["tool_calls"][0]["result"], dict), "tool result wasn't parsed as JSON"
+    # T-33: every agent response carries the runtime provenance verdict
+    assert body["verification"]["status"] in {"verified", "regenerated"}, body["verification"]
 
 
 @pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="requires a live ANTHROPIC_API_KEY")

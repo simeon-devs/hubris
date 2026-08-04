@@ -65,9 +65,24 @@ class ToolCallTrace(BaseModel):
     result: Any = None
 
 
+class VerificationInfo(BaseModel):
+    """T-33: the provenance verdict attached to every agent answer.
+    status: "verified" (clean first pass) | "regenerated" (clean after one
+    regeneration) | "flagged" (still contains figures traceable to no tool
+    result — listed in untraceable_figures so the UI can name them)."""
+
+    status: str
+    untraceable_figures: list[float] = []
+    attempts: int = 1
+    checked_against: list[str] = []
+
+
 class AgentQueryResponse(BaseModel):
     answer: str
     tool_calls: list[ToolCallTrace]
+    # Required, deliberately: a response without a verdict must fail loudly
+    # at the schema layer, not slip through as unverified prose (T-33).
+    verification: VerificationInfo
     role: str | None = None
     agent_name: str | None = None
 

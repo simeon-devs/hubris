@@ -61,6 +61,7 @@ def test_cost_question_routes_to_cost_analyst_and_is_grounded():
 
     assert result["role"] == "cost_analyst"
     assert result["tool_calls"], "specialist answered without calling any tool"
+    assert result["verification"]["status"] in {"verified", "regenerated"}, result["verification"]
     tool_results = [json.loads(c["result"]) for c in result["tool_calls"]]
     unexplained = find_unexplained_numbers(result["answer"], tool_results, question=question)
     assert unexplained == [], f"unexplained numbers: {unexplained}\nanswer: {result['answer']}"
@@ -74,6 +75,7 @@ def test_optimizer_question_routes_to_optimizer_and_is_grounded():
 
     assert result["role"] == "optimizer"
     assert result["tool_calls"], "specialist answered without calling any tool"
+    assert result["verification"]["status"] in {"verified", "regenerated"}, result["verification"]
     tool_results = [json.loads(c["result"]) for c in result["tool_calls"]]
     unexplained = find_unexplained_numbers(result["answer"], tool_results, question=question)
     assert unexplained == [], f"unexplained numbers: {unexplained}\nanswer: {result['answer']}"

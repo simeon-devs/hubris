@@ -101,5 +101,6 @@ def test_seeded_cost_advisor_answers_a_real_question_using_only_tool_numbers():
     assert called_tools <= {"get_kpis", "optimise_network"}  # never exceeded its allowance
 
     tool_results = [json.loads(c["result"]) for c in result["tool_calls"]]
+    assert result["verification"]["status"] in {"verified", "regenerated"}, result["verification"]
     unexplained = find_unexplained_numbers(result["answer"], tool_results, question=question)
     assert unexplained == [], f"unexplained numbers: {unexplained}\nanswer: {result['answer']}"
