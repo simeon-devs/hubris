@@ -100,15 +100,33 @@ function MapHomePage() {
     void import("@/components/atlas/LeafletMap").then((m) => setMapComp(() => m.LeafletMap));
   }, []);
 
+  /* ONE path for every "Show on map" (alert cards, Copilot, crisis chip,
+     cross-page): fly the camera, reveal the layer the target lives on, and
+     when the target is a hub actually SELECT it — same pin styling and
+     live card as clicking it. Navigation wins over analysis filters: a
+     selected target must never sit on a hidden layer or behind a filter. */
+  const showOnMap = (t: { lat: number; lng: number; zoom?: number; hubId?: string }) => {
+    setFocus({ ...t, stamp: Date.now() });
+    const id = t.hubId;
+    if (!id) return;
+    const layerKey = id.startsWith("QED") ? "stores" : id.startsWith("OD") ? "od" : "hubs";
+    setLayers((l) => (l[layerKey] ? l : { ...l, [layerKey]: true }));
+    if (id.startsWith("CAND")) setShowCandidates(true);
+    if (hubSnapshot(id)) {
+      setSelectedHubId(id);
+      setTypeFilter("all");
+      setStatusFilter("all");
+    }
+  };
+
   /* A "Show on map" pressed on another page lands here. */
   useEffect(() => {
     if (mapFocus) {
-      setFocus(mapFocus);
+      showOnMap(mapFocus);
       clearMapFocus();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- showOnMap is stable in effect: guarded by mapFocus, cleared after use
   }, [mapFocus, clearMapFocus]);
-
-  const showOnMap = (t: { lat: number; lng: number; zoom?: number }) => setFocus({ ...t, stamp: Date.now() });
 
   const toggleLayer = (key: keyof typeof layers) => setLayers((l) => ({ ...l, [key]: !l[key] }));
   // Analyse-from-many-angles filters (hub layer only)
@@ -242,8 +260,8 @@ function MapHomePage() {
           <div className="absolute left-1/2 top-4 z-[1200] -translate-x-1/2">
             <button
               onClick={() => {
-                setLayers((l) => ({ ...l, stores: true }));
-                if (crisis.target) setFocus({ ...crisis.target, stamp: Date.now() });
+                if (crisis.target) showOnMap(crisis.target);
+                else setLayers((l) => ({ ...l, stores: true }));
                 setAlertsOpen(true);
               }}
               className="animate-pulse rounded-full border border-risk/50 bg-risk/15 px-3.5 py-1.5

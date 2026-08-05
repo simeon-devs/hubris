@@ -23,7 +23,7 @@ export type CopilotPill = "verified" | "self-corrected" | "flagged";
 export interface CopilotAnswer {
   text: string;
   pill: CopilotPill;
-  mapTarget?: { lat: number; lng: number; zoom?: number; label: string } | undefined;
+  mapTarget?: { lat: number; lng: number; zoom?: number; label: string; hubId?: string } | undefined;
   toolCalls: { tool: string; summary: string }[];
   untraceableFigures: number[];
 }
@@ -50,11 +50,14 @@ export const PRESET_QUESTIONS: PresetQuestion[] = [
 
 type MapTarget = NonNullable<CopilotAnswer["mapTarget"]>;
 
-/** Every known facility, resolvable by its engine id. */
+/** Every known facility, resolvable by its engine id. hubId rides along so
+ *  the map page can SELECT the target (open its live card), not just fly;
+ *  zoom 13 lands close enough to read the pin (OD stays wide — it is a
+ *  coverage blob, not a point). */
 const FACILITY_TARGET = new Map<string, MapTarget>();
-for (const h of HUBS) FACILITY_TARGET.set(h.id, { lat: h.lat, lng: h.lng, zoom: 12, label: h.name });
-for (const s of DARK_STORES) FACILITY_TARGET.set(s.id, { lat: s.lat, lng: s.lng, zoom: 12, label: s.name });
-for (const o of OD_NETWORK) FACILITY_TARGET.set(o.id, { lat: o.lat, lng: o.lng, zoom: 10, label: `${o.emirate} On-Demand` });
+for (const h of HUBS) FACILITY_TARGET.set(h.id, { lat: h.lat, lng: h.lng, zoom: 13, label: h.name, hubId: h.id });
+for (const s of DARK_STORES) FACILITY_TARGET.set(s.id, { lat: s.lat, lng: s.lng, zoom: 13, label: s.name, hubId: s.id });
+for (const o of OD_NETWORK) FACILITY_TARGET.set(o.id, { lat: o.lat, lng: o.lng, zoom: 10, label: `${o.emirate} On-Demand`, hubId: o.id });
 
 /** Every string anywhere in a tool payload — values AND keys, since the
  *  engine uses zone ids as dict keys (e.g. unmet_demand). */
@@ -129,7 +132,13 @@ export function resolveMapTarget(toolCalls: ApiToolCall[], answer: string): Copi
     const zone = targetForZone(s, "");
     if (zone && !candidates.has(zone.label)) {
       candidates.set(zone.label, {
-        target: { lat: zone.lat, lng: zone.lng, zoom: 12, label: zone.label },
+        target: {
+          lat: zone.lat,
+          lng: zone.lng,
+          zoom: 13,
+          label: zone.label,
+          ...(zone.hubId ? { hubId: zone.hubId } : {}),
+        },
         score: mentions(zone.label),
         facility: false,
         order,

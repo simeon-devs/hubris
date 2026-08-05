@@ -15,6 +15,8 @@ export interface AlertTarget {
   lng: number;
   zoom?: number;
   label: string;
+  /** Facility id at the target — lets the map select it, not just fly. */
+  hubId?: string;
 }
 
 export interface AtlasAlert {
@@ -38,19 +40,19 @@ export function targetForZone(zoneId: string, labelPrefix = "Unserved: "): Alert
   const zoneName = (zoneId.split("-")[1] ?? "").replace(/_/g, " ").trim();
   if (!zoneName) return undefined;
   const store = DARK_STORES.find((s) => s.zone.toLowerCase().includes(zoneName.toLowerCase()));
-  if (store) return { lat: store.lat, lng: store.lng, zoom: 12, label: `${labelPrefix}${zoneName}` };
+  if (store) return { lat: store.lat, lng: store.lng, zoom: 13, label: `${labelPrefix}${zoneName}`, hubId: store.id };
   const hub = HUBS.find((h) => h.zone.toLowerCase().includes(zoneName.toLowerCase()));
-  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 12, label: `${labelPrefix}${zoneName}` };
+  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 13, label: `${labelPrefix}${zoneName}`, hubId: hub.id };
   return undefined;
 }
 
 function targetFor(id: string): AlertTarget | undefined {
   const hub = HUBS.find((h) => h.id === id);
-  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 11, label: hub.name };
+  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 13, label: hub.name, hubId: hub.id };
   const store = DARK_STORES.find((s) => s.id === id);
-  if (store) return { lat: store.lat, lng: store.lng, zoom: 12, label: store.name };
+  if (store) return { lat: store.lat, lng: store.lng, zoom: 13, label: store.name, hubId: store.id };
   const od = OD_NETWORK.find((o) => o.id === id);
-  if (od) return { lat: od.lat, lng: od.lng, zoom: 10, label: `${od.emirate} On-Demand` };
+  if (od) return { lat: od.lat, lng: od.lng, zoom: 10, label: `${od.emirate} On-Demand`, hubId: od.id };
   return undefined;
 }
 

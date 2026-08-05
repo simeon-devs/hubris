@@ -175,6 +175,9 @@ export interface MapFocus {
   lat: number;
   lng: number;
   zoom?: number;
+  /** Facility id (HUB_/QED_/OD_/CAND_) — lets the map page also SELECT the
+   *  target: reveal its layer and open its live card, not just fly there. */
+  hubId?: string;
   /** Bump to re-trigger flyTo for the same target. */
   stamp?: number;
 }
