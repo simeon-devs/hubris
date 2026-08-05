@@ -8,6 +8,7 @@
  */
 
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { AlertsBell, AlertsDrawer, useAlerts } from "@/components/AlertsDrawer";
 import GuidedTour, { tourAlreadySeen } from "@/components/GuidedTour";
 import IngestButton from "@/components/IngestButton";
@@ -25,6 +26,7 @@ export default function WorkspaceShell({ children }: { children: ReactNode }) {
 }
 
 function ShellChrome({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const {
     network,
     refreshingDistances,
@@ -40,9 +42,16 @@ function ShellChrome({ children }: { children: ReactNode }) {
   const unacknowledged = alerts.filter((a) => !a.acknowledged).length;
 
   // First visit: open the tour once (pre-existing behaviour, now shell-owned).
+  // Not on the AtlasVision home — the design carries its own guided story.
   useEffect(() => {
-    if (!tourAlreadySeen()) setTourOpen(true);
-  }, [setTourOpen]);
+    if (pathname !== "/" && !tourAlreadySeen()) setTourOpen(true);
+  }, [setTourOpen, pathname]);
+
+  // The home page IS the approved design, chrome and all — the shell steps
+  // aside entirely so nothing sits on top of it. /classic keeps everything.
+  if (pathname === "/") {
+    return <div className="relative w-screen h-screen overflow-hidden bg-[#04070f]">{children}</div>;
+  }
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#020817]">
