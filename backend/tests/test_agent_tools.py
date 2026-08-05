@@ -129,6 +129,7 @@ def test_all_registered_tools_are_agent_usable():
         "simulate_scenario",
         "optimise_network",
         "optimise_frontier",
+        "rank_network_shapes",
         "compare_scenarios",
         "scan_opportunities",
         "find_demand_growth_break",

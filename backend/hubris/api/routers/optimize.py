@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 
 from hubris.agents.tools.optimise_frontier import OptimiseFrontierTool
 from hubris.agents.tools.optimise_network import OptimiseNetworkTool
+from hubris.agents.tools.rank_shapes import RankNetworkShapesTool
 from hubris.api.schemas import OptimizeRequest, OptimizeResponse
 from hubris.api.state import state
 from hubris.memory.apply import apply_heuristics
@@ -107,3 +108,15 @@ def optimize_frontier(req: FrontierRequest) -> dict:
         source="api:/optimize/frontier",
     )
     return result
+
+
+@router.get("/optimize/ranked-shapes")
+def ranked_shapes(scenario_id: str | None = None, limit: int = 8) -> dict:
+    """Ranked network shapes — every row a real engine evaluation (see
+    engine/ranked_shapes.py). The is_recommended row is the frontier's
+    resilience-constrained optimum."""
+    try:
+        model = state.get_model(scenario_id)
+    except KeyError as exc:
+        raise HTTPException(404, f"Unknown scenario_id: {scenario_id}") from exc
+    return RankNetworkShapesTool().run(model=model, limit=limit)
