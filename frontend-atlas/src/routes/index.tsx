@@ -6,7 +6,8 @@ import { CopilotDrawer } from "@/components/atlas/CopilotDrawer";
 import { AtlasButton, Card, Chip, LabelValueRow, StatusBadge, UtilBar } from "@/components/atlas/ui";
 import { ackAlertRemote, fetchAlerts, type AtlasAlert } from "@/lib/atlas-alerts";
 import { fmtAed, fmtInt, fmtNum, type HubInfo } from "@/lib/atlas-data";
-import { blendedCps, hubSnapshot } from "@/lib/atlas-engine";
+import { hubSnapshot, type HubSnapshot } from "@/lib/atlas-engine";
+import { getKpis, getNetwork, type ApiNetwork } from "@/lib/api";
 import { useAtlas } from "@/lib/atlas-store";
 import { cn } from "@/lib/utils";
 
@@ -57,8 +58,43 @@ function MapHomePage() {
     };
   }, []);
   const unacked = alerts.filter((a) => !a.acknowledged && !acked.includes(a.id));
-  const cps = useMemo(() => blendedCps(), []);
-  const snapshot = selectedHubId ? hubSnapshot(selectedHubId) : null;
+  // Headline + hub facts come from the ENGINE; the embedded snapshot is the
+  // offline fallback (VIEW mode) only.
+  const [cps, setCps] = useState<number | null>(null);
+  const [liveNet, setLiveNet] = useState<ApiNetwork | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      getKpis()
+        .then((k) => !cancelled && setCps(k.cost_to_serve.value))
+        .catch(() => !cancelled && setCps(null));
+      getNetwork()
+        .then((n) => !cancelled && setLiveNet(n))
+        .catch(() => {});
+    };
+    poll();
+    const timer = setInterval(poll, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+  const snapshot: HubSnapshot | null = useMemo(() => {
+    if (!selectedHubId) return null;
+    const base = hubSnapshot(selectedHubId);
+    if (!base) return null;
+    const live = liveNet?.hubs.find((h) => h.id === selectedHubId);
+    if (!live) return base;
+    // Live engine fields override the embedded copy where they exist.
+    return {
+      ...base,
+      util: live.utilization_pct,
+      dailyLoad: live.rider_capacity_daily != null && live.utilization_pct != null ? base.dailyLoad : base.dailyLoad,
+      effCap: live.capacity,
+      fte: live.riders_fte ?? base.fte,
+      ftc: live.riders_ftc ?? base.ftc,
+    };
+  }, [selectedHubId, liveNet]);
 
   useEffect(() => {
     void import("@/components/atlas/LeafletMap").then((m) => setMapComp(() => m.LeafletMap));
@@ -95,15 +131,15 @@ function MapHomePage() {
       {/* Headline — the ONE big number */}
       <div className="absolute left-4 top-4 z-[1000] w-[292px]">
         <Card className="p-4">
-          <p className="kicker">Blended cost / shipment · W13</p>
+          <p className="kicker">Cost / shipment · Hub &amp; Spoke · live</p>
           <div className="mt-1.5 flex items-baseline gap-1.5">
             <span className="font-mono text-[36px] font-bold leading-none tracking-tight text-foreground">
-              {fmtNum(cps, 2)}
+              {cps === null ? "—" : fmtNum(cps, 2)}
             </span>
             <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">AED</span>
           </div>
           <p className="mt-2 text-[10.5px] leading-relaxed text-muted-foreground">
-            Fully loaded across Hub &amp; Spoke, QComm and On-Demand. Click any hub for its live card.
+            Fully loaded, computed by the engine on the current network. Click any hub for its live card.
           </p>
         </Card>
 

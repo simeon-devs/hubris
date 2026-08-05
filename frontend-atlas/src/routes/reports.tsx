@@ -1,11 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Download, FileText } from "lucide-react";
-import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import { useEffect, useMemo, useState } from "react";
 
 import { AtlasButton, Card, Chip, PageHead, SectionTitle } from "@/components/atlas/ui";
-import { fmtInt, fmtNum } from "@/lib/atlas-data";
-import { blendedCps, findBottleneck, networkTotals, predictedBreaks } from "@/lib/atlas-engine";
+import { exportUrl } from "@/lib/api";
 import { useAtlas, type SavedReport } from "@/lib/atlas-store";
 import { cn } from "@/lib/utils";
 
@@ -27,59 +25,57 @@ export const Route = createFileRoute("/reports")({
 });
 
 function downloadMd(report: SavedReport) {
-  const blob = new Blob([`# ${report.title}\n\n_${report.date}_\n\n${report.summary}\n\n${report.bodyMd}`], { type: "text/markdown" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${report.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.md`;
-  a.click();
-  URL.revokeObjectURL(url);
+  // Chat-saved reports keep their captured text; the download itself is the
+  // backend's export (the engine-composed brief), never client-assembled.
+  window.open(exportUrl("/export/report.md"), "_blank");
+  void report;
 }
 
 function downloadXlsx(report: SavedReport) {
-  const lines = report.bodyMd.replace(/^##+\s*/gm, "").split("\n").map((l) => l.replace(/^- /, "").trim()).filter(Boolean);
-  const summary = XLSX.utils.aoa_to_sheet([
-    ["EMX ATLAS — Decision Brief"],
-    ["Title", report.title],
-    ["Date", report.date],
-    [],
-    ["Summary", report.summary],
-    [],
-    ...lines.map((l) => [l]),
-  ]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, summary, "Brief");
-  const kpis = XLSX.utils.json_to_sheet(
-    networkTotals().map((t) => ({
-      Network: t.network,
-      "Weekly shipments (W1)": Math.round(t.weeklyW1),
-      "Weekly shipments (W13)": Math.round(t.weeklyW13),
-      "Daily shipments (W13)": Math.round(t.dailyW13),
-      "Growth W1→W13 (%)": Number((t.weeklyW1 > 0 ? ((t.weeklyW13 - t.weeklyW1) / t.weeklyW1) * 100 : 0).toFixed(1)),
-    })),
-  );
-  XLSX.utils.book_append_sheet(wb, kpis, "Network KPIs");
-  XLSX.writeFile(wb, `${report.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.xlsx`);
+  window.open(exportUrl("/export/report.xlsx?include_optimizer=true"), "_blank");
+  void report;
 }
 
 function ReportsPage() {
   const { savedReports } = useAtlas();
 
-  const autoBrief = useMemo<SavedReport>(() => {
-    const cps = blendedCps();
-    const first = predictedBreaks(26)[0];
-    const bottleneck = findBottleneck();
-    const totals = networkTotals();
-    const weekly = totals.reduce((s, t) => s + t.weeklyW13, 0);
-    return {
-      id: "auto-baseline",
-      title: "Network baseline brief — Week 13",
-      date: "2026-07-22",
-      auto: true,
-      summary: `The EMX network moved ~${fmtInt(Math.round(weekly))} shipments in week 13 across three networks at a blended, fully-loaded cost of ${fmtNum(cps, 2)} AED per shipment.${
-        first ? ` The first predicted breaking point is ${first.name}, saturating in roughly ${first.weeks} weeks at current growth.` : " No hub is predicted to saturate within 26 weeks."
-      }`,
-      bodyMd: `## Network totals\n${totals.map((t) => `- ${t.network}: ~${fmtInt(Math.round(t.weeklyW13))} shipments/week (~${fmtInt(Math.round(t.dailyW13))}/day)`).join("\n")}\n\n## Blended cost / shipment\n- ${fmtNum(cps, 2)} AED, fully loaded across all three networks.\n\n## Biggest risk\n- ${bottleneck.why}\n\n## Cheapest fix\n- ${bottleneck.reason}\n`,
+  const [autoBrief, setAutoBrief] = useState<SavedReport>({
+    id: "auto-baseline",
+    title: "Network decision brief — live",
+    date: "",
+    auto: true,
+    summary: "Fetching the engine-composed decision brief…",
+    bodyMd: "",
+  });
+  useEffect(() => {
+    let cancelled = false;
+    fetch(exportUrl("/brief"))
+      .then((r) => r.json())
+      .then((brief: { generated_at?: string; summary?: string; current_state?: Record<string, unknown>; sensitivity?: Record<string, unknown> }) => {
+        if (cancelled) return;
+        const cur = brief.current_state ?? {};
+        const sens = brief.sensitivity ?? {};
+        setAutoBrief({
+          id: "auto-baseline",
+          title: "Network decision brief — live",
+          date: String(brief.generated_at ?? "").slice(0, 10),
+          auto: true,
+          summary: String(brief.summary ?? ""),
+          bodyMd: [
+            "## Current state",
+            ...Object.entries(cur).map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`),
+            "",
+            "## Sensitivity",
+            ...Object.entries(sens).map(([k, v]) => `- ${k.replace(/_/g, " ")}: ${String(v)}`),
+          ].join("\n"),
+        });
+      })
+      .catch(() => {
+        if (!cancelled)
+          setAutoBrief((b) => ({ ...b, summary: "Engine unreachable — start the backend to load the live brief." }));
+      });
+    return () => {
+      cancelled = true;
     };
   }, []);
 
