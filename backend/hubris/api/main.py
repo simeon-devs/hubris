@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from hubris.agents.builder import seed_default_templates
 from hubris.api.routers import (
     event_metrics,
+    reports,
     agents,
     assumptions,
     bottleneck,
@@ -68,3 +69,4 @@ app.include_router(memory.router)
 app.include_router(monitoring.router)
 app.include_router(brief.router)
 app.include_router(event_metrics.router)
+app.include_router(reports.router)
