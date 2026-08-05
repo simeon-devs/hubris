@@ -166,6 +166,11 @@ class HubMapInfo(BaseModel):
     # R1: facility capability (dataset G) — None on datasets without types
     hub_type: str | None = None
     service_models: list[str] | None = None
+    # R2: the real rider roster (dataset G) — None when the dataset has none
+    riders_fte: int | None = None
+    riders_ftc: int | None = None
+    rider_capacity_daily: float | None = None
+    rider_weekly_cost: float | None = None
     # Workforce (WorkforceRequirementMetric, assigned-demand basis). Defaults
     # keep any caller that builds a HubMapInfo by hand working unchanged.
     required_headcount: int = 0

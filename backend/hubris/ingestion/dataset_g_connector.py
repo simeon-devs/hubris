@@ -81,6 +81,9 @@ class DatasetGConnector(DataConnector):
             sheets["Cost_to_Serve"][sheets["Cost_to_Serve"].network_type == cts_network]
         )
 
+        roster = self._rider_roster(
+            sheets["Courier_Capacity"][sheets["Courier_Capacity"].network_type == cts_network]
+        )
         if network == "hub_spoke":
             hubs = self._hub_spoke_hubs(
                 sheets["Hub_Network"],
@@ -97,6 +100,9 @@ class DatasetGConnector(DataConnector):
                 "network_type == 'QComm' and week_number == @BASELINE_WEEK"
             )
             fleet = self._fleet(sheets["Fleet_Roster"], "QComm")
+
+        for hub in hubs:
+            hub.update(roster.get(hub["id"], {}))  # candidates: no roster -> None fields
 
         zones, current_assignments = self._zones_and_assignments(
             demand_rows, zone_coords, sheets, network
@@ -185,6 +191,23 @@ class DatasetGConnector(DataConnector):
                 }
             )
         return hubs
+
+    # ---- rider roster (R2) ---------------------------------------------------
+    def _rider_roster(self, cc: pd.DataFrame) -> dict[str, dict]:
+        """Per-facility rider layer from Courier_Capacity — REAL counts,
+        productivity and weekly labour cost, straight off the sheet:
+        capacity/day = sum(courier_count x avg_dpd) across shift waves."""
+        roster: dict[str, dict] = {}
+        for fac, grp in cc.groupby("hub_or_store_id"):
+            fte = int(grp[grp.employment_type == "FTE"].courier_count.sum())
+            ftc = int(grp[grp.employment_type == "FTC"].courier_count.sum())
+            roster[fac] = {
+                "riders_fte": fte,
+                "riders_ftc": ftc,
+                "rider_capacity_daily": round(float((grp.courier_count * grp.avg_dpd).sum()), 1),
+                "rider_weekly_cost": round(float(grp.total_weekly_labour_cost_aed.sum()), 2),
+            }
+        return roster
 
     # ---- zones + provided assignments ---------------------------------------
     def _zones_and_assignments(

@@ -95,7 +95,7 @@ def test_metrics_are_registered_and_agent_usable():
     registered_names = {m.name for m in global_registry.all(METRIC)}
     assert {
         "cost_to_serve", "utilization", "coverage", "spare_capacity", "demand_served",
-        "demand_by_emirate",
+        "demand_by_emirate", "courier_utilization",
     } <= registered_names
 
     tools = global_registry.as_agent_tools()

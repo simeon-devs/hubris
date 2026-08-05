@@ -132,6 +132,41 @@ def test_service_capability_gates_the_edges():
     assert hub_types["CAND_AUH_01"] == "Micro Hub"
 
 
+def test_rider_roster_carried_per_facility():
+    """R2: the real Courier_Capacity roster rides on each facility —
+    counts, capacity/day (riders x their own avg dpd) and weekly cost,
+    all straight off the sheet. Candidates have no roster -> None."""
+    raw = _load("hub_spoke")
+    dxb1 = next(h for h in raw.hubs if h["id"] == "HUB_DXB_01")
+    assert dxb1["riders_fte"] == 86 and dxb1["riders_ftc"] == 54
+    assert dxb1["rider_capacity_daily"] == 9666.0
+    assert dxb1["rider_weekly_cost"] == 404800.0
+    cand = next(h for h in raw.hubs if h["id"] == "CAND_DXB_01")
+    assert cand.get("riders_fte") is None
+
+    q = _load("qcomm")
+    shj = next(h for h in q.hubs if h["id"] == "QED_SHJ_01")
+    assert shj["riders_ftc"] == 28 and shj["riders_fte"] == 0
+
+
+def test_courier_utilization_metric_uses_the_roster_basis():
+    from hubris.plugins.metrics.courier_utilization import CourierUtilizationMetric
+
+    model = NetworkModel.from_raw_tables(_load("hub_spoke"))
+    result = CourierUtilizationMetric().compute(model, None)
+    # H&S riders are massively idle at wk-13 volumes — the honest number
+    assert 0 < result.value < 10
+    assert 0 < result.breakdown["per_hub"]["HUB_DXB_01"] < 10
+    assert "provided" in result.breakdown["basis"]  # the discrepancy is named
+
+    # graceful with no roster (synthetic datasets)
+    from hubris.data.synthetic import generate_synthetic_raw_tables
+
+    synth = NetworkModel.from_raw_tables(generate_synthetic_raw_tables())
+    empty = CourierUtilizationMetric().compute(synth, None)
+    assert empty.value == 0.0 and "note" in empty.breakdown
+
+
 def test_unknown_network_is_refused():
     with pytest.raises(ValueError):
         _load("on_demand")  # report-only by decision — no twin
