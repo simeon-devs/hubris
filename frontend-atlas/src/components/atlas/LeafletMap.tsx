@@ -148,16 +148,36 @@ function newHubIcon(maxDaily: number): L.DivIcon {
 
 /* --------------------------- demand flow data --------------------------- */
 
+/**
+ * Display-only nudge for zones that inherit a facility's EXACT coordinates
+ * (the dataset has no zone coords — every zone sits on its serving hub, so
+ * hub→zone flow lines were zero-length and invisible, and after a close
+ * the re-routed line appeared to END on the closed hub's ✕). Deterministic:
+ * same zone, same offset, every render. Positions were already synthetic;
+ * this only makes the inherited ones readable.
+ */
+function displayNudge(emirate: string, zone: string, lat: number, lng: number): { lat: number; lng: number } {
+  const onFacility = HUBS.some((h) => Math.abs(h.lat - lat) < 1e-3 && Math.abs(h.lng - lng) < 1e-3);
+  if (!onFacility) return { lat, lng };
+  let h = 5381;
+  const s = `${emirate}|${zone}`;
+  for (let i = 0; i < s.length; i += 1) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  const angle = (((h >>> 0) % 360) * Math.PI) / 180;
+  const r = 0.045; // ~5 km — a visible spoke at country zoom
+  return { lat: lat + r * Math.cos(angle), lng: lng + (r * Math.sin(angle)) / Math.cos((lat * Math.PI) / 180) };
+}
+
 const HS_ZONE_ROWS = DEMAND.filter((d) => d.network === "Hub & Spoke").map((d) => {
   const hub = ACTIVE_HUBS.find((h) => h.id === d.servingId);
   const z = zoneInfo(d.emirate, d.zone);
+  const nudged = displayNudge(d.emirate, d.zone, z?.lat ?? hub?.lat ?? 0, z?.lng ?? hub?.lng ?? 0);
   return {
     key: `${d.zone}-${d.model}`,
     zone: d.zone,
     model: d.model,
     weekly: d.weekly[12] ?? 0,
-    lat: z?.lat ?? hub?.lat ?? 0,
-    lng: z?.lng ?? hub?.lng ?? 0,
+    lat: nudged.lat,
+    lng: nudged.lng,
     servingId: d.servingId,
   };
 });
@@ -523,11 +543,14 @@ export function SimMap({
         .map((a) => {
           // Live runs carry their own engine coords; embedded lookup is the fallback.
           const live = a as typeof a & { lat?: number; lng?: number };
-          const z =
+          const raw =
             zoneInfo(a.emirate, a.zone) ??
             (live.lat !== undefined && live.lng !== undefined
               ? { emirate: a.emirate, zone: a.zone, lat: live.lat, lng: live.lng }
               : null);
+          // Zones inherit facility coords in this dataset — nudge for display
+          // so the flow line is visible and never ends ON a hub pin.
+          const z = raw ? { ...raw, ...displayNudge(a.emirate, a.zone, raw.lat, raw.lng) } : null;
           const hub = HUB_BY_ID.get(a.hubId) ?? (newHub && newHub.id === a.hubId ? newHub : null);
           const reassigned = ORIGINAL_SERVING.get(`${a.emirate}|${a.zone}|${a.model}`) !== a.hubId;
           return { a, z, hub, reassigned };
@@ -600,21 +623,6 @@ export function SimMap({
       {/* Traveling particles on every flow — demand in motion */}
       <FlowParticles dep={comp} />
 
-      {/* Zone demand dots — sized by weekly volume */}
-      {zones.map((z) => {
-        const express = z.models.has("Express") && !z.models.has("Standard");
-        const color = express ? CYAN_HEX : ELECTRIC_HEX;
-        return (
-          <CircleMarker
-            key={z.key}
-            center={[z.lat, z.lng]}
-            radius={Math.min(11, 3.5 + Math.sqrt(z.weekly) / 7)}
-            pathOptions={{ color, weight: 1, fillColor: color, fillOpacity: 0.45, opacity: 0.8, className: "zone-dot" }}
-            interactive={false}
-          />
-        );
-      })}
-
       {/* New-hub coverage halo */}
       {newHub ? (
         <Circle
@@ -654,6 +662,22 @@ export function SimMap({
 
       {/* Land mask — keeps every radius off the ocean */}
       <UaeMask />
+
+      {/* Zone demand dots — sized by weekly volume. Drawn ABOVE the mask:
+          nudged coastal zones (Deira, Khalidiyah) must never vanish under it. */}
+      {zones.map((z) => {
+        const express = z.models.has("Express") && !z.models.has("Standard");
+        const color = express ? CYAN_HEX : ELECTRIC_HEX;
+        return (
+          <CircleMarker
+            key={z.key}
+            center={[z.lat, z.lng]}
+            radius={Math.min(11, 3.5 + Math.sqrt(z.weekly) / 7)}
+            pathOptions={{ color, weight: 1, fillColor: color, fillOpacity: 0.45, opacity: 0.8, className: "zone-dot" }}
+            interactive={false}
+          />
+        );
+      })}
 
       {/* Hub pins, coloured by SIMULATED utilisation */}
       {ACTIVE_HUBS.map((hub) => {
