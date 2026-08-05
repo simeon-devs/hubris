@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CopilotDrawer } from "@/components/atlas/CopilotDrawer";
 import { AtlasButton, Card, Chip, LabelValueRow, StatusBadge, UtilBar } from "@/components/atlas/ui";
-import { currentAlerts, type AtlasAlert } from "@/lib/atlas-alerts";
+import { ackAlertRemote, fetchAlerts, type AtlasAlert } from "@/lib/atlas-alerts";
 import { fmtAed, fmtInt, fmtNum, type HubInfo } from "@/lib/atlas-data";
 import { blendedCps, hubSnapshot } from "@/lib/atlas-engine";
 import { useAtlas } from "@/lib/atlas-store";
@@ -45,8 +45,18 @@ function MapHomePage() {
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [focus, setFocus] = useState<{ lat: number; lng: number; zoom?: number; stamp?: number } | null>(null);
 
-  const alerts = useMemo(() => currentAlerts(), []);
-  const unacked = alerts.filter((a) => !acked.includes(a.id));
+  const [alerts, setAlerts] = useState<AtlasAlert[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => fetchAlerts().then((list) => !cancelled && setAlerts(list));
+    poll();
+    const timer = setInterval(poll, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+  const unacked = alerts.filter((a) => !a.acknowledged && !acked.includes(a.id));
   const cps = useMemo(() => blendedCps(), []);
   const snapshot = selectedHubId ? hubSnapshot(selectedHubId) : null;
 
@@ -182,7 +192,7 @@ function MapHomePage() {
                         </AtlasButton>
                       ) : null}
                       {!isAcked ? (
-                        <AtlasButton variant="ghost" className="h-7 px-2.5 py-0 text-[11px]" onClick={() => ackAlert(a.id)}>
+                        <AtlasButton variant="ghost" className="h-7 px-2.5 py-0 text-[11px]" onClick={() => { ackAlert(a.id); ackAlertRemote(a.id); }}>
                           <Check className="h-3 w-3" /> Acknowledge
                         </AtlasButton>
                       ) : null}

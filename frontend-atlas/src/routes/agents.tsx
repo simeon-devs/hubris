@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { CopilotDrawer } from "@/components/atlas/CopilotDrawer";
 import { AtlasButton, Card, Chip, PageHead, SectionTitle } from "@/components/atlas/ui";
-import { currentAlerts } from "@/lib/atlas-alerts";
+import { ackAlertRemote, fetchAlerts, type AtlasAlert } from "@/lib/atlas-alerts";
 import { useAtlas } from "@/lib/atlas-store";
 import { cn } from "@/lib/utils";
 
@@ -32,8 +32,18 @@ const SEV_CHIP: Record<string, "risk" | "warn" | "teal"> = { critical: "risk", w
 function AgentsPage() {
   const { agents, addAgent, events, acked, ackAlert, showOnMap } = useAtlas();
   const navigate = useNavigate();
-  const alerts = useMemo(() => currentAlerts(), []);
-  const open = alerts.filter((a) => !acked.includes(a.id));
+  const [alerts, setAlerts] = useState<AtlasAlert[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => fetchAlerts().then((list) => !cancelled && setAlerts(list));
+    poll();
+    const timer = setInterval(poll, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+  const open = alerts.filter((a) => !a.acknowledged && !acked.includes(a.id));
 
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
@@ -163,7 +173,7 @@ function AgentsPage() {
                     {isAcked ? (
                       <Chip tone="ok">Acked</Chip>
                     ) : (
-                      <button onClick={() => ackAlert(a.id)} className="font-mono text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
+                      <button onClick={() => { ackAlert(a.id); ackAlertRemote(a.id); }} className="font-mono text-[10px] font-semibold uppercase tracking-wider text-primary hover:underline">
                         Acknowledge
                       </button>
                     )}
