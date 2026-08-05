@@ -12,6 +12,7 @@ import type {
   CustomerCountBreakResponse,
   DecisionBrief,
   DemandGrowthBreakResponse,
+  FrontierResponse,
   IngestResponse,
   KpisResponse,
   NetworkMapResponse,
@@ -112,6 +113,14 @@ export function listScenarios(): Promise<ScenarioModuleInfo[]> {
 
 export function simulate(body: SimulateRequest): Promise<SimulateResponse> {
   return request("/simulate", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function optimizeFrontier(body: {
+  scenario_id?: string | null;
+  min_hubs_per_emirate?: number;
+  max_hub_volume_share?: number;
+}): Promise<FrontierResponse> {
+  return request("/optimize/frontier", { method: "POST", body: JSON.stringify(body) });
 }
 
 export function optimize(body: OptimizeRequest): Promise<OptimizeResponse> {

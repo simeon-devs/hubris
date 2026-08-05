@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useState } from "react";
+import FrontierPanel from "@/components/FrontierPanel";
 import InsightsPanel from "@/components/InsightsPanel";
 import OptimizerPanel from "@/components/OptimizerPanel";
 import { queryAgent } from "@/lib/api";
@@ -49,6 +50,9 @@ export default function OptimizePage() {
           />
         </section>
 
+        {/* ── Realism frontier: raw optimum vs the resilient one ── */}
+        <FrontierPanel />
+
         {/* ── Goal loop ── */}
         <section className="rounded-2xl p-6 bg-black/60 border border-white/10">
           <div className="flex items-center gap-2.5 mb-1">
@@ -57,7 +61,7 @@ export default function OptimizePage() {
           </div>
           <p className="text-xs text-slate-400 mb-4 leading-relaxed">
             Describe the target in plain English — the agent drives the real solver toward it
-            (pursue_goal), and its answer is provenance-verified against the tool results.
+            (run_goal_loop), and its answer is provenance-verified against the tool results.
           </p>
           <GoalLoop scenarioId={scenarioId} />
         </section>

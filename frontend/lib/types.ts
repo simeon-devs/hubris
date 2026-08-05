@@ -19,12 +19,62 @@ export interface NetworkSummary {
 export interface KpisResponse {
   cost_to_serve: MetricResult;
   utilization: MetricResult;
+  // Two DISTINCT coverage-family quantities, never conflated: coverage is
+  // SLA reachability (capacity-blind); demand_served is what the
+  // capacity-constrained flow actually serves, with unmet_by_zone named.
   coverage: MetricResult;
+  demand_served: MetricResult;
   spare_capacity: MetricResult;
+  demand_by_emirate: MetricResult;
   network_summary: NetworkSummary;
 }
 
 export type GapDirection = "understaffed" | "balanced" | "overstaffed";
+
+// POST /optimize/frontier — the realism frontier. Both cost pools per point,
+// labelled: variable-only is the pool the dataset's ≤7.00 target is defined
+// on; fully-loaded is what consolidation attacks. They move in OPPOSITE
+// directions — the UI must always show them side by side, named.
+export interface CostPools {
+  variable_only_aed_per_parcel: number;
+  fully_loaded_aed_per_parcel: number;
+  variable_target_aed: number;
+  variable_vs_target_aed: number;
+  meets_variable_target: boolean;
+}
+
+export interface FrontierSide {
+  objective_value: number;
+  delta_vs_baseline_pct: number | null;
+  cost_to_serve_after: number;
+  cost_pools: CostPools;
+  changes: { action: string; hub_id: string }[];
+  hubs_open: string[];
+  hubs_open_count: number;
+  volume_share_by_hub: Record<string, number>;
+  constraints_enforced: boolean;
+  solver: string;
+}
+
+export interface FrontierResponse {
+  baseline: {
+    cost_to_serve: number;
+    total_cost: number;
+    cost_pools: CostPools;
+    hubs_open_count: number;
+  };
+  unconstrained: FrontierSide;
+  constrained: FrontierSide;
+  resilience_premium: {
+    total_cost_delta: number;
+    pct_points_of_saving_given_up: number | null;
+  };
+  params: {
+    min_hubs_per_emirate: number;
+    max_hub_volume_share: number;
+  };
+  recommendation_policy: string;
+}
 
 export interface HubMapInfo {
   id: string;

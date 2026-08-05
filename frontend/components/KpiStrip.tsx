@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KpisResponse } from "@/lib/types";
 
-type MetricKey = "cost_to_serve" | "utilization" | "coverage" | "spare_capacity";
+type MetricKey = "cost_to_serve" | "utilization" | "coverage" | "spare_capacity" | "demand_served";
 
 const COUNT_UP_MS = 800;
 
@@ -51,7 +51,7 @@ function healthClass(key: MetricKey, value: number | null): string {
     if (value >= 60) return "text-emerald-300";
     return "text-amber-300";
   }
-  if (key === "coverage") {
+  if (key === "coverage" || key === "demand_served") {
     if (value >= 90) return "text-emerald-300";
     if (value >= 70) return "text-amber-300";
     return "text-rose-300";
@@ -73,6 +73,8 @@ function headline(key: MetricKey, value: number | null): string {
         : `${Math.round(value)}% of areas reachable on time`;
     case "spare_capacity":
       return `Can handle ${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} more parcels a day`;
+    case "demand_served":
+      return value >= 100 ? "Serving every parcel" : `Serving ${value}% of demand`;
   }
 }
 
@@ -92,8 +94,12 @@ const TILES: {
     tooltip: "How much of the network's total capacity is in use right now. Very high means overload risk; very low means paying for idle capacity.",
   },
   {
-    key: "coverage", metricLabel: "coverage", goodDirection: "up", icon: "◎",
-    tooltip: "The share of delivery areas the network can serve within their promised time.",
+    key: "coverage", metricLabel: "SLA reachability", goodDirection: "up", icon: "◎",
+    tooltip: "The share of demand whose facility is within its promised delivery window. Capacity-blind — it can read 100% while parcels go unserved; 'demand served' next to it is the capacity-constrained truth.",
+  },
+  {
+    key: "demand_served", metricLabel: "demand served", goodDirection: "up", icon: "◍",
+    tooltip: "The share of demand the network can ACTUALLY serve under real capacities, from the flow solve — with the unserved parcels named per zone. This is the crisis signal SLA reachability cannot see.",
   },
   {
     key: "spare_capacity", metricLabel: "spare capacity", goodDirection: null, icon: "◫",
