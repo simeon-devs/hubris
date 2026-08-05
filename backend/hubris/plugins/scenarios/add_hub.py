@@ -26,6 +26,11 @@ class AddHubScenario(ScenarioModule):
             "fixed_cost": {"type": "number"},
             "handling_cost": {"type": "number"},
             "status": {"type": "string"},
+            "hub_type": {
+                "type": ["string", "null"],
+                "description": "Full Hub | Micro Hub | Dark Store — gates which service models the new site may carry (R1).",
+            },
+            "service_models": {"type": ["array", "null"], "items": {"type": "string"}},
         },
         "required": [
             "id",
@@ -51,11 +56,21 @@ class AddHubScenario(ScenarioModule):
             fixed_cost=params["fixed_cost"],
             handling_cost=params["handling_cost"],
             status=params.get("status", "open"),
+            hub_type=params.get("hub_type"),
+            service_models=params.get("service_models"),
         )
         copy.hubs.append(hub)
 
         cost_per_km = reference_cost_per_km(copy.fleet_types)
         for zone in copy.zones:
+            # R1: no edge for a service model the new site can't carry —
+            # a Micro/Dark-Store addition never absorbs Express demand.
+            if (
+                hub.service_models is not None
+                and zone.service_model is not None
+                and zone.service_model not in hub.service_models
+            ):
+                continue
             distance_km = round(road_distance_km(hub.lat, hub.lon, zone.lat, zone.lon), 2)
             time_min = round(distance_km / AVG_SPEED_KMH * 60, 1)
             cost = derive_od_cost(distance_km, hub.handling_cost, cost_per_km)

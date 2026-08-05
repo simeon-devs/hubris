@@ -82,3 +82,26 @@ def test_simulate_endpoint_runs_the_new_modules():
         body = r.json()
         assert body["scenario_flow_feasible"] is True
         assert set(body["delta_pct"]) >= {"cost_to_serve", "utilization"}
+
+
+def test_add_hub_respects_service_capability(real_model):
+    scenario = registry.get(SCENARIO, "add_hub")
+    micro = scenario.apply(real_model, {
+        "id": "NEW_MICRO", "name": "New Micro", "lat": 25.2, "lon": 55.3,
+        "emirate": "Dubai", "capacity": 800, "fixed_cost": 1500, "handling_cost": 10.8,
+        "hub_type": "Micro Hub", "service_models": ["Standard"],
+    })
+    express_zones = {z.id for z in micro.zones if z.service_model == "Express"}
+    assert not any(k == ("NEW_MICRO", z) for k in micro.od_matrix for z in express_zones)
+    assert any(k[0] == "NEW_MICRO" for k in micro.od_matrix)  # Standard edges exist
+
+
+def test_demand_scale_scopes_to_a_service_model(real_model):
+    scenario = registry.get(SCENARIO, "demand_scale")
+    surged = scenario.apply(real_model, {"factor": 1.5, "service_model": "Express"})
+    before = {z.id: z.demand for z in real_model.zones}
+    for z in surged.zones:
+        if z.service_model == "Express":
+            assert z.demand == pytest.approx(before[z.id] * 1.5, abs=0.01)
+        else:
+            assert z.demand == before[z.id]
