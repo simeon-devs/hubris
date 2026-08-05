@@ -60,7 +60,17 @@ inputs" is a selling point, not a confession).
   per-hub `volume_share_by_hub`. Body params `min_hubs_per_emirate` /
   `max_hub_volume_share` are live-tweakable (that's a judge-question surface). Present
   the CONSTRAINED side as the recommendation; the unconstrained one as "what the raw
-  optimiser says" — never swap those roles.
+  optimiser says" — never swap those roles. Each point also carries `cost_pools`:
+  `variable_only_aed_per_parcel` (the pool their ≤7.00 target is defined on, with
+  `variable_vs_target_aed` + `meets_variable_target` precomputed) and
+  `fully_loaded_aed_per_parcel`. Show BOTH, labelled — they move in opposite
+  directions under consolidation and that contrast is a pitch moment.
+  → real payload: `examples/frontier-by-pool.json`
+- **`/kpis` now carries TWO coverage-family quantities, both must render labelled**:
+  `coverage` = *SLA reachability* (capacity-blind — reads 100% on the crisis twin) and
+  `demand_served` = *demand actually served* (99.72% on `qcomm_twin`, with
+  `unmet_by_zone` naming the Abu Dhabi shortfall). Never present one as the other —
+  side by side they ARE the crisis story.
 - Contract friction? Tell Sims — don't work around a frozen API.
 
 The four `examples/*.json` files are real captured responses — design against them, not
