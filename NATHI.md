@@ -50,7 +50,17 @@ inputs" is a selling point, not a confession).
   if you need a derived value, ask; the API grows it.
 - Every memory/monitoring surface degrades gracefully: `available: false` → calm empty
   state, never a broken panel. The demo must never depend on the DB or the LLM being up.
-- Keep the seeded demo path (`demo_surge` picker) always-renders.
+- **The seeded demo is now the REAL data** (2026-08-05): boot loads the event dataset —
+  the baseline is the real Hub & Spoke network (13 hubs, `baseline_provenance:
+  "provided"`) and the saved-scenarios picker carries `qcomm_twin`, the dark-store
+  network in genuine capacity crisis (infeasible flow, unmet Abu Dhabi demand). Render
+  that unmet demand prominently — the crisis IS the demo. `demo_surge` no longer exists.
+- **New endpoint for you — `POST /optimize/frontier`**: unconstrained optimum vs the
+  resilience-constrained one, side by side, labelled, with `resilience_premium` and
+  per-hub `volume_share_by_hub`. Body params `min_hubs_per_emirate` /
+  `max_hub_volume_share` are live-tweakable (that's a judge-question surface). Present
+  the CONSTRAINED side as the recommendation; the unconstrained one as "what the raw
+  optimiser says" — never swap those roles.
 - Contract friction? Tell Sims — don't work around a frozen API.
 
 The four `examples/*.json` files are real captured responses — design against them, not
