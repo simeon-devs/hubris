@@ -29,6 +29,10 @@ class Hub(BaseModel):
     riders_ftc: int | None = None
     rider_capacity_daily: float | None = None  # sum(count x avg deliveries/day)
     rider_weekly_cost: float | None = None  # sum of weekly labour cost, AED
+    fte_avg_dpd: float | None = None  # weighted avg deliveries/day per FTE rider
+    ftc_avg_dpd: float | None = None
+    fte_weekly_rate: float | None = None  # weekly cost per rider, AED
+    ftc_weekly_rate: float | None = None
 
 
 class Zone(BaseModel):

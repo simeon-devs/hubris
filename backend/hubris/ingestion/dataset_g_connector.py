@@ -199,14 +199,22 @@ class DatasetGConnector(DataConnector):
         capacity/day = sum(courier_count x avg_dpd) across shift waves."""
         roster: dict[str, dict] = {}
         for fac, grp in cc.groupby("hub_or_store_id"):
-            fte = int(grp[grp.employment_type == "FTE"].courier_count.sum())
-            ftc = int(grp[grp.employment_type == "FTC"].courier_count.sum())
-            roster[fac] = {
-                "riders_fte": fte,
-                "riders_ftc": ftc,
+            entry: dict = {
                 "rider_capacity_daily": round(float((grp.courier_count * grp.avg_dpd).sum()), 1),
                 "rider_weekly_cost": round(float(grp.total_weekly_labour_cost_aed.sum()), 2),
             }
+            for kind, prefix in (("FTE", "fte"), ("FTC", "ftc")):
+                sub = grp[grp.employment_type == kind]
+                count = int(sub.courier_count.sum())
+                entry[f"riders_{prefix}"] = count
+                if count:
+                    entry[f"{prefix}_avg_dpd"] = round(
+                        float((sub.courier_count * sub.avg_dpd).sum()) / count, 2
+                    )
+                    entry[f"{prefix}_weekly_rate"] = round(
+                        float((sub.courier_count * sub.weekly_cost_per_courier_aed).sum()) / count, 2
+                    )
+            roster[fac] = entry
         return roster
 
     # ---- zones + provided assignments ---------------------------------------
