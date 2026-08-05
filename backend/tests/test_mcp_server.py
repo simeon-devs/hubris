@@ -40,7 +40,7 @@ async def _session_roundtrip():
 
             sim_raw = await session.call_tool(
                 "simulate_scenario",
-                {"scenario_name": "close_hub", "params": {"hub_id": "H1"}},
+                {"scenario_name": "close_hub", "params": {"hub_id": "HUB_RAK_01"}},
             )
             sim = json.loads(sim_raw.content[0].text)
 
@@ -68,17 +68,25 @@ def test_external_mcp_client_operates_the_twin():
     assert "objective" in tools["optimise_network"].inputSchema["properties"]
 
     # The JSON crossing the protocol boundary is IDENTICAL to the internal
-    # path for the same input (same engine, same state semantics).
-    internal = GetKpisTool().run(model=AppState().baseline)
-    assert kpis["cost_to_serve"]["value"] == internal["cost_to_serve"]["value"] == 57.0949
+    # path for the same input (same engine, same state semantics). The MCP
+    # instance seeds the REAL twin at startup, so mirror that here.
+    from hubris.api.state import seed_demo_scenario
+
+    mirror = AppState()
+    seed_demo_scenario(mirror)
+    internal = GetKpisTool().run(model=mirror.baseline)
+    assert kpis["cost_to_serve"]["value"] == internal["cost_to_serve"]["value"] == 43.1559
     assert kpis["network_summary"] == internal["network_summary"]
 
     # A real what-if through the wire, computed by the real engine.
     assert sim["scenario_kpis"]["cost_to_serve"]["value"] > 0
     assert sim["scenario_flow_feasible"] is True
 
-    # The pre-seeded demo scenario is reachable via _scenario_id.
-    assert demo["utilization"]["breakdown"]["H5"] == 100.0
+    # The pre-seeded demo (the real QComm crisis) is reachable via
+    # _scenario_id: dark stores running hot, hottest at 100%.
+    stores = demo["utilization"]["breakdown"]
+    assert set(stores) == {h.id for h in mirror.get_model("qcomm_twin").hubs}
+    assert max(stores.values()) == 100.0
 
     # Graceful contract crosses the boundary too: bad args and bad
     # scenario ids come back as correctable payloads, not protocol errors.
