@@ -45,30 +45,32 @@ state = AppState()
 
 
 def seed_demo_scenario(app_state: AppState | None = None) -> str | None:
-    """Seed the one always-renders demo scenario (T-30) into state.
+    """Seed the demo from the REAL twin (Sims decision, 2026-08-05): the
+    Dataset G workbook ships inside the package, so boot loads Hub & Spoke
+    as the baseline and the QComm dark-store network as the `qcomm_twin`
+    saved scenario. The QComm twin is the seeded demo: genuinely
+    infeasible, with real unmet demand in Abu Dhabi — the crisis IS the
+    story, so (unlike the retired synthetic surge) an infeasible flow here
+    is the point, not a defect.
 
     Called at startup. Swallows any failure and returns None rather than
-    raising: a broken demo seed must never stop the app from booting
-    (BUILD_SPEC §13 — the demo never hangs). Imports are local to keep
-    this module free of a circular dependency on the scenario registry.
+    raising — on any problem the synthetic baseline from __init__ stands
+    and everything still renders (BUILD_SPEC §13: the demo never hangs).
+    Imports are local to avoid a circular dependency on the ingest router.
     """
-    from hubris.agents.scenario_utils import apply_and_reassign
-    from hubris.data.demo_scenario import (
-        DEMO_SCENARIO_ID,
-        DEMO_SCENARIO_LABEL,
-        demo_scenario_params,
-    )
+    from pathlib import Path
+
+    from hubris.api.routers.ingest import QCOMM_SCENARIO_ID, QCOMM_SCENARIO_LABEL
+    from hubris.ingestion.dataset_g_connector import DatasetGConnector
 
     target = app_state or state
+    dataset = Path(__file__).resolve().parents[1] / "data" / "dataset_g.xlsx"
     try:
-        emirates = {zone.emirate for zone in target.baseline.zones}
-        params = demo_scenario_params(emirates)
-        model, flow = apply_and_reassign(target.baseline, "demand_scale", params)
-        if not flow.feasible:
-            # An infeasible seed would render as unmet demand mid-demo —
-            # better to have no seeded scenario than a broken one.
-            return None
-        target.save_scenario(DEMO_SCENARIO_ID, model, label=DEMO_SCENARIO_LABEL)
-        return DEMO_SCENARIO_ID
+        connector = DatasetGConnector()
+        baseline = NetworkModel.from_raw_tables(connector.load(str(dataset), network="hub_spoke"))
+        qcomm = NetworkModel.from_raw_tables(connector.load(str(dataset), network="qcomm"))
+        target.reset_baseline(baseline)
+        target.save_scenario(QCOMM_SCENARIO_ID, qcomm, label=QCOMM_SCENARIO_LABEL)
+        return QCOMM_SCENARIO_ID
     except Exception:
         return None

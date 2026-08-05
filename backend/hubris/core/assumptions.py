@@ -184,12 +184,6 @@ _register(
     "~1.2km hex edge — sized for last-mile zone granularity; tune per dataset density.",
     ["hubris/engine/h3_zoning.py"],
 )
-_register(
-    "demo_demand_factor", 5.0, "derived",
-    "Chosen empirically (T-30): the smallest surge at which every signature feature has "
-    "something real to say while min-cost flow still fully serves demand.",
-    ["hubris/data/demo_scenario.py"],
-)
 # ---- dataset G (T-28) ------------------------------------------------------
 _register(
     "dataset_g_days_per_month", 30, "assumed",
@@ -251,9 +245,3 @@ _register(
     ["hubris/monitoring/watchdog.py"],
 )
 
-_register(
-    "demo_target_emirate", "Sharjah", "derived",
-    "The emirate whose hub (H5) binds first under growth (T-22's break-even search) — the "
-    "most instructive stress locus. Falls back to network-wide if absent from the dataset.",
-    ["hubris/data/demo_scenario.py"],
-)
