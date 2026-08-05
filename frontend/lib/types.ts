@@ -189,11 +189,18 @@ export interface AgentQueryRequest {
 }
 
 // Provenance guardrail verdict — computed by the backend's runtime check
-// (agents/provenance.py via agents/runner.py), never inferred client-side.
+// (T-33 ProvenanceVerifier contract), never inferred client-side.
+// "verified": every figure traced to a tool result on the first pass.
+// "regenerated": the check caught untraceable figures and forced a
+//   correction that then verified — the guardrail working, not a failure.
+// "flagged": still untraceable after regeneration; untraceable_figures
+//   names the exact numbers and MUST be shown (hard rule: never render
+//   flagged prose as trustworthy).
 export interface VerificationInfo {
-  grounded: boolean;
-  unexplained_numbers: number[];
-  retried: boolean;
+  status: "verified" | "regenerated" | "flagged";
+  untraceable_figures: number[];
+  attempts: number;
+  checked_against: string[];
 }
 
 export interface AgentQueryResponse {
@@ -204,18 +211,37 @@ export interface AgentQueryResponse {
   verification?: VerificationInfo | null;
 }
 
-// A monitoring agent's finding (GET /alerts) — produced automatically after
-// ingest / scenario saves by agents with autonomy="monitoring".
+// The capacity watchdog's computed finding (GET /memory/alerts, T-40).
+// Deterministic engine output — no LLM in the background loop by design:
+// each sweep runs a REAL stress simulation, and every figure below is a
+// solver result with `provenance` naming the sweep that produced it.
+export interface AlertFinding {
+  target: string; // "baseline+1.2x" or a saved scenario id (e.g. qcomm_twin)
+  stress_factor: number | null;
+  feasible: boolean;
+  unmet_demand: Record<string, number>; // zone_id -> unserved parcels/day
+  hottest_hub: string | null;
+  hottest_utilization_pct: number;
+  hot_threshold_pct: number;
+}
+
+export interface AlertAction {
+  action: string; // "add_capacity" | "review_robustness"
+  detail: { [key: string]: unknown } | string;
+  why?: string;
+  source_tool: string;
+}
+
 export interface AlertInfo {
-  id: number;
+  id: string; // uuid
   agent_name: string;
-  trigger: string;
-  answer: string;
-  verification: VerificationInfo | null;
-  tool_calls: number;
-  status: "ok" | "error";
-  ts: number;
+  severity: "critical" | "warning";
+  finding: AlertFinding;
+  recommended_action: AlertAction;
+  brief_link: string;
   acknowledged: boolean;
+  provenance: string;
+  created_at: string; // ISO timestamp
 }
 
 export interface AgentSpec {

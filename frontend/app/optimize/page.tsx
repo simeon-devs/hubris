@@ -145,11 +145,20 @@ function GoalLoop({ scenarioId }: { scenarioId: string | null }) {
             {result.verification && (
               <span
                 className={`px-2 py-0.5 rounded-full border font-bold tracking-widest
-                  ${result.verification.grounded
+                  ${result.verification.status !== "flagged"
                     ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
                     : "text-amber-400 bg-amber-500/10 border-amber-500/30"}`}
+                title={
+                  result.verification.status === "flagged"
+                    ? `Untraceable figures: ${result.verification.untraceable_figures.join(", ")}`
+                    : undefined
+                }
               >
-                {result.verification.grounded ? "VERIFIED" : "FLAGGED"}
+                {result.verification.status === "flagged"
+                  ? `FLAGGED: ${result.verification.untraceable_figures.join(", ")}`
+                  : result.verification.status === "regenerated"
+                    ? "VERIFIED · SELF-CORRECTED"
+                    : "VERIFIED"}
               </span>
             )}
           </div>

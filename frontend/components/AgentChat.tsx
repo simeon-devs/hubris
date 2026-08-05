@@ -62,20 +62,28 @@ export default function AgentChat({ agents }: AgentChatProps) {
   const agentLabel = (m: ChatMessage) =>
     m.agentName ? m.agentName : m.agentRole ? m.agentRole : "Agent";
 
-  /** The provenance guardrail's verdict, worn on the answer itself: green =
-   *  every figure traced to an engine tool result (machine-checked server-
-   *  side); amber = the check found unexplained figures even after a forced
-   *  self-correction, so treat those numbers as unverified. */
+  /** The provenance guardrail's verdict (T-33), worn on the answer itself.
+   *  Three states, all machine-checked server-side:
+   *  verified — every figure traced to an engine tool result first pass;
+   *  regenerated — the check CAUGHT untraceable figures and forced a
+   *  correction that then verified (the guardrail working, on camera);
+   *  flagged — still untraceable after the retry: the exact figures are
+   *  named and must never be presented as trustworthy. */
   function VerifiedBadge({ verification }: { verification: VerificationInfo }) {
-    if (verification.grounded) {
+    if (verification.status === "verified" || verification.status === "regenerated") {
+      const selfCorrected = verification.status === "regenerated";
       return (
         <span
           className="normal-case tracking-wide text-[10px] font-bold text-emerald-300
                      bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2.5 py-0.5"
           style={{ boxShadow: "0 0 12px rgba(52,211,153,0.25)" }}
-          title="Every number in this answer was checked against the calculation engine. The AI cannot invent figures here."
+          title={
+            selfCorrected
+              ? "The runtime check caught unverified figures in the first draft and forced a self-correction; every number in THIS answer now traces to the calculation engine."
+              : "Every number in this answer was checked against the calculation engine. The AI cannot invent figures here."
+          }
         >
-          ✓ VERIFIED
+          {selfCorrected ? "✓ VERIFIED · SELF-CORRECTED" : "✓ VERIFIED"}
         </span>
       );
     }
@@ -84,9 +92,9 @@ export default function AgentChat({ agents }: AgentChatProps) {
         className="normal-case tracking-wide text-[10px] font-bold text-amber-300
                    bg-amber-500/15 border border-amber-500/40 rounded-full px-2.5 py-0.5"
         style={{ boxShadow: "0 0 12px rgba(251,191,36,0.25)" }}
-        title={`These figures could not be matched to the engine: ${verification.unexplained_numbers.join(", ")}. Treat them with caution — the engine numbers in the traces below remain authoritative.`}
+        title={`These figures could not be matched to the engine even after a forced retry: ${verification.untraceable_figures.join(", ")}. Treat them with caution — the engine numbers in the traces below remain authoritative.`}
       >
-        ⚠ UNVERIFIED FIGURES
+        ⚠ UNVERIFIED FIGURES: {verification.untraceable_figures.join(", ")}
       </span>
     );
   }
