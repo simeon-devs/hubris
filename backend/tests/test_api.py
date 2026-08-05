@@ -37,11 +37,21 @@ def client():
 def _isolate_state():
     original_baseline = app_state.baseline
     original_scenarios = dict(app_state.scenarios)
+    original_labels = dict(app_state.scenario_labels)
     original_distance_mode = app_state.distance_mode
     original_agents = dict(builder._agents)
+    # Boot now seeds the REAL Dataset G twin (demo re-seed, 2026-08-05).
+    # These are engine-correspondence tests hand-checked against the
+    # synthetic fixture, so each starts from a fresh synthetic baseline;
+    # tests about the real seeded demo call seed_demo_scenario themselves.
+    from hubris.core.contracts import NetworkModel
+    from hubris.data.synthetic import generate_synthetic_raw_tables
+
+    app_state.reset_baseline(NetworkModel.from_raw_tables(generate_synthetic_raw_tables()))
     yield
     app_state.baseline = original_baseline
     app_state.scenarios = original_scenarios
+    app_state.scenario_labels = original_labels
     app_state.distance_mode = original_distance_mode
     builder._agents = original_agents
 
