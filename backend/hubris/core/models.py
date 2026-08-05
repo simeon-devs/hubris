@@ -18,6 +18,17 @@ class Hub(BaseModel):
     fixed_cost: float
     handling_cost: float
     status: str = "open"  # open | closed | candidate
+    # R1 (service-aware twin): which service models this facility can carry.
+    # None = capability unknown/universal (synthetic + generic datasets keep
+    # their old behaviour). Dataset G: Full Hub = Standard+Express,
+    # Micro Hub = Standard only, dark store = QComm.
+    hub_type: str | None = None  # "Full Hub" | "Micro Hub" | "Dark Store" | None
+    service_models: list[str] | None = None
+    # R2 (rider layer): the real roster, when the dataset carries one.
+    riders_fte: int | None = None
+    riders_ftc: int | None = None
+    rider_capacity_daily: float | None = None  # sum(count x avg deliveries/day)
+    rider_weekly_cost: float | None = None  # sum of weekly labour cost, AED
 
 
 class Zone(BaseModel):
@@ -28,6 +39,8 @@ class Zone(BaseModel):
     emirate: str
     demand: float
     sla_hours: float
+    # R1: the service model this zone's demand belongs to (None = unspecified).
+    service_model: str | None = None
 
 
 class FleetType(BaseModel):

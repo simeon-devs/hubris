@@ -79,6 +79,8 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
             ),
             spare_capacity=spare.breakdown.get(hub.id, 0.0),
             cost_to_serve=cost_to_serve.get(hub.id, 0.0),
+            hub_type=hub.hub_type,
+            service_models=hub.service_models,
             required_headcount=workforce[hub.id]["required_headcount"],
             sustainable_headcount=workforce[hub.id]["sustainable_headcount"],
             headcount_gap=workforce[hub.id]["gap"],
@@ -89,7 +91,10 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
         for hub in model.hubs
     ]
     zones = [
-        ZoneMapInfo(id=z.id, name=z.name, lat=z.lat, lon=z.lon, emirate=z.emirate, demand=z.demand)
+        ZoneMapInfo(
+            id=z.id, name=z.name, lat=z.lat, lon=z.lon, emirate=z.emirate,
+            demand=z.demand, service_model=z.service_model,
+        )
         for z in model.zones
     ]
     flows = [

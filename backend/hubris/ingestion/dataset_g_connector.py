@@ -150,6 +150,10 @@ class DatasetGConnector(DataConnector):
                     # (derived, not assumed — from the file's own hubs).
                     "handling_cost": handling.get(r.hub_id, median_handling),
                     "status": "open" if r.status == "Active" else "candidate",
+                    # R1: capability from the file's own columns — Full Hubs
+                    # carry Standard+Express, Micro Hubs Standard only.
+                    "hub_type": str(r.hub_type),
+                    "service_models": [m.strip() for m in str(r.service_models).split(",")],
                 }
             )
         return hubs
@@ -176,6 +180,8 @@ class DatasetGConnector(DataConnector):
                     "fixed_cost": round(float(overhead.get(r.store_id, 0.0)) / DAYS_PER_MONTH, 2),
                     "handling_cost": handling.get(r.store_id, median_handling),
                     "status": "open",
+                    "hub_type": "Dark Store",
+                    "service_models": ["QComm"],
                 }
             )
         return hubs
@@ -193,9 +199,19 @@ class DatasetGConnector(DataConnector):
             ds = sheets["Dark_Store_Network"]
             store_sla = dict(zip(ds.store_id, ds.target_delivery_min))
 
+        # R1 (service-aware twin): Hub & Spoke zones split PER SERVICE MODEL —
+        # "Al Quoz Standard" and "Al Quoz Express" are different demand with
+        # different promises, and only Full Hubs may carry Express. QComm
+        # zones are single-model and keep their original ids (the crisis
+        # twin's identity is load-bearing across alerts/tests/demos).
         zones: dict[str, dict] = {}
         assignments: list[dict] = []
-        for (emirate, zone), grp in demand_rows.groupby(["emirate", "zone"]):
+        group_cols = (
+            ["emirate", "zone", "service_model"] if network == "hub_spoke" else ["emirate", "zone"]
+        )
+        for group_key, grp in demand_rows.groupby(group_cols):
+            emirate, zone = group_key[0], group_key[1]
+            model = group_key[2] if network == "hub_spoke" else "QComm"
             key = (emirate, zone)
             if key not in zone_coords:
                 # Sims' rule: unmappable is FLAGGED, never faked.
@@ -203,24 +219,26 @@ class DatasetGConnector(DataConnector):
                     f"zone {emirate}/{zone} has no facility coordinate to join — unmappable"
                 )
             lat, lon = zone_coords[key]
-            zone_id = f"{_slug(emirate)}-{_slug(zone)}"
-            daily_demand = float(grp.daily_avg.sum())
-
             if network == "hub_spoke":
-                models = set(grp.service_model)
-                sla = min(SLA_HOURS.get(m, 24.0) for m in models)
+                zone_id = f"{_slug(emirate)}-{_slug(zone)}-{_slug(model)}"
+                display = f"{zone} · {model} ({emirate})"
+                sla = SLA_HOURS.get(model, 24.0)
             else:
+                zone_id = f"{_slug(emirate)}-{_slug(zone)}"
+                display = f"{zone} ({emirate})"
                 serving = grp.serving_hub_or_store_id.iloc[0]
                 sla = float(store_sla.get(serving, 15)) / 60.0
+            daily_demand = float(grp.daily_avg.sum())
 
             zones[zone_id] = {
                 "id": zone_id,
-                "name": f"{zone} ({emirate})",
+                "name": display,
                 "lat": lat,
                 "lon": lon,
                 "emirate": emirate,
                 "demand": round(daily_demand, 2),
                 "sla_hours": sla,
+                "service_model": model,
             }
             for serving_id, sgrp in grp.groupby("serving_hub_or_store_id"):
                 assignments.append(
@@ -300,7 +318,13 @@ class DatasetGConnector(DataConnector):
 
         od = []
         for hub in hubs:
+            capable = hub.get("service_models")
             for zone in zones:
+                model = zone.get("service_model")
+                # R1: no edge for a service model the facility can't carry
+                # (e.g. Express -> Micro Hub). Unknown capability = universal.
+                if capable is not None and model is not None and model not in capable:
+                    continue
                 distance_km = round(
                     road_distance_km(hub["lat"], hub["lon"], zone["lat"], zone["lon"]), 2
                 )

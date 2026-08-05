@@ -25,8 +25,11 @@ def test_fingerprint_matches_the_real_file_only():
 
 def test_hub_spoke_twin_shape_and_candidates():
     raw = _load("hub_spoke")
-    assert len(raw.hubs) == 13 and len(raw.zones) == 11
-    assert len(raw.fleet_types) == 40 and len(raw.od_matrix) == 13 * 11
+    # R1: zones split per service model — 11 Standard + 6 Express = 17;
+    # edges are capability-gated: 13x17=221 minus the 36 illegal
+    # Express->Micro pairs (6 Express zones x 6 Micro facilities) = 185.
+    assert len(raw.hubs) == 13 and len(raw.zones) == 17
+    assert len(raw.fleet_types) == 40 and len(raw.od_matrix) == 185
     statuses = {h["id"]: h["status"] for h in raw.hubs}
     assert [k for k, v in statuses.items() if v == "candidate"] == [
         "CAND_DXB_01", "CAND_AUH_01", "CAND_SHJ_01",
@@ -60,9 +63,10 @@ def test_provided_assignments_flip_baseline_provenance():
     assert raw.assignments_provided is True
     model = NetworkModel.from_raw_tables(raw)
     assert model.baseline_provenance == "provided"  # T-31 on real data
-    # the file's own serving map, not a reconstruction
-    assert model.assignments["Dubai-Al_Quoz"] == "HUB_DXB_01"
-    assert model.assignments["Dubai-Business_Bay"] == "HUB_DXB_01"
+    # the file's own serving map, not a reconstruction — per service model (R1)
+    assert model.assignments["Dubai-Al_Quoz-Standard"] == "HUB_DXB_01"
+    assert model.assignments["Dubai-Al_Quoz-Express"] == "HUB_DXB_01"
+    assert model.assignments["Dubai-Business_Bay-Standard"] == "HUB_DXB_01"
 
 
 def test_candidate_handling_is_pool_pure_median():
@@ -107,6 +111,27 @@ def test_qcomm_crisis_shows_both_named_quantities():
     assert served.breakdown["Abu Dhabi"] < 100.0  # the emirate that hurts
 
 
+def test_service_capability_gates_the_edges():
+    """R1: Micro Hubs carry Standard only — an Express zone must have NO
+    edge to any Micro facility, so flow/MILP/frontier can never route
+    same-day parcels somewhere that can't serve them."""
+    raw = _load("hub_spoke")
+    hub_types = {h["id"]: h["hub_type"] for h in raw.hubs}
+    micro = {h for h, t in hub_types.items() if t == "Micro Hub"}
+    assert len(micro) == 6  # 5 active + CAND_AUH_01
+    express_zones = {z["id"] for z in raw.zones if z["service_model"] == "Express"}
+    assert len(express_zones) == 6
+    for edge in raw.od_matrix:
+        if edge["to_id"] in express_zones:
+            assert edge["from_id"] not in micro
+    # SLAs per model, from the registry (T-32)
+    slas = {z["id"]: z["sla_hours"] for z in raw.zones}
+    assert slas["Dubai-Al_Quoz-Express"] == 8.0
+    assert slas["Dubai-Al_Quoz-Standard"] == 24.0
+    # candidates are typed too — the Al Reem candidate cannot do same-day
+    assert hub_types["CAND_AUH_01"] == "Micro Hub"
+
+
 def test_unknown_network_is_refused():
     with pytest.raises(ValueError):
         _load("on_demand")  # report-only by decision — no twin
@@ -128,8 +153,8 @@ def test_ingest_endpoint_autopicks_dataset_g_and_loads_both_twins():
             )
             assert r.status_code == 200
             assert r.json() == {
-                "hubs": 13, "zones": 11, "fleet_types": 40,
-                "od_matrix": 143, "current_assignments": 11,
+                "hubs": 13, "zones": 17, "fleet_types": 40,
+                "od_matrix": 185, "current_assignments": 17,
             }
             net = client.get("/network").json()
             assert net["baseline_provenance"] == "provided"

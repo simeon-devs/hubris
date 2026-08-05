@@ -163,6 +163,9 @@ class HubMapInfo(BaseModel):
     #   an attribution view, not physical utilisation)
     utilization_pct: float
     assignment_share_pct: float
+    # R1: facility capability (dataset G) — None on datasets without types
+    hub_type: str | None = None
+    service_models: list[str] | None = None
     # Workforce (WorkforceRequirementMetric, assigned-demand basis). Defaults
     # keep any caller that builds a HubMapInfo by hand working unchanged.
     required_headcount: int = 0
@@ -182,6 +185,7 @@ class ZoneMapInfo(BaseModel):
     lon: float
     emirate: str
     demand: float
+    service_model: str | None = None  # R1: Standard | Express | QComm | None
 
 
 class FlowMapInfo(BaseModel):

@@ -21,7 +21,7 @@ def test_seed_replaces_the_synthetic_baseline_with_the_real_twin():
     state = _seeded_state()
     assert len(state.baseline.hubs) == 13  # 10 active + 3 candidates
     assert state.baseline.baseline_provenance == "provided"  # T-31 on real data
-    assert state.baseline.assignments["Dubai-Al_Quoz"] == "HUB_DXB_01"
+    assert state.baseline.assignments["Dubai-Al_Quoz-Standard"] == "HUB_DXB_01"
 
 
 def test_seeded_qcomm_twin_is_the_real_crisis():
