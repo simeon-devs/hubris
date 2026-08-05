@@ -24,6 +24,8 @@ export interface KpisResponse {
   network_summary: NetworkSummary;
 }
 
+export type GapDirection = "understaffed" | "balanced" | "overstaffed";
+
 export interface HubMapInfo {
   id: string;
   name: string;
@@ -35,6 +37,15 @@ export interface HubMapInfo {
   utilization_pct: number;
   spare_capacity: number;
   cost_to_serve: number;
+  // Workforce — computed by the engine's WorkforceRequirementMetric, never in
+  // the browser (the honesty rule in lib/api.ts). Optional so the UI still
+  // renders against a backend that predates the metric.
+  required_headcount?: number;
+  sustainable_headcount?: number;
+  headcount_gap?: number;
+  gap_direction?: GapDirection;
+  required_permanent?: number;
+  required_outsourced?: number;
 }
 
 export interface ZoneMapInfo {
@@ -70,6 +81,30 @@ export interface NetworkMapResponse {
   flows: FlowMapInfo[];
   fleet_types: FleetTypeInfo[];
   distance_mode: DistanceMode;
+}
+
+// One vehicle type's engine-computed cost for a hub→zone corridor
+// (backend/hubris/engine/route_cost.py) — every component shown, no
+// arithmetic left to the browser.
+export interface RouteCostMode {
+  fleet_id: string;
+  fleet_name: string;
+  vehicle_capacity: number;
+  cost_per_km: number;
+  variable_cost: number;
+  vehicle_fixed_cost: number;
+  trip_cost: number;
+  cost_per_parcel: number;
+}
+
+export interface RouteCostResponse {
+  from_hub: string;
+  to_zone: string;
+  distance_km: number;
+  time_min: number;
+  od_cost_per_parcel: number;
+  handling_cost_per_parcel: number;
+  modes: RouteCostMode[]; // sorted cheapest-per-parcel first
 }
 
 export interface RefreshDistancesResponse {
@@ -153,11 +188,34 @@ export interface AgentQueryRequest {
   scenario_id?: string | null;
 }
 
+// Provenance guardrail verdict — computed by the backend's runtime check
+// (agents/provenance.py via agents/runner.py), never inferred client-side.
+export interface VerificationInfo {
+  grounded: boolean;
+  unexplained_numbers: number[];
+  retried: boolean;
+}
+
 export interface AgentQueryResponse {
   answer: string;
   tool_calls: ToolCallTrace[];
   role: string | null;
   agent_name: string | null;
+  verification?: VerificationInfo | null;
+}
+
+// A monitoring agent's finding (GET /alerts) — produced automatically after
+// ingest / scenario saves by agents with autonomy="monitoring".
+export interface AlertInfo {
+  id: number;
+  agent_name: string;
+  trigger: string;
+  answer: string;
+  verification: VerificationInfo | null;
+  tool_calls: number;
+  status: "ok" | "error";
+  ts: number;
+  acknowledged: boolean;
 }
 
 export interface AgentSpec {

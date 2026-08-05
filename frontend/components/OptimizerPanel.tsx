@@ -4,17 +4,22 @@ import { useState } from "react";
 import { optimize } from "@/lib/api";
 import type { OptimizeResponse } from "@/lib/types";
 
-export default function OptimizerPanel() {
+export default function OptimizerPanel({
+  onAdopt,
+}: {
+  /** Called with the engine's cost_to_serve_pct delta when the planner
+   *  adopts the recommendation into the Kaizen ledger. */
+  onAdopt?: (costDeltaPct: number) => void;
+}) {
   const [result, setResult] = useState<OptimizeResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   async function runOptimize() {
     setLoading(true);
     setError(null);
     try {
-      const res = await optimize({});
-      setResult(res);
+      setResult(await optimize({}));
     } catch (err) {
       setError((err as Error).message);
       setResult(null);
@@ -24,53 +29,83 @@ export default function OptimizerPanel() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div className="flex flex-col gap-4">
       <button
         onClick={runOptimize}
         disabled={loading}
-        style={{
-          padding: "8px 12px",
-          borderRadius: 6,
-          background: "#111827",
-          color: "white",
-          border: "none",
-          cursor: loading ? "default" : "pointer",
-          opacity: loading ? 0.6 : 1,
-        }}
+        className={`w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200
+          ${loading
+            ? "bg-emerald-500/5 border border-emerald-500/10 text-emerald-800 cursor-default"
+            : "bg-gradient-to-r from-emerald-500/20 via-emerald-400/10 to-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:text-white cursor-pointer btn-glow-emerald"
+          }`}
       >
-        {loading ? "Optimising…" : "Run optimizer"}
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-emerald-500/20 border-t-emerald-400 animate-spin" />
+            Optimising…
+          </span>
+        ) : "◈  Run Optimizer"}
       </button>
 
-      {error && <div style={{ color: "#dc2626", fontSize: 12 }}>{error}</div>}
+      {error && (
+        <div className="text-xs px-3.5 py-2.5 rounded-xl text-rose-400
+                        bg-rose-500/10 border border-rose-500/20">
+          {error}
+        </div>
+      )}
 
       {result && (
-        <div
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
-            padding: 12,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            fontSize: 13,
-          }}
-        >
-          <div>
-            <span style={{ color: "#6b7280" }}>Recommended changes: </span>
-            {result.changes.length === 0
-              ? "none (current network already optimal)"
-              : result.changes.map((c) => `${c.action} ${c.hub_id}`).join(", ")}
-          </div>
+        <div className="flex flex-col gap-4 p-4 rounded-xl bg-white/[0.04] border border-white/10">
 
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#6b7280" }}>Cost-to-serve</span>
-            <span>
-              {result.cost_to_serve_before.toFixed(2)} {"->"} {result.cost_to_serve_after.toFixed(2)}{" "}
-              AED/parcel
+          {/* Changes */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              Recommended changes
             </span>
+            <div className="text-sm">
+              {result.changes.length === 0 ? (
+                <span className="text-emerald-400">✓ Current network is already optimal</span>
+              ) : (
+                result.changes.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 text-slate-100">
+                    <span className="text-amber-400 text-xs">◆</span>
+                    {c.action} {c.hub_id}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
+          {/* Cost comparison */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              Cost-to-serve
+            </span>
+            <div className="flex items-center gap-2 font-mono text-sm">
+              <span className="text-slate-400">{result.cost_to_serve_before.toFixed(2)}</span>
+              <span className="text-slate-600">→</span>
+              <span className="text-emerald-400 font-bold neon-emerald">
+                {result.cost_to_serve_after.toFixed(2)}
+              </span>
+              <span className="text-[10px] font-sans text-slate-500">AED</span>
+            </div>
+          </div>
+
+          {/* Robustness */}
           <RobustnessBadge band={result.robustness} />
+
+          {/* Adopt — logs the ENGINE's delta_vs_baseline figure, verbatim */}
+          {onAdopt && typeof result.delta_vs_baseline["cost_to_serve_pct"] === "number" &&
+            result.changes.length > 0 && (
+            <button
+              onClick={() => onAdopt(result.delta_vs_baseline["cost_to_serve_pct"])}
+              className="w-full py-2.5 rounded-lg text-xs font-bold text-emerald-300 hover:text-white
+                         bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20
+                         transition-colors cursor-pointer"
+            >
+              ✓ Adopt recommendation ({result.delta_vs_baseline["cost_to_serve_pct"].toFixed(2)}% cost-to-serve)
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -78,35 +113,26 @@ export default function OptimizerPanel() {
 }
 
 function RobustnessBadge({ band }: { band: OptimizeResponse["robustness"] }) {
+  const robust = band.holds_under_variation;
   return (
-    <div
-      style={{
-        borderTop: "1px solid #f3f4f6",
-        paddingTop: 8,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            padding: "3px 8px",
-            borderRadius: 999,
-            background: band.holds_under_variation ? "#dcfce7" : "#fee2e2",
-            color: band.holds_under_variation ? "#166534" : "#991b1b",
-          }}
-        >
-          {band.holds_under_variation ? "ROBUST" : "AT RISK"} UNDER ±{band.demand_variation_pct}% DEMAND
-        </span>
-      </div>
-      <span style={{ color: "#6b7280" }}>
-        Cost-to-serve range ({band.trials} Monte Carlo trials): {band.cost_to_serve_p10.toFixed(2)} –{" "}
-        {band.cost_to_serve_p90.toFixed(2)} AED/parcel (median {band.cost_to_serve_p50.toFixed(2)}),
-        feasible in {band.feasible_pct}% of trials
+    <div className="flex flex-col gap-2.5 pt-3 border-t border-white/[0.07]">
+      <span
+        className={`text-[10px] font-bold px-2.5 py-1 rounded-full tracking-widest self-start
+          ${robust
+            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+            : "bg-rose-500/10    text-rose-400    border border-rose-500/20"
+          }`}
+      >
+        {robust ? "ROBUST" : "AT RISK"} · ±{band.demand_variation_pct}% DEMAND
       </span>
+      <p className="text-[11px] font-mono leading-relaxed text-slate-400">
+        {band.cost_to_serve_p10.toFixed(2)}
+        <span className="font-sans mx-1">–</span>
+        {band.cost_to_serve_p90.toFixed(2)} AED/parcel
+        <span className="font-sans"> (p50: {band.cost_to_serve_p50.toFixed(2)}), </span>
+        feasible {band.feasible_pct}%
+        <span className="font-sans"> of {band.trials} trials</span>
+      </p>
     </div>
   );
 }

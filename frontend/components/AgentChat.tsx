@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import ActionCard from "@/components/ActionCard";
+import { extractActions } from "@/lib/action-cards";
 import { queryAgent } from "@/lib/api";
-import type { AgentSpec, ToolCallTrace } from "@/lib/types";
+import { useAtlas } from "@/lib/atlas-context";
+import type { AgentSpec, ToolCallTrace, VerificationInfo } from "@/lib/types";
 
 interface ChatMessage {
   role: "user" | "agent" | "error";
@@ -10,6 +13,7 @@ interface ChatMessage {
   toolCalls?: ToolCallTrace[];
   agentRole?: string | null;
   agentName?: string | null;
+  verification?: VerificationInfo | null;
 }
 
 interface AgentChatProps {
@@ -17,11 +21,17 @@ interface AgentChatProps {
 }
 
 export default function AgentChat({ agents }: AgentChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
+  const { network } = useAtlas(); // hub names for plain-language card titles
+  const [messages, setMessages]           = useState<ChatMessage[]>([]);
+  const [input, setInput]                 = useState("");
   const [selectedAgent, setSelectedAgent] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [loading, setLoading]             = useState(false);
+  const [expanded, setExpanded]           = useState<Record<string, boolean>>({});
+  const bottomRef                         = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   async function send() {
     const question = input.trim();
@@ -39,6 +49,7 @@ export default function AgentChat({ agents }: AgentChatProps) {
           toolCalls: response.tool_calls,
           agentRole: response.role,
           agentName: response.agent_name,
+          verification: response.verification,
         },
       ]);
     } catch (err) {
@@ -48,114 +59,175 @@ export default function AgentChat({ agents }: AgentChatProps) {
     }
   }
 
+  const agentLabel = (m: ChatMessage) =>
+    m.agentName ? m.agentName : m.agentRole ? m.agentRole : "Agent";
+
+  /** The provenance guardrail's verdict, worn on the answer itself: green =
+   *  every figure traced to an engine tool result (machine-checked server-
+   *  side); amber = the check found unexplained figures even after a forced
+   *  self-correction, so treat those numbers as unverified. */
+  function VerifiedBadge({ verification }: { verification: VerificationInfo }) {
+    if (verification.grounded) {
+      return (
+        <span
+          className="normal-case tracking-wide text-[10px] font-bold text-emerald-300
+                     bg-emerald-500/15 border border-emerald-500/40 rounded-full px-2.5 py-0.5"
+          style={{ boxShadow: "0 0 12px rgba(52,211,153,0.25)" }}
+          title="Every number in this answer was checked against the calculation engine. The AI cannot invent figures here."
+        >
+          ✓ VERIFIED
+        </span>
+      );
+    }
+    return (
+      <span
+        className="normal-case tracking-wide text-[10px] font-bold text-amber-300
+                   bg-amber-500/15 border border-amber-500/40 rounded-full px-2.5 py-0.5"
+        style={{ boxShadow: "0 0 12px rgba(251,191,36,0.25)" }}
+        title={`These figures could not be matched to the engine: ${verification.unexplained_numbers.join(", ")}. Treat them with caution — the engine numbers in the traces below remain authoritative.`}
+      >
+        ⚠ UNVERIFIED FIGURES
+      </span>
+    );
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div className="flex flex-col gap-3">
+
+      {/* Agent selector */}
       <select
         value={selectedAgent}
         onChange={(e) => setSelectedAgent(e.target.value)}
-        style={{ fontSize: 12, padding: 6, borderRadius: 6, border: "1px solid #e5e7eb" }}
+        className="w-full text-sm px-3 py-2.5 rounded-lg bg-white/8 border border-white/12
+                   text-slate-100 focus:outline-none focus:border-cyan-500/40 cursor-pointer"
       >
-        <option value="">Workforce (auto-routed)</option>
+        <option value="">Workforce — auto-routed</option>
         {agents.map((a) => (
-          <option key={a.name} value={a.name}>
-            {a.name}
-          </option>
+          <option key={a.name} value={a.name}>{a.name}</option>
         ))}
       </select>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 340, overflowY: "auto" }}>
-        {messages.length === 0 && (
-          <div style={{ fontSize: 12, color: "#9ca3af" }}>
-            Ask a question — e.g. &quot;What&apos;s our cost-to-serve?&quot; or &quot;Should we close any
-            hubs?&quot;
+      {/* Message thread */}
+      <div
+        className="flex flex-col gap-3 overflow-y-auto pr-0.5"
+        style={{ maxHeight: 300, minHeight: 60 }}
+      >
+        {messages.length === 0 && !loading && (
+          <p className="text-xs leading-relaxed italic text-slate-400">
+            Ask about the network — e.g. &ldquo;What&apos;s our cost-to-serve?&rdquo; or
+            &ldquo;Should we close any hubs?&rdquo;
+          </p>
+        )}
+
+        {messages.map((m, i) => {
+          if (m.role === "user") {
+            return (
+              <div key={i} className="flex flex-col items-end gap-1">
+                <span className="text-[9px] uppercase tracking-widest text-cyan-500 pr-0.5">You</span>
+                <div className="max-w-[88%] px-3.5 py-2.5 rounded-2xl rounded-br-sm text-sm text-slate-100
+                                leading-relaxed bg-cyan-500/15 border border-cyan-500/25">
+                  {m.text}
+                </div>
+              </div>
+            );
+          }
+
+          if (m.role === "error") {
+            return (
+              <div key={i} className="text-xs px-3.5 py-2.5 rounded-xl text-rose-400
+                                       bg-rose-500/10 border border-rose-500/20">
+                ⚠ {m.text}
+              </div>
+            );
+          }
+
+          return (
+            <div key={i} className="flex flex-col items-start gap-1">
+              <span className="text-[9px] uppercase tracking-widest text-slate-400 pl-0.5 flex items-center gap-1.5">
+                {agentLabel(m)}
+                {m.verification && <VerifiedBadge verification={m.verification} />}
+              </span>
+              <div className="max-w-[92%] px-3.5 py-2.5 rounded-2xl rounded-bl-sm text-sm
+                              text-slate-100 leading-relaxed whitespace-pre-wrap
+                              bg-white/[0.06] border border-white/10">
+                {m.text}
+              </div>
+
+              {/* Action cards — every runnable proposal in the trace */}
+              {m.toolCalls && network && (
+                <div className="flex flex-col gap-2 mt-1.5 w-full">
+                  {extractActions(m.toolCalls, network.hubs).map((action, k) => (
+                    <ActionCard key={`${i}-action-${k}`} action={action} />
+                  ))}
+                </div>
+              )}
+
+              {/* Tool call traces */}
+              {m.toolCalls && m.toolCalls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pl-1 mt-1">
+                  {m.toolCalls.map((tc, j) => {
+                    const key = `${i}-${j}`;
+                    return (
+                      <div key={key}>
+                        <button
+                          onClick={() => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))}
+                          className="text-[10px] px-2.5 py-1 rounded-lg transition-colors duration-150
+                                     bg-cyan-500/8 border border-cyan-500/20 text-cyan-500/70
+                                     hover:text-cyan-400 hover:border-cyan-500/30 cursor-pointer"
+                        >
+                          ⬡ {tc.tool}
+                        </button>
+                        {expanded[key] && (
+                          <pre className="text-[10px] p-3 rounded-xl mt-1 overflow-x-auto
+                                          bg-black/60 border border-white/8 text-slate-300"
+                               style={{ maxWidth: 300, fontFamily: "var(--font-geist-mono), monospace" }}>
+                            {JSON.stringify(tc.result, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {loading && (
+          <div className="flex items-start">
+            <div className="px-3.5 py-3 rounded-2xl rounded-bl-sm flex items-center gap-1.5
+                            bg-white/[0.06] border border-white/10">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="typing-dot inline-block w-1.5 h-1.5 rounded-full bg-cyan-400/50" />
+              ))}
+            </div>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} style={{ fontSize: 13 }}>
-            <div
-              style={{
-                fontWeight: 600,
-                color: m.role === "user" ? "#111827" : m.role === "error" ? "#dc2626" : "#2563eb",
-              }}
-            >
-              {m.role === "user"
-                ? "You"
-                : m.role === "error"
-                  ? "Error"
-                  : m.agentName
-                    ? `Agent (${m.agentName})`
-                    : m.agentRole
-                      ? `Agent (${m.agentRole})`
-                      : "Agent"}
-            </div>
-            <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
-            {m.toolCalls && m.toolCalls.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                {m.toolCalls.map((tc, j) => {
-                  const key = `${i}-${j}`;
-                  return (
-                    <div key={key}>
-                      <button
-                        onClick={() => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))}
-                        style={{
-                          fontSize: 11,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          border: "1px solid #d1d5db",
-                          background: "#f3f4f6",
-                          cursor: "pointer",
-                        }}
-                      >
-                        source: {tc.tool}
-                      </button>
-                      {expanded[key] && (
-                        <pre
-                          style={{
-                            fontSize: 10,
-                            background: "#111827",
-                            color: "#e5e7eb",
-                            padding: 8,
-                            borderRadius: 6,
-                            overflowX: "auto",
-                            marginTop: 4,
-                            maxWidth: 320,
-                          }}
-                        >
-                          {JSON.stringify(tc.result, null, 2)}
-                        </pre>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
-        {loading && <div style={{ fontSize: 13, color: "#9ca3af" }}>Thinking…</div>}
+
+        <div ref={bottomRef} />
       </div>
 
-      <div style={{ display: "flex", gap: 6 }}>
+      {/* Input row */}
+      <div className="flex gap-2 mt-1">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") send();
-          }}
+          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
           placeholder="Ask about the network…"
-          style={{ flex: 1, fontSize: 13, padding: 8, border: "1px solid #e5e7eb", borderRadius: 6 }}
+          className="flex-1 text-sm px-3.5 py-2.5 rounded-xl text-slate-100
+                     bg-white/8 border border-white/12 focus:outline-none
+                     placeholder:text-slate-500 transition-colors duration-150"
+          onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(34,211,238,0.35)"; }}
+          onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
         />
         <button
           onClick={send}
           disabled={loading}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 6,
-            background: "#111827",
-            color: "white",
-            border: "none",
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.6 : 1,
-          }}
+          className={`text-sm px-4 rounded-xl font-medium transition-all duration-150 flex-shrink-0
+            ${loading
+              ? "bg-cyan-500/5 border border-cyan-500/10 text-cyan-700 cursor-default"
+              : "bg-cyan-500/15 border border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/20 hover:text-white cursor-pointer"
+            }`}
         >
           Send
         </button>
