@@ -14,6 +14,9 @@ interface ChatMsg {
   text: string;
   pill?: "verified" | "self-corrected" | "flagged";
   mapTarget?: MapFocus;
+  toolCalls?: { tool: string; summary: string }[];
+  untraceableFigures?: number[];
+  error?: boolean;
 }
 
 /** The EMX wordmark on a white paper chip — the Atlas AI identity mark. */
@@ -35,23 +38,47 @@ export function CopilotDrawer({ onShowOnMap }: { onShowOnMap?: (f: MapFocus) => 
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [msgs, open]);
 
+  // The REAL agent: async, with loading + honest error states. Every answer
+  // is provenance-verified server-side before it arrives here.
   const send = (q: string) => {
     const t = q.trim();
-    if (!t) return;
-    const a = answerQuestion(t);
-    setMsgs((m) => [
-      ...m,
-      { role: "user", text: t },
-      { role: "assistant", text: a.text, pill: a.pill, ...(a.mapTarget ? { mapTarget: a.mapTarget } : {}) },
-    ]);
+    if (!t || busy) return;
+    setBusy(true);
+    setMsgs((m) => [...m, { role: "user", text: t }]);
     setInput("");
     logEvent(`Copilot — asked "${t.slice(0, 48)}"`);
+    answerQuestion(t)
+      .then((a) => {
+        setMsgs((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: a.text,
+            pill: a.pill,
+            toolCalls: a.toolCalls,
+            untraceableFigures: a.untraceableFigures,
+            ...(a.mapTarget ? { mapTarget: a.mapTarget } : {}),
+          },
+        ]);
+      })
+      .catch((e: Error) => {
+        setMsgs((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: `The engine is unreachable or the agent failed (${e.message.slice(0, 140)}). The numbers on screen remain engine-computed; try again once the backend is up.`,
+            error: true,
+          },
+        ]);
+      })
+      .finally(() => setBusy(false));
   };
 
   return (
@@ -109,6 +136,26 @@ export function CopilotDrawer({ onShowOnMap }: { onShowOnMap?: (f: MapFocus) => 
                     <BotMark className="mt-0.5" />
                     <div className="glass-panel min-w-0 flex-1 rounded-xl rounded-tl-sm border px-3.5 py-2.5">
                       <p className="text-[12px] leading-relaxed text-foreground">{m.text}</p>
+                      {m.pill === "flagged" && m.untraceableFigures && m.untraceableFigures.length > 0 ? (
+                        <p className="mt-1.5 text-[10px] leading-relaxed text-warn">
+                          Unverified figures — could not be traced to any engine result:{" "}
+                          {m.untraceableFigures.join(", ")}. Treat them with caution; the tool
+                          results below remain authoritative.
+                        </p>
+                      ) : null}
+                      {m.toolCalls && m.toolCalls.length > 0 ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {m.toolCalls.map((c, j) => (
+                            <span
+                              key={j}
+                              className="rounded-full border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground"
+                              title="An engine tool this answer is grounded in"
+                            >
+                              ⚙ {c.summary}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       {m.pill ? (
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <VerifyPill pill={m.pill} />
@@ -127,6 +174,14 @@ export function CopilotDrawer({ onShowOnMap }: { onShowOnMap?: (f: MapFocus) => 
                 ),
               )
             )}
+            {busy ? (
+              <div className="flex items-start gap-2.5">
+                <BotMark className="mt-0.5" />
+                <div className="glass-panel rounded-xl rounded-tl-sm border px-3.5 py-2.5 text-[11px] text-muted-foreground">
+                  Running the engine — real tools, then a provenance check on every figure…
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="border-t px-4 pb-4 pt-3">
