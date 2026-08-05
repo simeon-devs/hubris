@@ -34,8 +34,15 @@ ROLE_TOOLS: dict[str, set[str]] = {
     # T-24: leadership briefs are the optimizer role's natural next step
     # after a recommendation.
     # T-34: the goal-driven loop is the optimizer's own machinery.
+    # T-28 frontier + ranked shapes (live-caught 2026-08-06): these existed
+    # in the registry but NO role carried them, so "run the frontier" could
+    # only be answered from a memory episode — with memory empty the agent
+    # asked the planner for data instead of computing. The demo chip must
+    # never depend on DB state.
     "optimizer": {
         "optimise_network",
+        "optimise_frontier",
+        "rank_network_shapes",
         "generate_decision_brief",
         "run_goal_loop",
         "recall_memory",
@@ -70,7 +77,10 @@ ROLE_GOALS: dict[str, str] = {
     ),
     "optimizer": (
         "Optimizer. Run the network optimiser to find the best hub "
-        "open/close configuration and explain the recommendation."
+        "open/close configuration and explain the recommendation. For "
+        "frontier questions (raw optimum vs resilience-constrained, cost "
+        "pools, resilience premium) run optimise_frontier — compute it "
+        "fresh, do not answer from memory alone."
     ),
     "cost_analyst": (
         "Cost Analyst. Decompose cost-to-serve into transport and fixed cost "
@@ -90,7 +100,7 @@ ROUTER_PROMPT = """Classify the planner's question into exactly one specialist r
 Roles:
 - network_analyst: current state, bottlenecks, spare capacity, utilization questions, "any inefficiencies/opportunities?"
 - scenario_strategist: what-if questions (move/close/add a hub, change fleet, change demand) and comparisons
-- optimizer: "should we change the network", hub open/close recommendations, cost minimization
+- optimizer: "should we change the network", hub open/close recommendations, cost minimization, best/optimal network shape, the frontier (raw vs resilience-constrained optimum, resilience premium), ranked shapes
 - cost_analyst: cost-to-serve breakdown, what's driving cost
 - risk_analyst: stress-testing, "what if demand grows", robustness, worst-case, "at what point does X break" questions
 
