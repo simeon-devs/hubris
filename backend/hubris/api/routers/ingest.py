@@ -14,8 +14,9 @@ hubs; `network=qcomm` loads the dark-store network as the saved scenario
 picker without blending a single cost figure."""
 
 import io
+import json
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from hubris.api.schemas import IngestResponse
 from hubris.api.state import state
@@ -59,6 +60,7 @@ async def ingest(
     h3_resolution: int = DEFAULT_H3_RESOLUTION,
     connector: str | None = None,
     network: str = "hub_spoke",
+    column_overrides: str | None = Form(default=None),
 ) -> IngestResponse:
     """T-35: `aggregate_zones_to_h3=true` collapses granular demand points
     onto an H3 hex grid at `h3_resolution` during ingest (generic excel
@@ -66,9 +68,22 @@ async def ingest(
     content = await file.read()
     chosen = _pick_connector(content, file.filename or "", connector)
 
+    # The fire-drill path (rehearsed on messy_7x_data.xlsx): a 422 mapping
+    # dialog answered by re-uploading with {table: {field: raw_column}}.
+    overrides: dict | None = None
+    if column_overrides:
+        try:
+            overrides = json.loads(column_overrides)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, f"column_overrides is not valid JSON: {exc}") from exc
+
     kwargs: dict = {}
     if chosen.name == "excel":
-        kwargs = {"aggregate_zones_to_h3": aggregate_zones_to_h3, "h3_resolution": h3_resolution}
+        kwargs = {
+            "aggregate_zones_to_h3": aggregate_zones_to_h3,
+            "h3_resolution": h3_resolution,
+            "column_overrides": overrides,
+        }
     elif chosen.name == "dataset_g":
         kwargs = {"network": network}
 
@@ -84,6 +99,10 @@ async def ingest(
                     field: {"best_guess_column": guess, "confidence": score}
                     for field, (guess, score) in exc.ambiguous_fields.items()
                 },
+                "how_to_resolve": (
+                    "Re-upload with a column_overrides form field, e.g. "
+                    '{"hubs": {"fixed_cost": "Depot_Rent_AED"}}'
+                ),
             },
         ) from exc
     except ValueError as exc:
