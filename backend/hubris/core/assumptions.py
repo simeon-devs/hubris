@@ -217,6 +217,40 @@ _register(
     ["hubris/agents/tools/optimise_frontier.py"],
 )
 
+# ---- workforce planning (ported from hubris-main, T-32-registered) ---------
+_register(
+    "parcels_per_courier_hour", 18.0, "assumed",
+    "Courier productivity for the Forecast-to-Workforce translation. Industry planning "
+    "convention; Dataset G's Courier_Capacity sheet gives courier COUNTS per network, "
+    "not a parcels-per-hour productivity figure, so this stays assumed.",
+    ["hubris/plugins/metrics/workforce_requirement.py"],
+)
+_register(
+    "productive_hours_per_shift", 7.5, "assumed",
+    "Productive hours in one courier shift after briefing/breaks/returns.",
+    ["hubris/plugins/metrics/workforce_requirement.py"],
+)
+_register(
+    "workforce_permanent_share", 0.60, "assumed",
+    "Target permanent:outsourced headcount split (60/40 policy).",
+    ["hubris/plugins/metrics/workforce_requirement.py"],
+)
+_register(
+    "permanent_hire_lead_time_days", 45, "assumed",
+    "Calendar days from opening a permanent requisition to a courier on the road.",
+    ["hubris/plugins/metrics/workforce_requirement.py"],
+)
+_register(
+    "outsourced_hire_lead_time_days", 7, "assumed",
+    "Calendar days to stand up an outsourced courier.",
+    ["hubris/plugins/metrics/workforce_requirement.py"],
+)
+_register(
+    "workforce_balanced_tolerance_couriers", 1, "assumed",
+    "A hub within this many couriers of its requirement counts as balanced.",
+    ["hubris/plugins/metrics/workforce_requirement.py"],
+)
+
 # ---- realism frontier (Sims decision 2026-08-05) ---------------------------
 _register(
     "frontier_min_hubs_per_emirate", 1, "assumed",

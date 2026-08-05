@@ -25,6 +25,7 @@ from hubris.engine.routing import refresh_od_matrix
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 from hubris.plugins.metrics.spare_capacity import SpareCapacityMetric
 from hubris.plugins.metrics.utilization import UtilizationMetric
+from hubris.plugins.metrics.workforce_requirement import WorkforceRequirementMetric
 
 router = APIRouter()
 
@@ -43,6 +44,9 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
     # T-37: the OLD utilisation definition, kept under its honest name —
     # dominant-hub assignment share (can exceed 100 on split zones).
     assigned = assigned_volume_by_hub(model)
+    # Workforce pillars (ported from hubris-main): engine-computed headcount
+    # per hub so no client ever derives staffing from parcel counts itself.
+    workforce = WorkforceRequirementMetric().compute(model, None).breakdown["per_hub"]
 
     hubs = [
         HubMapInfo(
@@ -59,6 +63,12 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
             ),
             spare_capacity=spare.breakdown.get(hub.id, 0.0),
             cost_to_serve=cost_to_serve.get(hub.id, 0.0),
+            required_headcount=workforce[hub.id]["required_headcount"],
+            sustainable_headcount=workforce[hub.id]["sustainable_headcount"],
+            headcount_gap=workforce[hub.id]["gap"],
+            gap_direction=workforce[hub.id]["gap_direction"],
+            required_permanent=workforce[hub.id]["required_permanent"],
+            required_outsourced=workforce[hub.id]["required_outsourced"],
         )
         for hub in model.hubs
     ]

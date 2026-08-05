@@ -163,6 +163,14 @@ class HubMapInfo(BaseModel):
     #   an attribution view, not physical utilisation)
     utilization_pct: float
     assignment_share_pct: float
+    # Workforce (WorkforceRequirementMetric, assigned-demand basis). Defaults
+    # keep any caller that builds a HubMapInfo by hand working unchanged.
+    required_headcount: int = 0
+    sustainable_headcount: int = 0
+    headcount_gap: int = 0
+    gap_direction: str = "balanced"  # understaffed | balanced | overstaffed
+    required_permanent: int = 0
+    required_outsourced: int = 0
     spare_capacity: float
     cost_to_serve: float
 
