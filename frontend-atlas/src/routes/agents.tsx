@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Bot, Check } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CopilotDrawer } from "@/components/atlas/CopilotDrawer";
 import { AtlasButton, Card, Chip, PageHead, SectionTitle } from "@/components/atlas/ui";

@@ -63,19 +63,46 @@ function findingSentence(alert: ApiAlert): string {
   return `${f.hottest_hub ?? "A facility"} runs at ${f.hottest_utilization_pct}% — above the ${f.hot_threshold_pct}% line (target: ${f.target}${f.stress_factor ? `, stressed x${f.stress_factor}` : ""}).`;
 }
 
+/** Two kinds of fix, two different sentences. A `restore_feasibility`
+ *  unlock serves parcels that were being dropped — it COSTS money, and
+ *  saying "saves X" there would be a lie about the engine's own output. */
 function actionSentence(alert: ApiAlert): string {
   const action = alert.recommended_action;
   if (action.action === "add_capacity" && typeof action.detail === "object" && action.detail) {
-    const d = action.detail as { hub_id?: string; unlock_units?: number; verified_cost_savings?: number };
+    const d = action.detail as {
+      hub_id?: string;
+      unlock_units?: number;
+      verified_cost_savings?: number;
+      unmet_cleared?: number;
+      unmet_remaining?: number;
+      added_transport_cost?: number;
+    };
+    if (!d.hub_id || typeof d.unlock_units !== "number") return action.action.replace(/_/g, " ");
+
+    if (typeof d.unmet_cleared === "number") {
+      const cost =
+        typeof d.added_transport_cost === "number"
+          ? `, at +${d.added_transport_cost} AED/period of transport`
+          : "";
+      const left =
+        typeof d.unmet_remaining === "number" && d.unmet_remaining > 0
+          ? ` ${d.unmet_remaining}/day would still be unserved.`
+          : "";
+      return `Add ${d.unlock_units} units of capacity at ${d.hub_id} — serves ${d.unmet_cleared}/day that are currently unserved${cost}, verified by re-solving.${left}`;
+    }
+
     const saving =
       typeof d.verified_cost_savings === "number"
         ? ` — saves ${d.verified_cost_savings} AED/period, verified by re-solving`
         : "";
-    if (d.hub_id && typeof d.unlock_units === "number") {
-      return `Add ${d.unlock_units} units of capacity at ${d.hub_id}${saving}.`;
-    }
+    return `Add ${d.unlock_units} units of capacity at ${d.hub_id}${saving}.`;
   }
-  if (action.action === "review_robustness") return "Review the robustness band before committing to this load.";
+  if (action.action === "review_robustness") {
+    // The engine's own verdict when it has one (e.g. "needs a new site").
+    return typeof action.detail === "string" && action.detail
+      ? action.detail
+      : "Review the robustness band before committing to this load.";
+  }
   return action.action.replace(/_/g, " ");
 }
 

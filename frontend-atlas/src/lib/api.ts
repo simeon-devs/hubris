@@ -191,6 +191,9 @@ export interface ApiAlert {
   };
   recommended_action: {
     action: string; detail: Record<string, unknown> | string;
+    // "restore_feasibility" (serves dropped demand, costs money) vs
+    // "reduce_cost" (a cheaper reroute). Absent on older alert rows.
+    kind?: "restore_feasibility" | "reduce_cost";
     why?: string; source_tool: string;
   };
   brief_link: string; acknowledged: boolean; provenance: string; created_at: string;
