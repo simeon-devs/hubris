@@ -7,9 +7,40 @@
  * (headline); the exact figure always sits right underneath.
  */
 
+import { useEffect, useRef, useState } from "react";
 import type { KpisResponse } from "@/lib/types";
 
 type MetricKey = "cost_to_serve" | "utilization" | "coverage" | "spare_capacity";
+
+const COUNT_UP_MS = 800;
+
+/** Display-only count-up on the FIRST value: 0 → the API value over 800ms,
+ *  landing on exactly the API value. Later updates jump straight there. */
+function useCountUp(target: number | null): number | null {
+  const [display, setDisplay] = useState<number | null>(null);
+  const animatedRef = useRef(false);
+
+  useEffect(() => {
+    if (target === null) return;
+    if (animatedRef.current) {
+      setDisplay(target);
+      return;
+    }
+    animatedRef.current = true;
+    const start = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / COUNT_UP_MS);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(p < 1 ? target * eased : target); // ends EXACTLY on the API value
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+
+  return display;
+}
 
 const NEGLIGIBLE_PCT = 0.05;
 
@@ -83,43 +114,55 @@ export default function KpiStrip({
                  border border-white/10 backdrop-blur-xl"
       style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.45)" }}
     >
-      {TILES.map(({ key, metricLabel, goodDirection, icon, tooltip }) => {
-        const metric = kpis[key];
-        const value = typeof metric.value === "number" ? metric.value : null;
-        const delta = deltaPct?.[key];
-        const showDelta =
-          delta !== undefined && Math.abs(delta) >= NEGLIGIBLE_PCT && goodDirection !== null;
-        const improving =
-          showDelta && (goodDirection === "down" ? (delta as number) < 0 : (delta as number) > 0);
+      {TILES.map((tile) => (
+        <Tile key={tile.key} tile={tile} kpis={kpis} deltaPct={deltaPct} />
+      ))}
+    </div>
+  );
+}
 
-        return (
-          <div
-            key={key}
-            title={tooltip}
-            className="flex flex-col gap-0.5 px-4 py-2 bg-black/75 min-w-[168px] cursor-default"
+function Tile({
+  tile: { key, metricLabel, goodDirection, icon, tooltip },
+  kpis,
+  deltaPct,
+}: {
+  tile: (typeof TILES)[number];
+  kpis: KpisResponse;
+  deltaPct?: Record<string, number> | null;
+}) {
+  const metric = kpis[key];
+  const value = typeof metric.value === "number" ? metric.value : null;
+  const displayValue = useCountUp(value); // display-only intro count-up
+  const delta = deltaPct?.[key];
+  const showDelta =
+    delta !== undefined && Math.abs(delta) >= NEGLIGIBLE_PCT && goodDirection !== null;
+  const improving =
+    showDelta && (goodDirection === "down" ? (delta as number) < 0 : (delta as number) > 0);
+
+  return (
+    <div
+      title={tooltip}
+      className="flex flex-col gap-0.5 px-4 py-2 bg-black/75 min-w-[168px] cursor-default"
+    >
+      <span className={`text-[13px] font-semibold leading-tight ${healthClass(key, value)}`}>
+        {headline(key, displayValue)}
+        {showDelta && (
+          <span
+            className={`ml-1.5 text-[10px] font-mono ${improving ? "text-emerald-400" : "text-rose-400"}`}
+            title="Change vs today's network, computed by the engine for the scenario you're viewing"
           >
-            <span className={`text-[13px] font-semibold leading-tight ${healthClass(key, value)}`}>
-              {headline(key, value)}
-              {showDelta && (
-                <span
-                  className={`ml-1.5 text-[10px] font-mono ${improving ? "text-emerald-400" : "text-rose-400"}`}
-                  title="Change vs today's network, computed by the engine for the scenario you're viewing"
-                >
-                  {(delta as number) > 0 ? "+" : ""}
-                  {(delta as number).toFixed(1)}%
-                </span>
-              )}
-            </span>
-            {/* The expert line: precise metric, verbatim engine value */}
-            <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-[0.14em] text-slate-500">
-              <span className="text-cyan-400/50">{icon}</span>
-              {metricLabel}{" "}
-              {value !== null &&
-                `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${metric.unit}`}
-            </span>
-          </div>
-        );
-      })}
+            {(delta as number) > 0 ? "+" : ""}
+            {(delta as number).toFixed(1)}%
+          </span>
+        )}
+      </span>
+      {/* The expert line: precise metric, verbatim engine value — no animation here */}
+      <span className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-[0.14em] text-slate-500">
+        <span className="text-cyan-400/50">{icon}</span>
+        {metricLabel}{" "}
+        {value !== null &&
+          `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${metric.unit}`}
+      </span>
     </div>
   );
 }

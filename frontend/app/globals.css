@@ -248,3 +248,26 @@ input[type="checkbox"]:checked::after {
   }
 }
 .btn-glow-emerald { animation: border-glow-emerald 2.8s ease-in-out infinite; }
+
+/* ── Cinematic pass ─────────────────────────────────────────────────── */
+@keyframes cine-fade-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.92); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.cine-card { animation: cine-fade-up 150ms ease-out backwards; }
+
+@keyframes cine-drop {
+  from { opacity: 0; transform: translate(-50%, -16px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes cine-from-right {
+  from { opacity: 0; transform: translateX(26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes cine-rise {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.cine-drop       { animation: cine-drop 200ms ease-out backwards; }
+.cine-from-right { animation: cine-from-right 200ms ease-out backwards; }
+.cine-rise       { animation: cine-rise 200ms ease-out backwards; }

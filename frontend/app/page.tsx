@@ -13,6 +13,7 @@ import MapCanvas from "@/components/MapCanvas";
 import MapViewControls from "@/components/MapViewControls";
 import ScenarioChips from "@/components/ScenarioChips";
 import { useAtlas } from "@/lib/atlas-context";
+import { introHasPlayed } from "@/lib/cinematic";
 
 export default function CommandPage() {
   const {
@@ -26,12 +27,19 @@ export default function CommandPage() {
     removeLedgerEntry,
   } = useAtlas();
 
+  // Cinematic timing: on a fresh page load the floating panels wait for the
+  // intro flight to land; on route re-entry they appear almost at once.
+  const panelDelay = introHasPlayed() ? "120ms" : "3900ms";
+
   return (
     <div className="relative w-full h-full overflow-hidden">
       <MapCanvas />
 
       {/* Scenario chips — top center */}
-      <div className="absolute left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 top-3">
+      <div
+        className="cine-drop absolute left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 top-3"
+        style={{ animationDelay: panelDelay }}
+      >
         <ScenarioChips
           scenarios={savedScenarios}
           activeId={scenarioId}
@@ -43,12 +51,15 @@ export default function CommandPage() {
       </div>
 
       {/* Andon alerts — right edge */}
-      <div className="absolute right-4 top-3 z-20">
+      <div className="cine-from-right absolute right-4 top-3 z-20" style={{ animationDelay: panelDelay }}>
         <AndonAlerts />
       </div>
 
       {/* Kaizen ledger — bottom center */}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-20">
+      <div
+        className="cine-rise absolute left-1/2 -translate-x-1/2 bottom-4 z-20"
+        style={{ animationDelay: panelDelay }}
+      >
         <KaizenLedger entries={ledger} onRemove={removeLedgerEntry} />
       </div>
 

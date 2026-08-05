@@ -24,9 +24,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import tt from "@tomtom-international/web-sdk-maps";
 import "@tomtom-international/web-sdk-maps/dist/maps.css";
 import type { BuildPick } from "@/lib/build";
+import { useAtlas } from "@/lib/atlas-context";
 import { createCameraSync, type CameraState, type SyncableCamera } from "@/lib/camera-sync";
+import {
+  introHasPlayed,
+  markIntroPlayed,
+  normalizedPillarHeight,
+  pickStoryBeats,
+  topCalloutHubs,
+} from "@/lib/cinematic";
 import { buildCorridors, MAGAZINE_HUB_ID, type CorridorMode } from "@/lib/corridors";
-import { getRouteCost } from "@/lib/api";
+import { getRouteCost, simulate } from "@/lib/api";
 import type {
   FlowMapInfo,
   HubMapInfo,
@@ -46,6 +54,9 @@ const CORRIDOR_LAYER = "hubris-corridors";
 const CORRIDOR_HIT_LAYER = "hubris-corridors-hit";
 const PENDING_SOURCE = "hubris-pending-src";
 const PENDING_LAYER = "hubris-pending-marker";
+const HUB_POINT_SOURCE = "hubris-hub-points-src";
+const HALO_LAYER = "hubris-hub-halo";
+const CORRIDOR_GLOW_LAYER = "hubris-corridors-glow";
 
 // Signal palette — tailwind.config.js control-tower accents + magazine gold.
 const COLOR_UNDERSTAFFED = "#ef4444";
@@ -54,19 +65,28 @@ const COLOR_CLOSED = "#475569";
 const COLOR_MAGAZINE = "#f59e0b";
 const COLOR_CORRIDOR = "#22d3ee";
 
-const PILLAR_RADIUS_M = 6_000;
-const METRES_PER_COURIER = 14_000;
-const MIN_PILLAR_HEIGHT_M = 6_000;
+// Slim towers (cinematic pass): tight radius, 16-gon so they read as round.
+const PILLAR_RADIUS_M = 1_800;
+const PILLAR_SIDES = 16;
+// Country frame: the UAE glows in the middle of a darker vignette.
+const MAX_BOUNDS: [[number, number], [number, number]] = [
+  [50.5, 22.0],
+  [57.5, 26.8],
+];
 
 const EARTH_M_PER_DEG_LAT = 110_540;
 const EARTH_M_PER_DEG_LON = 111_320;
 
+// Settled camera (where the intro flight lands, and every later mount starts).
 const INITIAL_CAMERA: CameraState = {
-  center: [54.9, 24.8],
-  zoom: 6.9,
-  pitch: 52,
-  bearing: -18,
+  center: [54.35, 24.3],
+  zoom: 7.4,
+  pitch: 55,
+  bearing: -15,
 };
+// Intro flight start: high, flat, far — the "satellite" opening shot.
+const INTRO_START: CameraState = { center: [54.35, 24.3], zoom: 5.8, pitch: 0, bearing: 0 };
+const INTRO_DURATION_MS = 4_000;
 
 /** Classic maplibre "marching ants": cycle the dash phase each tick. */
 const DASH_SEQUENCE: number[][] = [
@@ -78,7 +98,7 @@ const DASH_SEQUENCE: number[][] = [
   [2.5, 4, 0.5],
   [3, 4, 0],
 ];
-const DASH_TICK_MS = 90;
+const DASH_TICK_MS = 140;
 
 type Ring = [number, number][];
 
@@ -115,11 +135,6 @@ function pillarColor(hub: HubMapInfo): string {
   return hub.gap_direction === "understaffed" ? COLOR_UNDERSTAFFED : COLOR_STAFFED;
 }
 
-function pillarHeight(hub: HubMapInfo): number {
-  const couriers = hub.required_headcount ?? 0;
-  return Math.max(MIN_PILLAR_HEIGHT_M, couriers * METRES_PER_COURIER);
-}
-
 function toPillarCollection(hubs: HubMapInfo[]) {
   return {
     type: "FeatureCollection" as const,
@@ -127,13 +142,25 @@ function toPillarCollection(hubs: HubMapInfo[]) {
       type: "Feature" as const,
       geometry: {
         type: "Polygon" as const,
-        coordinates: [polygonAround(hub.lon, hub.lat, PILLAR_RADIUS_M)],
+        coordinates: [polygonAround(hub.lon, hub.lat, PILLAR_RADIUS_M, PILLAR_SIDES)],
       },
       properties: {
         id: hub.id,
-        height: pillarHeight(hub),
+        height: normalizedPillarHeight(hub, hubs), // display scale, 2.5:1 (lib/cinematic)
         color: pillarColor(hub),
       },
+    })),
+  };
+}
+
+/** Point twin of the pillar set — feeds the footprint ring + halo circles. */
+function toHubPointCollection(hubs: HubMapInfo[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: hubs.map((hub) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [hub.lon, hub.lat] },
+      properties: { id: hub.id, color: pillarColor(hub), capacity: hub.capacity },
     })),
   };
 }
@@ -237,6 +264,9 @@ export default function NetworkMap({
     detachSyncRef.current = null;
   }, []);
 
+  // ── Story mode — "explain it to me" ──
+  const story = useStoryMode(baseline.hubs, mapsRef);
+
   if (!TOMTOM_KEY) return <MapUnavailable reason={null} />;
 
   return (
@@ -255,6 +285,7 @@ export default function NetworkMap({
         picking={picking}
         onPick={onPick}
         pendingMarker={pendingMarker}
+        storyFocusHubId={story.focusHubId}
       />
 
       {split && (
@@ -286,8 +317,174 @@ export default function NetworkMap({
       )}
 
       <WorkforceLegend corridorMode={corridorMode} />
+
+      {/* ── Story mode: the button may be the most prominent thing on screen ── */}
+      {!story.active && picking == null && (
+        <button
+          onClick={story.start}
+          className="absolute left-4 bottom-16 z-20 flex items-center gap-2.5 px-5 py-3 rounded-2xl
+                     text-sm font-bold text-white cursor-pointer backdrop-blur-xl
+                     border border-white/20 transition-transform hover:scale-[1.03]"
+          style={{
+            background: "linear-gradient(135deg, rgba(232,17,45,0.85), rgba(232,17,45,0.55))",
+            boxShadow: "0 0 34px rgba(232,17,45,0.45), 0 12px 32px rgba(0,0,0,0.5)",
+          }}
+          title="A 30-second guided walk through the live network — no jargon, real numbers"
+        >
+          ▶ Explain this network <span className="text-[10px] font-normal opacity-80">(30s)</span>
+        </button>
+      )}
+
+      {story.active && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-16 z-20 w-[560px] max-w-[90%]">
+          <div
+            className="rounded-2xl px-5 py-4 bg-black/85 backdrop-blur-xl border border-white/15"
+            style={{ boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 24px rgba(232,17,45,0.15)" }}
+          >
+            <p className="text-sm text-slate-100 leading-relaxed min-h-[40px]">
+              {story.caption}
+              <span className="inline-block w-[7px] h-[14px] ml-0.5 align-middle bg-white/70 animate-pulse" />
+            </p>
+            <div className="flex items-center gap-3 mt-2.5">
+              <span className="text-[10px] font-mono text-slate-500">
+                {story.step + 1} / 4
+              </span>
+              <button
+                onClick={story.next}
+                className="ml-auto text-[11px] font-semibold px-3.5 py-1.5 rounded-lg text-white
+                           cursor-pointer"
+                style={{ background: "#E8112D" }}
+              >
+                Next ▸
+              </button>
+              <button
+                onClick={story.stop}
+                className="text-[11px] px-3 py-1.5 rounded-lg text-slate-400 hover:text-white
+                           bg-white/5 border border-white/10 cursor-pointer"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Story mode — four beats over real data, captions are templates filled with
+   API fields only (no arithmetic). Step 3 runs a REAL simulation and splits
+   the screen; the engine, not the script, decides what red appears.
+═══════════════════════════════════════════════════════════════════════════ */
+
+const TYPE_MS = 18;
+const STEP_HOLD_MS = 4_000;
+
+function useStoryMode(
+  hubs: HubMapInfo[],
+  mapsRef: React.MutableRefObject<Partial<Record<PaneSide, tt.Map>>>,
+) {
+  const { setScenarioId, setSimResult, reloadScenarios } = useAtlas();
+  const [active, setActive] = useState(false);
+  const [step, setStep] = useState(0);
+  const [caption, setCaption] = useState("");
+  const [focusHubId, setFocusHubId] = useState<string | null>(null);
+  const timersRef = useRef<number[]>([]);
+
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach((t) => window.clearTimeout(t));
+    timersRef.current = [];
+  }, []);
+
+  const later = useCallback((fn: () => void, ms: number) => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+
+  const typeCaption = useCallback(
+    (text: string, then?: () => void) => {
+      setCaption("");
+      for (let i = 1; i <= text.length; i++) {
+        later(() => setCaption(text.slice(0, i)), i * TYPE_MS);
+      }
+      if (then) later(then, text.length * TYPE_MS + STEP_HOLD_MS);
+    },
+    [later],
+  );
+
+  const flyLeft = useCallback(
+    (center: [number, number], zoom: number) => {
+      const map = mapsRef.current.left as unknown as { flyTo?: (o: unknown) => void } | undefined;
+      map?.flyTo?.({ center, zoom, pitch: 55, curve: 1.3, duration: 2200 });
+    },
+    [mapsRef],
+  );
+
+  const stop = useCallback(() => {
+    clearTimers();
+    setActive(false);
+    setFocusHubId(null);
+    setCaption("");
+  }, [clearTimers]);
+
+  // Hoisted plain function so steps can chain to themselves via timers —
+  // every call originates from a user event or a timer, never an effect.
+  function runStep(index: number): void {
+    const beats = pickStoryBeats(hubs);
+    if (!beats) return;
+    clearTimers();
+    setStep(index);
+
+    if (index === 0) {
+      setFocusHubId(beats.busiest.id);
+      flyLeft([beats.busiest.lon, beats.busiest.lat], 9.4);
+      typeCaption(
+        `This is ${beats.busiest.name}. It handles ${beats.busiest.utilization_pct}% of what it can. The lines are parcels flowing to neighbourhoods.`,
+        () => runStep(1),
+      );
+    } else if (index === 1) {
+      setFocusHubId(beats.stressed.id);
+      flyLeft([beats.stressed.lon, beats.stressed.lat], 9.4);
+      typeCaption(
+        `This is ${beats.stressed.name} — the closest to its ceiling at ${beats.stressed.utilization_pct}% busy. One busy week could break it.`,
+        () => runStep(2),
+      );
+    } else if (index === 2) {
+      setFocusHubId(null);
+      typeCaption("Let's test that.");
+      // The REAL engine run — the screen splits when it lands.
+      simulate({ scenario_name: "demand_scale", params: { factor: 1.3 }, save_as: "story-demo" })
+        .then((result) => {
+          setSimResult(result);
+          reloadScenarios();
+          setScenarioId("story-demo");
+          typeCaption(
+            "Left: today. Right: 30% more parcels. Red means trouble. This is how EMX tests decisions before making them — in seconds, not 8 hours.",
+            () => runStep(3),
+          );
+        })
+        .catch((err: Error) => typeCaption(`The engine couldn't run the test: ${err.message}`));
+    } else {
+      setFocusHubId(null);
+      const map = mapsRef.current.left as unknown as { flyTo?: (o: unknown) => void } | undefined;
+      map?.flyTo?.({ ...INITIAL_CAMERA, curve: 1.3, duration: 2200 });
+      typeCaption("Try it yourself — click any hub, or use BUILD.", () => stop());
+    }
+  }
+
+  const start = () => {
+    setActive(true);
+    runStep(0);
+  };
+
+  const next = () => {
+    if (step >= 3) stop();
+    else runStep(step + 1);
+  };
+
+  useEffect(() => clearTimers, [clearTimers]);
+
+  return { active, step, caption, focusHubId, start, next, stop };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -308,6 +505,8 @@ interface MapPaneProps {
   picking?: "location" | "hub" | null;
   onPick?: (pick: BuildPick) => void;
   pendingMarker?: { lat: number; lon: number } | null;
+  /** Story mode: this hub's callout enlarges while the tour visits it. */
+  storyFocusHubId?: string | null;
 }
 
 interface CorridorPopoverState {
@@ -334,6 +533,7 @@ function MapPane({
   picking = null,
   onPick,
   pendingMarker = null,
+  storyFocusHubId = null,
 }: MapPaneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<tt.Map | null>(null);
@@ -350,13 +550,20 @@ function MapPane({
   );
   const [corridorPopover, setCorridorPopover] = useState<CorridorPopoverState | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  // Cinematic layer: intro-flight completion, hover callouts, card tracking.
+  const [introDone, setIntroDone] = useState(introHasPlayed());
+  const [hoveredHubId, setHoveredHubId] = useState<string | null>(null);
+  const calloutWrapRef = useRef<HTMLDivElement | null>(null);
+  const repositionCalloutsRef = useRef<(() => void) | null>(null);
 
   const pillars = useMemo(() => toPillarCollection(data.hubs), [data.hubs]);
+  const hubPoints = useMemo(() => toHubPointCollection(data.hubs), [data.hubs]);
   const corridors = useMemo(
     () => buildCorridors(data.hubs, data.zones, data.flows, { mode: corridorMode }),
     [data.hubs, data.zones, data.flows, corridorMode],
   );
   const pillarsRef = useRef(pillars);
+  const hubPointsRef = useRef(hubPoints);
   const corridorsRef = useRef(corridors);
 
   const selectedHub = selectedHubId ? data.hubs.find((h) => h.id === selectedHubId.id) : undefined;
@@ -385,6 +592,7 @@ function MapPane({
         touchPitch: true,
         // SDK v6 hard-caps pitch at 60 — higher throws on construction.
         maxPitch: 60,
+        maxBounds: MAX_BOUNDS,
       } as tt.MapOptions);
     } catch (err) {
       const message = err instanceof Error ? err.message : "TomTom map failed to initialise.";
@@ -409,13 +617,39 @@ function MapPane({
     map.on("error", onError);
 
     map.on("load", () => {
-      // ── Pillars ──
+      // ── Pillars: slim glass towers over a glowing footprint ──
       map.addSource(PILLAR_SOURCE, { type: "geojson", data: pillarsRef.current } as never);
+      map.addSource(HUB_POINT_SOURCE, { type: "geojson", data: hubPointsRef.current } as never);
+      // Wide soft halo (2× the ring), then the tight capacity ring on top.
       map.addLayer({
-        id: GLOW_LAYER,
-        type: "fill",
-        source: PILLAR_SOURCE,
-        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.22 },
+        id: HALO_LAYER,
+        type: "circle",
+        source: HUB_POINT_SOURCE,
+        paint: {
+          "circle-color": ["get", "color"],
+          "circle-opacity": 0.1,
+          "circle-blur": 0.6,
+          "circle-radius": [
+            "interpolate", ["linear"], ["get", "capacity"],
+            0, 16, 4000, 44, 8000, 64,
+          ],
+        },
+      } as never);
+      map.addLayer({
+        id: GLOW_LAYER, // the tight footprint ring (kept id — data effect reuses it)
+        type: "circle",
+        source: HUB_POINT_SOURCE,
+        paint: {
+          "circle-color": ["get", "color"],
+          "circle-opacity": 0,
+          "circle-stroke-color": ["get", "color"],
+          "circle-stroke-opacity": 0.35,
+          "circle-stroke-width": 1.5,
+          "circle-radius": [
+            "interpolate", ["linear"], ["get", "capacity"],
+            0, 8, 4000, 22, 8000, 32,
+          ],
+        },
       } as never);
       map.addLayer({
         id: PILLAR_LAYER,
@@ -431,6 +665,25 @@ function MapPane({
 
       // ── Corridors (under the pillars so bases stay crisp) ──
       map.addSource(CORRIDOR_SOURCE, { type: "geojson", data: corridorsRef.current } as never);
+      // Soft glow underlay — same geometry, 3× width, heavily blurred.
+      map.addLayer(
+        {
+          id: CORRIDOR_GLOW_LAYER,
+          type: "line",
+          source: CORRIDOR_SOURCE,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": ["case", ["get", "magazine"], COLOR_MAGAZINE, COLOR_CORRIDOR],
+            "line-width": [
+              "interpolate", ["linear"], ["get", "volume"],
+              0, 5.4, 200, 12, 800, 21,
+            ],
+            "line-opacity": 0.12,
+            "line-blur": 4,
+          },
+        } as never,
+        PILLAR_LAYER,
+      );
       map.addLayer(
         {
           id: CORRIDOR_LAYER,
@@ -445,16 +698,17 @@ function MapPane({
               COLOR_CORRIDOR,
             ],
             // Width encodes the solver's real volume — visual scaling only.
+            // Big flows must visibly dominate: 1.8px floor → 7px ceiling.
             "line-width": [
               "interpolate",
               ["linear"],
               ["get", "volume"],
               0,
-              1.2,
+              1.8,
               200,
-              2.5,
+              4,
               800,
-              5,
+              7,
             ],
             "line-opacity": 0.85,
             "line-dasharray": DASH_SEQUENCE[0],
@@ -494,6 +748,42 @@ function MapPane({
 
       addCityBuildings(map);
       readyRef.current = true;
+
+      // Callout cards track the camera: reproject on every rendered frame.
+      map.on("render", () => repositionCalloutsRef.current?.());
+
+      // ── Cinematic intro flight — once per page load, left pane only ──
+      if (!introHasPlayed() && side === "left") {
+        markIntroPlayed();
+        const flyer = map as unknown as {
+          jumpTo: (o: unknown) => void;
+          flyTo: (o: unknown) => void;
+          stop: () => void;
+        };
+        flyer.jumpTo(INTRO_START);
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          map.getCanvas().removeEventListener("click", skip);
+          setIntroDone(true);
+        };
+        const skip = () => flyer.stop(); // stop() fires moveend → finish
+        flyer.flyTo({
+          center: INITIAL_CAMERA.center,
+          zoom: INITIAL_CAMERA.zoom,
+          pitch: INITIAL_CAMERA.pitch,
+          bearing: INITIAL_CAMERA.bearing,
+          curve: 1.4,
+          duration: INTRO_DURATION_MS,
+        });
+        map.on("moveend", finish as never);
+        map.getCanvas().addEventListener("click", skip, { once: true });
+        setTimeout(finish, INTRO_DURATION_MS + 800); // belt-and-braces
+      } else {
+        setIntroDone(true);
+      }
+
       onReady(side, map);
     });
 
@@ -577,11 +867,20 @@ function MapPane({
       map.getCanvas().style.cursor = "";
     };
 
+    // Hovering a pillar reveals its floating callout card.
+    const onPillarHover = (e: { features?: unknown[] }) => {
+      const feature = e.features?.[0] as { properties?: { id?: string } } | undefined;
+      setHoveredHubId(feature?.properties?.id ?? null);
+    };
+    const onPillarHoverEnd = () => setHoveredHubId(null);
+
     map.on("click", PILLAR_LAYER, onPillarClick as never);
     map.on("click", CORRIDOR_HIT_LAYER, onCorridorClick as never);
     map.on("click", onMapClick as never);
     map.on("mouseenter", PILLAR_LAYER, enter);
     map.on("mouseleave", PILLAR_LAYER, leave);
+    map.on("mousemove", PILLAR_LAYER, onPillarHover as never);
+    map.on("mouseleave", PILLAR_LAYER, onPillarHoverEnd);
     map.on("mouseenter", CORRIDOR_HIT_LAYER, enter);
     map.on("mouseleave", CORRIDOR_HIT_LAYER, leave);
 
@@ -648,22 +947,77 @@ function MapPane({
 
   useEffect(() => {
     pillarsRef.current = pillars;
+    hubPointsRef.current = hubPoints;
     corridorsRef.current = corridors;
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
     (map.getSource(PILLAR_SOURCE) as { setData?: (d: unknown) => void } | undefined)?.setData?.(
       pillars,
     );
+    (map.getSource(HUB_POINT_SOURCE) as { setData?: (d: unknown) => void } | undefined)?.setData?.(
+      hubPoints,
+    );
     (map.getSource(CORRIDOR_SOURCE) as { setData?: (d: unknown) => void } | undefined)?.setData?.(
       corridors,
     );
-  }, [pillars, corridors]);
+  }, [pillars, hubPoints, corridors]);
+
+  // ── Floating callouts: the 4 busiest hubs, plus whichever is hovered.
+  // Left pane only in split view (the baseline is "reality").
+  const calloutHubs = useMemo(() => {
+    if (side !== "left") return [] as HubMapInfo[];
+    const shown = topCalloutHubs(data.hubs, 4);
+    for (const extraId of [hoveredHubId, storyFocusHubId]) {
+      const extra = extraId ? data.hubs.find((h) => h.id === extraId) : undefined;
+      if (extra && !shown.some((h) => h.id === extra.id)) shown.push(extra);
+    }
+    return shown;
+  }, [side, data.hubs, hoveredHubId, storyFocusHubId]);
+
+  // Keep every card glued to its hub while the camera moves (imperative — a
+  // React render per frame would be far too heavy). Ref assigned in an
+  // effect: refs must not be written during render.
+  useEffect(() => {
+    repositionCalloutsRef.current = () => {
+      const wrap = calloutWrapRef.current;
+      const map = mapRef.current;
+      if (!wrap || !map || !readyRef.current) return;
+      for (const el of Array.from(wrap.children) as HTMLElement[]) {
+        const lon = Number(el.dataset.lon);
+        const lat = Number(el.dataset.lat);
+        if (Number.isNaN(lon)) continue;
+        const p = (map as unknown as { project: (c: [number, number]) => { x: number; y: number } })
+          .project([lon, lat]);
+        el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      }
+    };
+    repositionCalloutsRef.current();
+  });
 
   if (initError) return <MapUnavailable reason={initError} />;
 
   return (
-    <div style={{ position: "relative", flex: 1, minWidth: 0, height: "100%" }}>
+    <div style={{ position: "relative", flex: 1, minWidth: 0, height: "100%", overflow: "hidden" }}>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+
+      {/* Vignette — the country glows inside a darker frame */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          background: "radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(2,8,23,0.55) 100%)",
+          zIndex: 3,
+        }}
+      />
+
+      {/* Floating hub cards with leader lines */}
+      <div ref={calloutWrapRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6 }}>
+        {introDone &&
+          calloutHubs.map((hub, index) => (
+            <HubCallout key={hub.id} hub={hub} index={index} focused={hub.id === storyFocusHubId} />
+          ))}
+      </div>
 
       {label && <PaneBadge label={label} accent={accent} />}
 
@@ -706,6 +1060,85 @@ function addCityBuildings(map: tt.Map) {
   } catch {
     /* No building geometry in this style — pillars are unaffected. */
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HubCallout — the reference shot's signature: a floating glass card tied to
+   its 3D point by a thin leader line. Plain language; every figure verbatim
+   from the API. Positioned imperatively by the pane's render handler.
+═══════════════════════════════════════════════════════════════════════════ */
+
+const LEADER_HEIGHT = 40;
+
+function utilizationBarColor(pct: number): string {
+  if (pct >= 85) return "#f87171"; // red — same thresholds as the KPI tiles
+  if (pct >= 60) return "#34d399"; // green
+  return "#fbbf24"; // amber
+}
+
+function HubCallout({ hub, index, focused }: { hub: HubMapInfo; index: number; focused: boolean }) {
+  const pct = Math.max(0, Math.min(100, hub.utilization_pct));
+  return (
+    <div
+      data-lon={hub.lon}
+      data-lat={hub.lat}
+      style={{ position: "absolute", top: 0, left: 0, willChange: "transform" }}
+    >
+      <div
+        className="cine-card"
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          transform: `translateX(-50%) scale(${focused ? 1.18 : 1})`,
+          transformOrigin: "bottom center",
+          transition: "transform 250ms ease-out",
+          animationDelay: `${index * 80}ms`,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        {/* Card */}
+        <div
+          className="rounded-2xl px-3 py-2 border border-white/10"
+          style={{
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(10px)",
+            boxShadow: focused
+              ? "0 8px 28px rgba(0,0,0,0.55), 0 0 22px rgba(232,17,45,0.35)"
+              : "0 8px 28px rgba(0,0,0,0.55)",
+            minWidth: 148,
+          }}
+        >
+          <div className="text-[12px] font-bold text-white leading-tight whitespace-nowrap">
+            {hub.name}
+          </div>
+          <div className="text-[10px] text-slate-400 whitespace-nowrap mt-0.5">
+            {hub.utilization_pct}% busy · needs {hub.required_headcount ?? 0} couriers
+          </div>
+          <div className="mt-1.5 h-[3px] rounded-full bg-white/10 overflow-hidden">
+            <div
+              style={{
+                width: `${pct}%`,
+                height: "100%",
+                background: utilizationBarColor(pct),
+                borderRadius: 999,
+              }}
+            />
+          </div>
+        </div>
+        {/* Leader line */}
+        <div
+          style={{
+            width: 1,
+            height: LEADER_HEIGHT,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.4), transparent)",
+          }}
+        />
+      </div>
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
