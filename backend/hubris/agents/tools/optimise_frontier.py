@@ -22,6 +22,25 @@ from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 
 DEFAULT_MIN_HUBS_PER_EMIRATE = assumptions.value("frontier_min_hubs_per_emirate")
 DEFAULT_MAX_HUB_VOLUME_SHARE = assumptions.value("frontier_max_hub_volume_share")
+VARIABLE_COST_TARGET_AED = assumptions.value("dataset_g_variable_cost_target_aed")
+
+
+def _cost_pools(metric_result) -> dict:
+    """Both labelled pools from one cost_to_serve computation (Sims,
+    2026-08-05): their ≤7.00 target is defined on the VARIABLE pool, and
+    consolidation moves the two pools in opposite directions — so every
+    frontier point reports both, never a blended single number.
+    Variable = transport+handling per parcel; fully-loaded adds fixed."""
+    b = metric_result.breakdown
+    demand = b["total_demand"]
+    variable = round(b["transport_cost"] / demand, 4) if demand else 0.0
+    return {
+        "variable_only_aed_per_parcel": variable,
+        "fully_loaded_aed_per_parcel": metric_result.value,
+        "variable_target_aed": VARIABLE_COST_TARGET_AED,
+        "variable_vs_target_aed": round(variable - VARIABLE_COST_TARGET_AED, 4),
+        "meets_variable_target": variable <= VARIABLE_COST_TARGET_AED,
+    }
 
 
 @register_agent_tool
@@ -35,15 +54,21 @@ class OptimiseFrontierTool(AgentTool):
         "every emirate with a facility, no hub carrying more than "
         "max_hub_volume_share of network volume). Both parameters are "
         "optional and default from the assumptions registry. Returns: "
-        "baseline {cost_to_serve, total_cost, hubs_open_count}; "
+        "baseline {cost_to_serve, total_cost, cost_pools, hubs_open_count}; "
         "unconstrained and constrained, each with {objective_value (total "
         "AED/period), delta_vs_baseline_pct, cost_to_serve_after (AED/"
-        "parcel), changes, hubs_open, volume_share_by_hub, "
+        "parcel), cost_pools, changes, hubs_open, volume_share_by_hub, "
         "constraints_enforced}; and resilience_premium {total_cost_delta "
         "(AED/period the constrained optimum gives up vs unconstrained), "
-        "pct_points_of_saving_given_up} — use every figure directly, never "
-        "recompute deltas or shares yourself. The recommendation to present "
-        "is ALWAYS the constrained one."
+        "pct_points_of_saving_given_up}. Each cost_pools block carries BOTH "
+        "labelled pools — variable_only_aed_per_parcel (the pool the ≤7.00 "
+        "AED target is defined on, with variable_vs_target_aed and "
+        "meets_variable_target precomputed) and fully_loaded_aed_per_parcel "
+        "— quote them separately by name, NEVER blend them or present one "
+        "as the other; consolidation moves them in opposite directions. Use "
+        "every figure directly, never recompute deltas, shares, or target "
+        "gaps yourself. The recommendation to present is ALWAYS the "
+        "constrained one."
     )
     input_schema = {
         "type": "object",
@@ -95,6 +120,7 @@ class OptimiseFrontierTool(AgentTool):
                 "objective_value": rec.objective_value,
                 "delta_vs_baseline_pct": rec.delta_vs_baseline.get("cost_to_serve_pct"),
                 "cost_to_serve_after": after_metric.value,
+                "cost_pools": _cost_pools(after_metric),
                 "changes": rec.changes,
                 "hubs_open": rec.rationale.get("hubs_open", []),
                 "hubs_open_count": rec.rationale.get("hubs_open_count"),
@@ -122,6 +148,7 @@ class OptimiseFrontierTool(AgentTool):
             "baseline": {
                 "cost_to_serve": baseline_metric.value,
                 "total_cost": baseline_metric.breakdown["total_cost"],
+                "cost_pools": _cost_pools(baseline_metric),
                 "hubs_open_count": sum(1 for h in model.hubs if h.status == "open"),
             },
             "unconstrained": sides["unconstrained"],
