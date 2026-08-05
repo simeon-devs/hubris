@@ -24,9 +24,11 @@ import IngestButton from "@/components/IngestButton";
 import {
   deleteSavedScenario,
   getBrief,
+  getEventMetrics,
   getKpis,
   getNetwork,
   simulate,
+  type EventMetricsResponse,
 } from "@/lib/api";
 import {
   kpiView,
@@ -79,6 +81,8 @@ export default function AtlasHome() {
   const [costSub, setCostSub] = useState(COST_SUB_DEFAULT);
   const [clock, setClock] = useState("LIVE");
   const [hoverCardId, setHoverCardId] = useState<string | null>(null);
+  const [engineBusy, setEngineBusy] = useState(false);
+  const [eventMetrics, setEventMetrics] = useState<EventMetricsResponse | null>(null);
   const sessionLogRef = useRef<LogEntry[]>([]);
   const seqRef = useRef(0);
   const mapRef = useRef<tt.Map | null>(null);
@@ -119,6 +123,7 @@ export default function AtlasHome() {
       activeScenarioRef.current = null;
       setView({ net, kpis });
       setEngineDown(false);
+      getEventMetrics().then(setEventMetrics).catch(() => setEventMetrics(null));
     } catch {
       setEngineDown(true);
       window.setTimeout(() => setRetryTick((t) => t + 1), 15_000);
@@ -150,6 +155,8 @@ export default function AtlasHome() {
 
   const runScenario = useCallback(
     async (kind: string, scenarioName: string, params: Record<string, unknown>) => {
+      setEngineBusy(true); // immediate feedback — no silent seconds
+      try {
       await clearScenario();
       const saveAs = `home-${kind}-${++seqRef.current}`;
       try {
@@ -169,13 +176,16 @@ export default function AtlasHome() {
         });
         return null;
       }
+      } finally {
+        setEngineBusy(false);
+      }
     },
     [clearScenario],
   );
 
   /* ── actions ── */
   const handlePick = useCallback((pick: BuildPick) => {
-    if (pick.kind !== "location" || !baselineRef.current) return;
+    if (pick.kind !== "location" || !baselineRef.current || engineBusy) return;
     setArmed(false);
     const baseModel = toDesignModel(baselineRef.current.net);
     const before = new Map(baseModel.hubs.map((h) => [h.id, h.busy]));
@@ -208,7 +218,7 @@ export default function AtlasHome() {
         onUndo: () => { void clearScenario(); log("Undid the test hub"); },
       });
     })();
-  }, [runScenario, clearScenario, log, projectPoint]);
+  }, [runScenario, clearScenario, log, projectPoint, engineBusy]);
 
   const handleHubSelect = useCallback((hubId: string, point: { x: number; y: number }) => {
     if (!model) return;
@@ -475,6 +485,16 @@ export default function AtlasHome() {
       </div>
 
       <div id="kpis">
+        {eventMetrics && (
+          <div className={`kpi ${eventMetrics.at_risk_count <= 1 ? "k-green" : "k-amber"}`}>
+            <div className="big">
+              <em>{eventMetrics.at_risk_count} of {eventMetrics.hub_count}</em> hubs need attention
+            </div>
+            <div className="sub">
+              official status, week {eventMetrics.week} · baseline was 3 of 10 · target 0–1
+            </div>
+          </div>
+        )}
         <div className="kpi k-cyan">
           <div className="big">Delivering <em>{k.deliver !== null ? fmt(k.deliver) : "—"}</em> parcels today</div>
           <div className="sub">across all 7 emirates · updated live</div>
@@ -502,6 +522,12 @@ export default function AtlasHome() {
         </div>
       )}
 
+      {engineBusy && (
+        <div id="testband" style={{ display: "flex", top: 118 }}>
+          <i /> THE ENGINE IS RE-SOLVING THE NETWORK — A FEW SECONDS
+        </div>
+      )}
+
       {engineDown && (
         <div id="engineband" style={{ display: "flex" }}>
           <i className="pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--amber)", display: "inline-block" }} />{" "}
@@ -517,17 +543,20 @@ export default function AtlasHome() {
       )}
 
       <div id="controls">
-        <button className="btn btn-primary" onClick={playStory}>
+        <button className="btn btn-primary" disabled={engineBusy}
+          onClick={() => { setArmed(false); playStory(); }}>
           <span className="ic">{storyOn ? "■" : "▶"}</span> Show me how it works{" "}
           <span style={{ opacity: 0.65, fontWeight: 500 }}>30 sec</span>
         </button>
-        <button className={`btn btn-ghost${stressOn ? " active" : ""}`} onClick={() => void setStress(!stressOn)}>
-          ⚡ Test a busy week
+        <button className={`btn btn-ghost${stressOn ? " active" : ""}`} disabled={engineBusy}
+          onClick={() => { setArmed(false); void setStress(!stressOn); }}>
+          {engineBusy && stressOn ? "⚡ Testing…" : "⚡ Test a busy week"}
         </button>
         <button className={`btn btn-ghost${armed ? " active" : ""}`} onClick={() => setArmed(!armed)}>
           ⬢ Add a hub
         </button>
-        <button className="btn btn-ghost" onClick={openReport}>📄 Get the report</button>
+        <button className="btn btn-ghost" disabled={engineBusy}
+          onClick={() => { setArmed(false); openReport(); }}>📄 Get the report</button>
       </div>
 
       {/* result card (Keep / Undo) */}
@@ -557,6 +586,16 @@ export default function AtlasHome() {
           <div style={{ fontSize: 10.5, color: "#8b98ad" }}>
             {hubAction.hub.busy}% busy · handles {fmt(Math.round(hubAction.hub.load))} parcels
           </div>
+          {eventMetrics?.hubs[hubAction.hub.id] && (
+            <div style={{ fontSize: 10.5, marginTop: 4, color:
+              eventMetrics.hubs[hubAction.hub.id].status === "At Risk" ? "var(--red)"
+              : eventMetrics.hubs[hubAction.hub.id].status === "High Load" ? "var(--amber)"
+              : "var(--green)" }}>
+              {eventMetrics.hubs[hubAction.hub.id].status} · on-time{" "}
+              {eventMetrics.hubs[hubAction.hub.id].on_time_delivery_pct}% · headroom{" "}
+              {eventMetrics.hubs[hubAction.hub.id].capacity_headroom_pct}%
+            </div>
+          )}
           <button className="rm" onClick={() => removeHub(hubAction.hub)}>🗑 Test removing this hub</button>
           <button className="cl" onClick={() => { setHubAction(null); setHoverCardId(null); }}>Close</button>
         </div>

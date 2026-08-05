@@ -156,6 +156,32 @@ export function acknowledgeAlert(alertId: number): Promise<void> {
   return request(`/alerts/${alertId}/acknowledge`, { method: "PATCH" });
 }
 
+/** Official event-dataset performance figures, served verbatim. */
+export interface EventHubMetrics {
+  courier_utilisation_pct: number;
+  vehicle_utilisation_pct: number;
+  on_time_delivery_pct: number;
+  first_attempt_success_pct: number;
+  capacity_headroom_pct: number;
+  sla_breach_count: number;
+  avg_delivery_time_min: number;
+  status: "At Risk" | "High Load" | "Normal";
+}
+
+export interface EventMetricsResponse {
+  week: number;
+  hub_count: number;
+  hubs: Record<string, EventHubMetrics>;
+  at_risk: string[];
+  at_risk_count: number;
+  baselines: { metric: string; current: string; target: string; notes: string }[];
+  weekly_demand: { week: number; total_volume: number }[];
+}
+
+export function getEventMetrics(): Promise<EventMetricsResponse> {
+  return request("/event/metrics");
+}
+
 /** Absolute URL for a backend file-download endpoint (reports/exports).
  *  Downloads navigate the browser straight to the API — the backend sets
  *  Content-Disposition: attachment; nothing is computed client-side. */

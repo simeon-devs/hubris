@@ -9,6 +9,7 @@ from hubris.api.routers import (
     alerts,
     bottleneck,
     brief,
+    event_metrics,
     ingest,
     kpis,
     network,
@@ -62,3 +63,4 @@ app.include_router(bottleneck.router)
 app.include_router(brief.router)
 app.include_router(alerts.router)
 app.include_router(reports.router)
+app.include_router(event_metrics.router)
