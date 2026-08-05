@@ -1,0 +1,141 @@
+{
+  "baseline": {
+    "cost_to_serve": 43.1559,
+    "total_cost": 45745.26,
+    "cost_pools": {
+      "variable_only_aed_per_parcel": 11.4436,
+      "fully_loaded_aed_per_parcel": 43.1559,
+      "variable_target_aed": 7.0,
+      "variable_vs_target_aed": 4.4436,
+      "meets_variable_target": false
+    },
+    "hubs_open_count": 10
+  },
+  "unconstrained": {
+    "objective_value": 25445.58,
+    "delta_vs_baseline_pct": -44.38,
+    "cost_to_serve_after": 24.0053,
+    "cost_pools": {
+      "variable_only_aed_per_parcel": 18.2519,
+      "fully_loaded_aed_per_parcel": 24.0053,
+      "variable_target_aed": 7.0,
+      "variable_vs_target_aed": 11.2519,
+      "meets_variable_target": false
+    },
+    "changes": [
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_AJM_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_AUH_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_DXB_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_DXB_02"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_DXB_04"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_FUJ_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_RAK_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_SHJ_01"
+      }
+    ],
+    "hubs_open": [
+      "HUB_AUH_02",
+      "HUB_DXB_03"
+    ],
+    "hubs_open_count": 2,
+    "volume_share_by_hub": {
+      "HUB_AUH_02": 0.1557,
+      "HUB_DXB_03": 0.8443
+    },
+    "constraints_enforced": true,
+    "constraints_used": [],
+    "solver": "milp_cflp"
+  },
+  "constrained": {
+    "objective_value": 31634.08,
+    "delta_vs_baseline_pct": -30.85,
+    "cost_to_serve_after": 28.2381,
+    "cost_pools": {
+      "variable_only_aed_per_parcel": 15.9684,
+      "fully_loaded_aed_per_parcel": 28.2381,
+      "variable_target_aed": 7.0,
+      "variable_vs_target_aed": 8.9684,
+      "meets_variable_target": false
+    },
+    "changes": [
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_AUH_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_DXB_01"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_DXB_02"
+      },
+      {
+        "action": "close_hub",
+        "hub_id": "HUB_DXB_04"
+      }
+    ],
+    "hubs_open": [
+      "HUB_AJM_01",
+      "HUB_AUH_02",
+      "HUB_DXB_03",
+      "HUB_FUJ_01",
+      "HUB_RAK_01",
+      "HUB_SHJ_01"
+    ],
+    "hubs_open_count": 6,
+    "volume_share_by_hub": {
+      "HUB_AJM_01": 0.0198,
+      "HUB_AUH_02": 0.1557,
+      "HUB_DXB_03": 0.4,
+      "HUB_FUJ_01": 0.0142,
+      "HUB_RAK_01": 0.0236,
+      "HUB_SHJ_01": 0.3868
+    },
+    "constraints_enforced": true,
+    "constraints_used": [
+      {
+        "type": "min_hubs_per_emirate",
+        "value": 1
+      },
+      {
+        "type": "max_hub_volume_share",
+        "value": 0.4
+      }
+    ],
+    "solver": "milp_cflp"
+  },
+  "resilience_premium": {
+    "total_cost_delta": 6188.5,
+    "pct_points_of_saving_given_up": 13.53
+  },
+  "params": {
+    "min_hubs_per_emirate": 1,
+    "max_hub_volume_share": 0.4,
+    "defaults_source": "assumptions registry (overridable per call)"
+  },
+  "recommendation_policy": "present the CONSTRAINED optimum; the unconstrained figure is reported for transparency, not recommended"
+}
