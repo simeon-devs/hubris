@@ -118,6 +118,23 @@ function MapHomePage() {
 
   return (
     <div className="relative h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Legend — the colors mean something now */}
+      <div className="absolute bottom-4 left-4 z-[1000] flex flex-wrap items-center gap-2 rounded-full border bg-card/85 px-3 py-1.5 backdrop-blur-md">
+        {(
+          [
+            ["#5b9dff", "Hubs & flows"],
+            ["#8b7cf6", "Dark stores (15-min radius)"],
+            ["#3fd2ef", "On-Demand coverage"],
+            ["#f0504d", "Point of concern"],
+          ] as const
+        ).map(([hex, label]) => (
+          <span key={label} className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+            <span className="h-2 w-2 rounded-full" style={{ background: hex }} />
+            {label}
+          </span>
+        ))}
+      </div>
+
       {/* Map */}
       <div className="absolute inset-0">
         {MapComp ? (
@@ -213,6 +230,32 @@ function MapHomePage() {
           </button>
         </div>
       </div>
+
+      {/* Crisis chip — renders ONLY while a live critical infeasible alert
+          exists; the number is the alert's own computed shortfall. */}
+      {(() => {
+        const crisis = alerts.find((a) => a.severity === "critical" && !a.acknowledged);
+        if (!crisis) return null;
+        const unserved = crisis.finding.match(/([0-9.]+)\/day/g)?.map((m) => parseFloat(m)) ?? [];
+        const total = unserved.length ? unserved.reduce((x, y) => x + y, 0) : null;
+        return (
+          <div className="absolute left-1/2 top-4 z-[1200] -translate-x-1/2">
+            <button
+              onClick={() => {
+                setLayers((l) => ({ ...l, stores: true }));
+                if (crisis.target) setFocus({ ...crisis.target, stamp: Date.now() });
+                setAlertsOpen(true);
+              }}
+              className="animate-pulse rounded-full border border-risk/50 bg-risk/15 px-3.5 py-1.5
+                         font-mono text-[10px] font-bold uppercase tracking-wider text-risk
+                         backdrop-blur-md shadow-card hover:bg-risk/25"
+              title={crisis.finding}
+            >
+              ⚠ {crisis.title}{total !== null ? ` — ${total}/day unserved` : ""}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Alert bell */}
       <div className="absolute right-4 top-4 z-[1250]">
