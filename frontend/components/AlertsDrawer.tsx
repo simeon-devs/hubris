@@ -5,15 +5,16 @@
  * Bell in the header (unacknowledged count), right-side drawer on click:
  * new alerts first, acknowledged ones collapsed into History.
  *
- * NOTE — no action cards here yet, deliberately: the backend alert record
- * stores only the COUNT of tool calls (monitor.py), not the trace, so there
- * are no scenario params to act on. The shared <ActionCard> is ready the
- * moment the monitor starts persisting traces.
+ * Every card is a COMPUTED finding from the capacity watchdog (T-40):
+ * a real stress simulation ran, the figures are solver output with
+ * provenance, and the recommended action was verified by re-solving.
+ * There is deliberately no LLM in the background loop.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { acknowledgeAlert, getAlerts } from "@/lib/api";
 import type { AlertInfo } from "@/lib/types";
+import { actionLabel, alertHeadline, alertSavings, unmetLines } from "@/lib/alert-view";
 
 const POLL_MS = 12_000;
 const BRAND_RED = "#E8112D";
@@ -23,7 +24,13 @@ export function useAlerts() {
 
   const reload = useCallback(() => {
     getAlerts()
-      .then((list) => setAlerts([...list].sort((a, b) => b.ts - a.ts)))
+      .then((list) =>
+        setAlerts(
+          [...list].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          ),
+        ),
+      )
       .catch(() => {
         /* the bell just stays quiet if the feed is unreachable */
       });
@@ -119,9 +126,10 @@ export function AlertsDrawer({
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {alerts.length === 0 && (
             <p className="text-xs text-slate-400 leading-relaxed px-1">
-              Nothing yet. Your monitoring agents check the network after every change
-              (a new dataset, a saved what-if) and report here. Without an Anthropic
-              API key, monitoring is off — honestly off, never faked.
+              Nothing yet. The capacity watchdog sweeps the network on its own
+              schedule — a real stress simulation of the baseline plus every saved
+              scenario — and reports here the moment something binds. Quiet means
+              healthy (or memory is offline, in which case this stays honestly empty).
             </p>
           )}
 
@@ -163,35 +171,61 @@ function AlertRow({ alert, onAcknowledged }: { alert: AlertInfo; onAcknowledged:
       .finally(() => setBusy(false));
   };
 
+  const savings = alertSavings(alert.recommended_action);
+
   return (
     <div
       className={`rounded-xl p-3.5 border text-xs flex flex-col gap-2
-        ${alert.status === "error" ? "bg-rose-500/5 border-rose-500/20" : "bg-white/[0.04] border-white/10"}`}
+        ${alert.severity === "critical" ? "bg-rose-500/5 border-rose-500/20" : "bg-white/[0.04] border-white/10"}`}
     >
       <div className="flex items-center gap-2">
-        <span className="font-bold text-slate-100">{alert.agent_name}</span>
-        {alert.verification?.grounded && (
-          <span
-            className="text-[9px] font-bold text-emerald-300 bg-emerald-500/15
-                       border border-emerald-500/40 rounded-full px-2 py-px"
-            title="Every number in this finding was checked against the calculation engine. The AI cannot invent figures here."
-          >
-            ✓ VERIFIED
-          </span>
-        )}
+        <span className="font-bold text-slate-100">{alert.agent_name.replace(/_/g, " ")}</span>
+        <span
+          className={`text-[9px] font-bold rounded-full px-2 py-px border ${
+            alert.severity === "critical"
+              ? "text-rose-300 border-rose-500/40 bg-rose-500/10"
+              : "text-amber-300 border-amber-500/40 bg-amber-500/10"
+          }`}
+        >
+          {alert.severity.toUpperCase()}
+        </span>
+        <span
+          className="text-[9px] font-bold text-emerald-300 bg-emerald-500/15
+                     border border-emerald-500/40 rounded-full px-2 py-px"
+          title={`Engine-computed finding, not model prose — provenance ${alert.provenance}`}
+        >
+          COMPUTED
+        </span>
         <span className="ml-auto text-[10px] font-mono text-slate-500">
-          {new Date(alert.ts * 1000).toLocaleTimeString()}
+          {new Date(alert.created_at).toLocaleTimeString()}
         </span>
       </div>
 
-      <div
-        className="text-[10px] font-mono text-slate-500 truncate"
-        title={`What set this agent off: ${alert.trigger}`}
-      >
-        {alert.trigger}
-      </div>
+      <p className="text-slate-200 leading-relaxed">{alertHeadline(alert.finding)}</p>
+      {!alert.finding.feasible && (
+        <ul className="text-[10px] text-rose-200/90 leading-relaxed list-disc list-inside">
+          {unmetLines(alert.finding).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
 
-      <p className="text-slate-200 leading-relaxed whitespace-pre-wrap">{alert.answer}</p>
+      <p className="text-[11px] text-slate-300 leading-relaxed">
+        <span className="text-slate-500">Recommended:</span> {actionLabel(alert.recommended_action)}
+        {savings !== null && (
+          <span className="text-emerald-300"> — saves {savings} AED/period (verified by re-solve)</span>
+        )}
+      </p>
+      {alert.recommended_action.why && (
+        <p className="text-[10px] text-slate-500 leading-relaxed">{alert.recommended_action.why}</p>
+      )}
+      <a
+        href={alert.brief_link}
+        className="text-[10px] text-cyan-300/80 hover:text-cyan-200 underline underline-offset-2 self-start"
+        title="Open the decision brief for this target"
+      >
+        Decision brief →
+      </a>
 
       {!alert.acknowledged && (
         <button

@@ -153,12 +153,17 @@ export function deleteSavedScenario(scenarioId: string): Promise<void> {
   return request(`/scenarios/saved/${encodeURIComponent(scenarioId)}`, { method: "DELETE" });
 }
 
+/** T-40 watchdog alerts. The API returns a graceful envelope
+ *  ({available, alerts, total_returned}); `available: false` (memory/db
+ *  down) degrades to an empty list here — never a broken panel. */
 export function getAlerts(): Promise<AlertInfo[]> {
-  return request("/alerts");
+  return request<{ available: boolean; alerts: AlertInfo[] }>("/memory/alerts").then(
+    (envelope) => (envelope.available ? envelope.alerts : []),
+  );
 }
 
-export function acknowledgeAlert(alertId: number): Promise<void> {
-  return request(`/alerts/${alertId}/acknowledge`, { method: "PATCH" });
+export function acknowledgeAlert(alertId: string): Promise<void> {
+  return request(`/memory/alerts/${encodeURIComponent(alertId)}/ack`, { method: "POST" });
 }
 
 /** Official event-dataset performance figures, served verbatim. */

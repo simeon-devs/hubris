@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import AgentBuilderPanel from "@/components/AgentBuilderPanel";
 import AgentChat from "@/components/AgentChat";
 import { getAlerts } from "@/lib/api";
+import { actionLabel, alertHeadline, alertSavings } from "@/lib/alert-view";
 import { useAtlas } from "@/lib/atlas-context";
 import type { AlertInfo } from "@/lib/types";
 
@@ -71,7 +72,11 @@ function AlertsFeed() {
       getAlerts()
         .then((list) => {
           if (!cancelled) {
-            setAlerts([...list].sort((a, b) => b.ts - a.ts));
+            setAlerts(
+              [...list].sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+              ),
+            );
             setLoaded(true);
           }
         })
@@ -89,46 +94,52 @@ function AlertsFeed() {
   if (alerts.length === 0)
     return (
       <div className="text-xs text-slate-500">
-        No alerts yet — monitoring agents post here when a saved scenario or new
-        dataset trips their goal.
+        No alerts yet — the capacity watchdog sweeps the baseline and every saved
+        scenario on its own schedule and posts computed findings here.
       </div>
     );
 
   return (
     <div className="flex flex-col gap-2">
-      {alerts.map((alert, i) => (
-        <div
-          key={`${alert.ts}-${i}`}
-          className={`rounded-xl p-3 border text-xs
-            ${alert.status === "error"
-              ? "bg-rose-500/5 border-rose-500/20"
-              : "bg-white/5 border-white/10"}`}
-        >
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <span className="font-semibold text-slate-200 truncate">{alert.agent_name}</span>
-            <span className="flex-none text-[10px] font-mono text-slate-500">
-              {new Date(alert.ts * 1000).toLocaleTimeString()}
-            </span>
-          </div>
-          <div className="text-[10px] font-mono text-slate-500 mb-1.5 truncate" title={alert.trigger}>
-            {alert.trigger}
-          </div>
-          <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{alert.answer}</p>
-          <div className="flex items-center gap-2 mt-2 text-[9px] font-mono text-slate-500">
-            <span>{alert.tool_calls} tool call{alert.tool_calls === 1 ? "" : "s"}</span>
-            {alert.verification && (
+      {alerts.map((alert) => {
+        const savings = alertSavings(alert.recommended_action);
+        return (
+          <div
+            key={alert.id}
+            className={`rounded-xl p-3 border text-xs
+              ${alert.severity === "critical"
+                ? "bg-rose-500/5 border-rose-500/20"
+                : "bg-white/5 border-white/10"}`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="font-semibold text-slate-200 truncate">
+                {alert.agent_name.replace(/_/g, " ")}
+              </span>
+              <span className="flex-none text-[10px] font-mono text-slate-500">
+                {new Date(alert.created_at).toLocaleTimeString()}
+              </span>
+            </div>
+            <p className="text-slate-300 leading-relaxed">{alertHeadline(alert.finding)}</p>
+            <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
+              Recommended: {actionLabel(alert.recommended_action)}
+              {savings !== null && (
+                <span className="text-emerald-300"> — saves {savings} AED/period (verified)</span>
+              )}
+            </p>
+            <div className="flex items-center gap-2 mt-2 text-[9px] font-mono text-slate-500">
               <span
                 className={`px-1.5 py-0.5 rounded-full border font-bold tracking-widest
-                  ${alert.verification.grounded
-                    ? "text-emerald-400 border-emerald-500/30"
+                  ${alert.severity === "critical"
+                    ? "text-rose-400 border-rose-500/30"
                     : "text-amber-400 border-amber-500/30"}`}
               >
-                {alert.verification.grounded ? "VERIFIED" : "FLAGGED"}
+                {alert.severity.toUpperCase()}
               </span>
-            )}
+              <span title={`Provenance: ${alert.provenance}`}>COMPUTED · {alert.finding.target}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
