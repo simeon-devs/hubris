@@ -14,6 +14,7 @@ const BRAND_RED = "#E8112D";
 
 const ITEMS: { href: string; icon: string; label: string }[] = [
   { href: "/", icon: "⬢", label: "Command" },
+  { href: "/vision", icon: "◬", label: "Vision" },
   { href: "/classic", icon: "◧", label: "Classic" },
   { href: "/simulate", icon: "◈", label: "Simulate" },
   { href: "/optimize", icon: "◉", label: "Optimize" },

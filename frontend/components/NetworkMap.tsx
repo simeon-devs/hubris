@@ -57,10 +57,13 @@ const PENDING_LAYER = "hubris-pending-marker";
 const HUB_POINT_SOURCE = "hubris-hub-points-src";
 const HALO_LAYER = "hubris-hub-halo";
 const CORRIDOR_GLOW_LAYER = "hubris-corridors-glow";
+const ZONE_HEAT_SOURCE = "hubris-zone-heat-src";
+const ZONE_HEAT_LAYER = "hubris-zone-heat";
 
-// Signal palette — tailwind.config.js control-tower accents + magazine gold.
-const COLOR_UNDERSTAFFED = "#ef4444";
-const COLOR_STAFFED = "#06b6d4";
+// Approved design language (atlasvision tokens): colour = utilization.
+const COLOR_FINE = "#37d6f0"; // < 75% busy — running fine
+const COLOR_FULL = "#ffb02e"; // 75–94% — getting full
+const COLOR_OVER = "#ff4d5e"; // ≥ 95% — over the limit
 const COLOR_CLOSED = "#475569";
 const COLOR_MAGAZINE = "#f59e0b";
 const COLOR_CORRIDOR = "#22d3ee";
@@ -132,7 +135,10 @@ function pendingToFeature(marker: { lat: number; lon: number } | null) {
 function pillarColor(hub: HubMapInfo): string {
   if (hub.id === MAGAZINE_HUB_ID) return COLOR_MAGAZINE; // visual identity, not a number
   if (hub.status !== "open") return COLOR_CLOSED;
-  return hub.gap_direction === "understaffed" ? COLOR_UNDERSTAFFED : COLOR_STAFFED;
+  // Utilization thresholds from the approved design (verbatim field).
+  if (hub.utilization_pct >= 95) return COLOR_OVER;
+  if (hub.utilization_pct >= 75) return COLOR_FULL;
+  return COLOR_FINE;
 }
 
 function toPillarCollection(hubs: HubMapInfo[]) {
@@ -149,6 +155,18 @@ function toPillarCollection(hubs: HubMapInfo[]) {
         height: normalizedPillarHeight(hub, hubs), // display scale, 2.5:1 (lib/cinematic)
         color: pillarColor(hub),
       },
+    })),
+  };
+}
+
+/** Zone demand points — feeds the subtle heatmap under everything. */
+function toZoneHeatCollection(zones: ZoneMapInfo[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: zones.map((z) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [z.lon, z.lat] },
+      properties: { demand: z.demand },
     })),
   };
 }
@@ -218,6 +236,15 @@ interface NetworkMapProps {
   /** A picked-but-unconfirmed build location: pulses on the baseline pane
    *  until the confirm card resolves. Pure presentation. */
   pendingMarker?: { lat: number; lon: number } | null;
+  /** false = layers only: no built-in callouts/legend/story — a host page
+   *  (the AtlasVision-skinned home) draws its own chrome on top. */
+  chrome?: boolean;
+  /** Hands the primary (left) map instance to the host for project/flyTo. */
+  onMapHandle?: (map: tt.Map | null) => void;
+  /** Overrides the built-in pillar tooltip: host owns hub clicks. */
+  onHubSelect?: (hubId: string, point: { x: number; y: number }) => void;
+  /** Intro flight lands framing this bbox instead of the fixed UAE camera. */
+  fitBoundsTo?: [[number, number], [number, number]] | null;
 }
 
 type PaneSide = "left" | "right";
@@ -231,6 +258,10 @@ export default function NetworkMap({
   picking = null,
   onPick,
   pendingMarker = null,
+  chrome = true,
+  onMapHandle,
+  onHubSelect,
+  fitBoundsTo = null,
 }: NetworkMapProps) {
   const split = Boolean(simulation);
 
@@ -253,16 +284,21 @@ export default function NetworkMap({
   const handlePaneReady = useCallback(
     (side: PaneSide, map: tt.Map) => {
       mapsRef.current[side] = map;
+      if (side === "left") onMapHandle?.(map);
       attachSync();
     },
-    [attachSync],
+    [attachSync, onMapHandle],
   );
 
-  const handlePaneGone = useCallback((side: PaneSide) => {
-    delete mapsRef.current[side];
-    detachSyncRef.current?.();
-    detachSyncRef.current = null;
-  }, []);
+  const handlePaneGone = useCallback(
+    (side: PaneSide) => {
+      delete mapsRef.current[side];
+      if (side === "left") onMapHandle?.(null);
+      detachSyncRef.current?.();
+      detachSyncRef.current = null;
+    },
+    [onMapHandle],
+  );
 
   // ── Story mode — "explain it to me" ──
   const story = useStoryMode(baseline.hubs, mapsRef);
@@ -286,6 +322,9 @@ export default function NetworkMap({
         onPick={onPick}
         pendingMarker={pendingMarker}
         storyFocusHubId={story.focusHubId}
+        chrome={chrome}
+        onHubSelect={onHubSelect}
+        fitBoundsTo={fitBoundsTo}
       />
 
       {split && (
@@ -316,10 +355,10 @@ export default function NetworkMap({
         </>
       )}
 
-      <WorkforceLegend corridorMode={corridorMode} />
+      {chrome && <WorkforceLegend corridorMode={corridorMode} />}
 
       {/* ── Story mode: the button may be the most prominent thing on screen ── */}
-      {!story.active && picking == null && (
+      {chrome && !story.active && picking == null && (
         <button
           onClick={story.start}
           className="absolute left-4 bottom-16 z-20 flex items-center gap-2.5 px-5 py-3 rounded-2xl
@@ -335,7 +374,7 @@ export default function NetworkMap({
         </button>
       )}
 
-      {story.active && (
+      {chrome && story.active && (
         <div className="absolute left-1/2 -translate-x-1/2 bottom-16 z-20 w-[560px] max-w-[90%]">
           <div
             className="rounded-2xl px-5 py-4 bg-black/85 backdrop-blur-xl border border-white/15"
@@ -507,6 +546,9 @@ interface MapPaneProps {
   pendingMarker?: { lat: number; lon: number } | null;
   /** Story mode: this hub's callout enlarges while the tour visits it. */
   storyFocusHubId?: string | null;
+  chrome?: boolean;
+  onHubSelect?: (hubId: string, point: { x: number; y: number }) => void;
+  fitBoundsTo?: [[number, number], [number, number]] | null;
 }
 
 interface CorridorPopoverState {
@@ -534,7 +576,12 @@ function MapPane({
   onPick,
   pendingMarker = null,
   storyFocusHubId = null,
+  chrome = true,
+  onHubSelect,
+  fitBoundsTo = null,
 }: MapPaneProps) {
+  const onHubSelectRef = useRef(onHubSelect);
+  const fitBoundsRef = useRef(fitBoundsTo);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<tt.Map | null>(null);
   const readyRef = useRef(false);
@@ -558,12 +605,14 @@ function MapPane({
 
   const pillars = useMemo(() => toPillarCollection(data.hubs), [data.hubs]);
   const hubPoints = useMemo(() => toHubPointCollection(data.hubs), [data.hubs]);
+  const zoneHeat = useMemo(() => toZoneHeatCollection(data.zones), [data.zones]);
   const corridors = useMemo(
     () => buildCorridors(data.hubs, data.zones, data.flows, { mode: corridorMode }),
     [data.hubs, data.zones, data.flows, corridorMode],
   );
   const pillarsRef = useRef(pillars);
   const hubPointsRef = useRef(hubPoints);
+  const zoneHeatRef = useRef(zoneHeat);
   const corridorsRef = useRef(corridors);
 
   const selectedHub = selectedHubId ? data.hubs.find((h) => h.id === selectedHubId.id) : undefined;
@@ -617,6 +666,26 @@ function MapPane({
     map.on("error", onError);
 
     map.on("load", () => {
+      // ── Subtle demand heatmap — under every other data layer ──
+      map.addSource(ZONE_HEAT_SOURCE, { type: "geojson", data: zoneHeatRef.current } as never);
+      map.addLayer({
+        id: ZONE_HEAT_LAYER,
+        type: "heatmap",
+        source: ZONE_HEAT_SOURCE,
+        paint: {
+          "heatmap-weight": ["interpolate", ["linear"], ["get", "demand"], 0, 0, 150, 1],
+          "heatmap-intensity": 0.9,
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 6, 22, 10, 46],
+          "heatmap-opacity": 0.3,
+          "heatmap-color": [
+            "interpolate", ["linear"], ["heatmap-density"],
+            0, "rgba(0,0,0,0)",
+            0.4, "rgba(40,90,180,0.55)",
+            1, "rgba(55,214,240,0.9)",
+          ],
+        },
+      } as never);
+
       // ── Pillars: slim glass towers over a glowing footprint ──
       map.addSource(PILLAR_SOURCE, { type: "geojson", data: pillarsRef.current } as never);
       map.addSource(HUB_POINT_SOURCE, { type: "geojson", data: hubPointsRef.current } as never);
@@ -759,7 +828,21 @@ function MapPane({
           jumpTo: (o: unknown) => void;
           flyTo: (o: unknown) => void;
           stop: () => void;
+          cameraForBounds?: (b: unknown, o?: unknown) => { center: unknown; zoom: number } | undefined;
         };
+        // Landing camera: frame the REAL data's bbox when the host provides
+        // one, then apply the design pitch/bearing; else the fixed UAE shot.
+        let landing: { center: unknown; zoom: number; pitch: number; bearing: number } = {
+          center: INITIAL_CAMERA.center,
+          zoom: INITIAL_CAMERA.zoom,
+          pitch: INITIAL_CAMERA.pitch,
+          bearing: INITIAL_CAMERA.bearing,
+        };
+        const bounds = fitBoundsRef.current;
+        if (bounds && flyer.cameraForBounds) {
+          const cam = flyer.cameraForBounds(bounds, { padding: 90 });
+          if (cam) landing = { center: cam.center, zoom: cam.zoom, pitch: 55, bearing: -15 };
+        }
         flyer.jumpTo(INTRO_START);
         let finished = false;
         const finish = () => {
@@ -769,14 +852,7 @@ function MapPane({
           setIntroDone(true);
         };
         const skip = () => flyer.stop(); // stop() fires moveend → finish
-        flyer.flyTo({
-          center: INITIAL_CAMERA.center,
-          zoom: INITIAL_CAMERA.zoom,
-          pitch: INITIAL_CAMERA.pitch,
-          bearing: INITIAL_CAMERA.bearing,
-          curve: 1.4,
-          duration: INTRO_DURATION_MS,
-        });
+        flyer.flyTo({ ...landing, curve: 1.4, duration: INTRO_DURATION_MS });
         map.on("moveend", finish as never);
         map.getCanvas().addEventListener("click", skip, { once: true });
         setTimeout(finish, INTRO_DURATION_MS + 800); // belt-and-braces
@@ -797,6 +873,11 @@ function MapPane({
       // tooltip.
       if (pickingRef.current === "hub" && onPickRef.current) {
         onPickRef.current({ kind: "hub", hubId: id });
+        return;
+      }
+      // Host mode: the page above owns hub clicks (AtlasVision skin).
+      if (onHubSelectRef.current) {
+        onHubSelectRef.current(id, { x: e.point.x, y: e.point.y });
         return;
       }
       setCorridorPopover(null);
@@ -935,6 +1016,11 @@ function MapPane({
     containerRef.current?.classList.toggle("build-picking", picking != null);
   }, [picking, onPick]);
 
+  useEffect(() => {
+    onHubSelectRef.current = onHubSelect;
+    fitBoundsRef.current = fitBoundsTo;
+  }, [onHubSelect, fitBoundsTo]);
+
   // Pending-build pulse: push the marker into its source without a rebuild.
   useEffect(() => {
     pendingMarkerRef.current = pendingMarker;
@@ -948,6 +1034,7 @@ function MapPane({
   useEffect(() => {
     pillarsRef.current = pillars;
     hubPointsRef.current = hubPoints;
+    zoneHeatRef.current = zoneHeat;
     corridorsRef.current = corridors;
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
@@ -957,10 +1044,13 @@ function MapPane({
     (map.getSource(HUB_POINT_SOURCE) as { setData?: (d: unknown) => void } | undefined)?.setData?.(
       hubPoints,
     );
+    (map.getSource(ZONE_HEAT_SOURCE) as { setData?: (d: unknown) => void } | undefined)?.setData?.(
+      zoneHeat,
+    );
     (map.getSource(CORRIDOR_SOURCE) as { setData?: (d: unknown) => void } | undefined)?.setData?.(
       corridors,
     );
-  }, [pillars, hubPoints, corridors]);
+  }, [pillars, hubPoints, zoneHeat, corridors]);
 
   // ── Floating callouts: the 4 busiest hubs, plus whichever is hovered.
   // Left pane only in split view (the baseline is "reality").
@@ -1011,9 +1101,10 @@ function MapPane({
         }}
       />
 
-      {/* Floating hub cards with leader lines */}
+      {/* Floating hub cards with leader lines (host pages draw their own) */}
       <div ref={calloutWrapRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 6 }}>
-        {introDone &&
+        {chrome &&
+          introDone &&
           calloutHubs.map((hub, index) => (
             <HubCallout key={hub.id} hub={hub} index={index} focused={hub.id === storyFocusHubId} />
           ))}
@@ -1071,9 +1162,9 @@ function addCityBuildings(map: tt.Map) {
 const LEADER_HEIGHT = 40;
 
 function utilizationBarColor(pct: number): string {
-  if (pct >= 85) return "#f87171"; // red — same thresholds as the KPI tiles
-  if (pct >= 60) return "#34d399"; // green
-  return "#fbbf24"; // amber
+  if (pct >= 95) return COLOR_OVER; // same thresholds as the pillars
+  if (pct >= 75) return COLOR_FULL;
+  return COLOR_FINE;
 }
 
 function HubCallout({ hub, index, focused }: { hub: HubMapInfo; index: number; focused: boolean }) {
@@ -1176,11 +1267,7 @@ function PaneBadge({ label, accent }: { label: string; accent: string }) {
 function PillarTooltip({ hub, x, y }: { hub: HubMapInfo; x: number; y: number }) {
   const isMagazine = hub.id === MAGAZINE_HUB_ID;
   const direction = hub.gap_direction ?? "balanced";
-  const accent = isMagazine
-    ? COLOR_MAGAZINE
-    : direction === "understaffed"
-      ? COLOR_UNDERSTAFFED
-      : COLOR_STAFFED;
+  const accent = pillarColor(hub); // tooltip accent mirrors the pillar itself
   const gap = hub.headcount_gap ?? 0;
 
   const rows: { label: string; value: string; color?: string }[] = [
@@ -1315,7 +1402,7 @@ function CorridorPopover({ state }: { state: CorridorPopoverState }) {
       </div>
 
       {state.error && (
-        <div style={{ fontSize: 11, color: COLOR_UNDERSTAFFED }}>{state.error}</div>
+        <div style={{ fontSize: 11, color: COLOR_OVER }}>{state.error}</div>
       )}
 
       {!state.error && !state.cost && (
@@ -1414,8 +1501,9 @@ function WorkforceLegend({ corridorMode }: { corridorMode: CorridorMode }) {
       >
         Headcount
       </span>
-      <LegendSwatch color={COLOR_UNDERSTAFFED} label="understaffed" />
-      <LegendSwatch color={COLOR_STAFFED} label="staffed" />
+      <LegendSwatch color={COLOR_FINE} label="running fine" />
+      <LegendSwatch color={COLOR_FULL} label="getting full" />
+      <LegendSwatch color={COLOR_OVER} label="over the limit" />
       <LegendSwatch color={COLOR_MAGAZINE} label="magazine" />
       <span
         style={{

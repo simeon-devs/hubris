@@ -47,9 +47,9 @@ function ShellChrome({ children }: { children: ReactNode }) {
     if (pathname !== "/" && !tourAlreadySeen()) setTourOpen(true);
   }, [setTourOpen, pathname]);
 
-  // The home page IS the approved design, chrome and all — the shell steps
-  // aside entirely so nothing sits on top of it. /classic keeps everything.
-  if (pathname === "/") {
+  // The home page and /vision ARE the approved design, chrome and all — the
+  // shell steps aside entirely there. /classic keeps everything.
+  if (pathname === "/" || pathname === "/vision") {
     return <div className="relative w-screen h-screen overflow-hidden bg-[#04070f]">{children}</div>;
   }
 

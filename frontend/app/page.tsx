@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * HOME — the approved AtlasVision design (frontend/design/atlasvision.html)
- * wired to the live engine. The previous Command view lives on at /classic.
+ * HOME — the REAL TomTom map with the approved AtlasVision skin on top.
+ * The pure-canvas prototype lives at /vision; the previous UI at /classic.
  */
 
 import dynamic from "next/dynamic";
 
-const AtlasVision = dynamic(() => import("@/components/AtlasVision"), { ssr: false });
+const AtlasHome = dynamic(() => import("@/components/AtlasHome"), { ssr: false });
 
 export default function HomePage() {
-  return <AtlasVision />;
+  return <AtlasHome />;
 }

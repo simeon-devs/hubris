@@ -36,9 +36,10 @@ import {
 import type { KpisResponse, NetworkMapResponse, SimulateResponse } from "@/lib/types";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   The prototype's CSS, verbatim values, scoped under #av-root.
+   The prototype's CSS, verbatim values, scoped under #av-root. Exported so
+   the TomTom-based home (AtlasHome) wears exactly the same skin.
 ───────────────────────────────────────────────────────────────────────── */
-const CSS = `
+export const ATLAS_CSS = `
 #av-root {
   --bg: #04070f; --brand: #E8112D; --cyan: #37d6f0; --amber: #ffb02e;
   --red: #ff4d5e; --green: #3ddc97; --text: #eef2f8; --muted: #8b98ad;
@@ -822,7 +823,7 @@ export default function AtlasVision() {
 
   return (
     <div id="av-root" ref={rootRef}>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: ATLAS_CSS }} />
 
       <div id="scene">
         <canvas id="cv" />
