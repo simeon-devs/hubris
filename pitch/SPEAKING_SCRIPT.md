@@ -1,7 +1,27 @@
-# SPEAKING SCRIPT — EMX ATLAS (4:45 max)
+# SPEAKING SCRIPT — EMX ATLAS
 
 > Plain words. Short sentences. Read it out loud twice. \[Brackets\] are what you do, not what you say.
 > The pitch is a scenario walk: three live runs, each one answers a question the judges themselves asked.
+> Numbers on the cue card (`CHEAT_SHEET.md`) — glance, don't memorise.
+
+## Pick ONE route before you walk up
+
+Every beat below is written to stand alone. Do not perform all of them — that is 5:45.
+
+| Route | Beats to run | Spoken | Use when |
+|---|---|---|---|
+| **A — App-first** *(recommended)* | Map → Scenario 1 → Scenario 2 → Scenario 3 → AI → Findings → Close | **4:26** | The app is up and the link works. Skip 0:00 and 0:25 — the Map beat carries both the problem and the trust. |
+| **B — Slides-first** | Problem → Trust → Scenario 2 → Scenario 3 → AI → Findings → Close | **4:06** | Projector unreliable, or you want the reconciliation table on screen early. Skip the Map beat. |
+| **C — Everything** | All of it | 5:40 | Only if they explicitly give you six minutes. |
+
+> Those are **spoken-word times at a calm pace** (~156 wpm), measured from this file.
+> They do **not** include clicking, waiting for a run, or a pause for effect — budget
+> **another 30–40 seconds** of real time. Route A lands near 5:00 in the room.
+
+**Non-negotiable in every route: Scenario 3 and the AI beat.** They are the scoring beats.
+
+**If you're running long, cut in this order:** Scenario 1 (30s) → Two findings (33s) →
+Scenario 2 (26s). Cutting Scenario 1 alone brings Route A to about 4:30 in the room.
 
 ---
 
@@ -25,7 +45,34 @@ And while checking, the system found something. It tried to serve every order an
 
 ---
 
-## 1:05 — Scenario 1: the same-day question (35 seconds)
+## 1:05 — The Map: one screen, real state (60 seconds)
+
+> **\[Switch to the app, `/` — the Map tab. This is the first thing they see running.\]**
+> Run this beat only if you opened on slides. If you open on the app, this REPLACES 0:00–0:25 and you pick the story up at Scenario 1.
+
+**\[0:00 — wave at the whole screen.\]**
+"This is your entire network on one screen — all three of them: hubs, dark stores, on-demand. Every number computed live, from your own data."
+
+**\[0:10 — point top-left: 43.16 AED.\]**
+"Top left is the number that matters. Forty-three dirhams to move one parcel, fully loaded. Nobody typed that in — the engine computed it.
+
+And of those forty-three, only **eleven** is driving. **Thirty-two is buildings.** Fuel free, drivers unpaid — you'd still pay thirty-two dirhams a parcel. Three quarters of your cost is buildings standing there."
+
+**\[0:30 — click one hub, its live card opens.\]**
+"The lines show which hub serves which zone right now. Click any hub, you get its live card — load, capacity, riders, cost per shipment.
+
+And nothing here is a simulation. This is what's true today. Simulations are the next tab."
+
+**\[0:45 — point at the red bar, then click it. Map flies to Al Reem, store selected, alert opens.\]**
+"That red bar isn't a demo prop. An agent runs on its own and found seventeen orders a day in Abu Dhabi with nowhere to go. One click — and it takes me to the exact store, with the fix, checked by re-running the maths."
+
+> **Held back on purpose** — say these only if asked, they're on the cue card:
+> the 45,745 ÷ 1,060 arithmetic · the filters (same-day only, at-risk only) ·
+> 60.11 vs 43.16 · why Dubai can't cover Abu Dhabi (3 hours vs a 15-minute promise).
+
+---
+
+## 2:05 — Scenario 1: the same-day question (35 seconds)
 
 \[Simulate → New customer → click Business Bay → promise: Same-day → Run.\]
 
@@ -37,17 +84,17 @@ Only your five Full Hubs can even bid for this — the five Micro hubs are next-
 
 ---
 
-## 1:40 — Scenario 2: close a hub (35 seconds)
+## 2:40 — Scenario 2: close a hub (35 seconds)
 
 \[Simulate → Close a hub → Fujairah → Run.\]
 
 "Now the question nobody dares ask. Fujairah costs 151 AED per shipment — three times Dubai. I close it.
 
-The whole network recomputes: who picks up the work, the new cost, and whether anything breaks. Nothing broke — and this took the engine about a hundredth of a second. Your team's version of this analysis takes four to eight hours. And nothing real was touched. It's a copy."
+The whole network recomputes: who picks up the work, the new cost, and whether anything breaks. Nothing broke — and this took the engine about four thousandths of a second. Your team's version of this analysis takes four to eight hours. And nothing real was touched. It's a copy."
 
 ---
 
-## 2:15 — Scenario 3: the recommendation (45 seconds)
+## 3:15 — Scenario 3: the recommendation (45 seconds)
 
 \[Optimize → the frontier card.\]
 
@@ -61,7 +108,7 @@ That's the real decision: not 'what's cheapest', but 'what's cheapest that you c
 
 ---
 
-## 3:00 — The AI, and why it can't lie (45 seconds)
+## 4:00 — The AI, and why it can't lie (45 seconds)
 
 \[Chat drawer → click a preset chip. Point at the badge.\]
 
@@ -73,7 +120,7 @@ Then — see this badge — every number in the answer is checked against what t
 
 ---
 
-## 3:45 — Two findings you're taking home (35 seconds)
+## 4:45 — Two findings you're taking home (35 seconds)
 
 "Two things your data told us that we didn't expect.
 
@@ -83,7 +130,7 @@ Two: your contract riders cost 25 percent less than staff riders — at identica
 
 ---
 
-## 4:20 — Close (25 seconds)
+## 5:20 — Close (25 seconds)
 
 \[Slide 4 stays up: the three numbers + the link.\]
 
