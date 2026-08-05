@@ -216,3 +216,28 @@ class RefreshDistancesResponse(BaseModel):
     od_pairs_updated: int
     cost_to_serve_before: float
     cost_to_serve_after: float
+
+
+class RouteCostMode(BaseModel):
+    fleet_id: str
+    fleet_name: str
+    vehicle_capacity: float
+    cost_per_km: float
+    variable_cost: float
+    vehicle_fixed_cost: float
+    trip_cost: float
+    cost_per_parcel: float
+
+
+class RouteCostResponse(BaseModel):
+    """Per-fleet corridor cost (engine/route_cost.py). `modes` sorted
+    cheapest-first; `od_cost_per_parcel` is the canonical calibrated figure
+    the optimiser prices — the per-mode numbers are a comparison view."""
+
+    from_hub: str
+    to_zone: str
+    distance_km: float
+    time_min: float
+    od_cost_per_parcel: float
+    handling_cost_per_parcel: float
+    modes: list[RouteCostMode]

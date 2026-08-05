@@ -19,7 +19,9 @@ from hubris.api.schemas import (
     ZoneMapInfo,
 )
 from hubris.api.state import state
+from hubris.api.schemas import RouteCostResponse
 from hubris.engine.assignment import assigned_volume_by_hub, cost_to_serve_by_hub
+from hubris.engine.route_cost import compute_route_cost
 from hubris.engine.flow import solve_min_cost_flow
 from hubris.engine.routing import refresh_od_matrix
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
@@ -28,6 +30,20 @@ from hubris.plugins.metrics.utilization import UtilizationMetric
 from hubris.plugins.metrics.workforce_requirement import WorkforceRequirementMetric
 
 router = APIRouter()
+
+
+@router.get("/route-cost", response_model=RouteCostResponse)
+def get_route_cost(
+    from_hub: str, to_zone: str, scenario_id: str | None = None
+) -> RouteCostResponse:
+    """Per-fleet transit cost for one hub→zone corridor — engine-computed
+    (engine/route_cost.py). The UI's corridor inspector calls this instead
+    of doing arithmetic in the browser (CLAUDE.md §2)."""
+    try:
+        model = state.get_model(scenario_id)
+        return RouteCostResponse(**compute_route_cost(model, from_hub, to_zone))
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/network", response_model=NetworkMapResponse)
