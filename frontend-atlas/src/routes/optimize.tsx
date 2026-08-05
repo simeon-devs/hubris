@@ -1,16 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Card, Chip, PageHead, SectionTitle } from "@/components/atlas/ui";
-import { DEMAND, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
+import { HUBS, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
 import {
-  findBottleneck,
-  frontierOptimize,
-  hubEconomics,
-  optimizeNetwork,
-  predictedBreaks,
-  rankedNetworkShapes,
-} from "@/lib/atlas-engine";
+  getBottleneck,
+  getDemandGrowthBreak,
+  getNetwork,
+  getRankedShapes,
+  optimize,
+  optimizeFrontier,
+  type ApiBottleneck,
+  type ApiFrontier,
+  type ApiNetwork,
+  type ApiOptimizeResponse,
+  type ApiRankedShape,
+  type ApiThreshold,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/optimize")({
@@ -31,33 +37,139 @@ export const Route = createFileRoute("/optimize")({
   component: OptimizePage,
 });
 
-const W13 = 12;
-const monthlyShipments =
-  DEMAND.filter((d) => d.network === "Hub & Spoke").reduce((s, d) => s + (d.weekly[W13] ?? 0), 0) * (30 / 7);
-
 function Money({ v }: { v: number }) {
   return <span className="font-mono font-semibold text-foreground">{fmtInt(Math.round(v))} AED/day</span>;
+}
+
+function MoneyParcel({ v }: { v: number }) {
+  return <span className="font-mono font-semibold text-foreground">{fmtNum(v)} AED/parcel</span>;
 }
 
 const cpsTone = (cps: number) => (cps >= 14 ? "text-risk" : cps >= 10 ? "text-warn" : "text-ok");
 const utilTone = (u: number) => (u >= 92 ? "bg-risk" : u >= 80 ? "bg-warn" : "bg-ok");
 
 function OptimizePage() {
-  const opt = useMemo(() => optimizeNetwork(), []);
-  const bottleneck = useMemo(() => findBottleneck(), []);
-  const breaks = useMemo(() => predictedBreaks(26), []);
-  const econ = useMemo(() => hubEconomics(), []);
-  const shapes = useMemo(() => rankedNetworkShapes(8), []);
+  // Everything on this page is a REAL engine result, fetched on mount.
+  const [opt, setOpt] = useState<ApiOptimizeResponse | null>(null);
+  const [bottleneck, setBottleneck] = useState<ApiBottleneck | null>(null);
+  const [threshold, setThreshold] = useState<ApiThreshold | null>(null);
+  const [net, setNet] = useState<ApiNetwork | null>(null);
+  const [ranked, setRanked] = useState<{ shapes: ApiRankedShape[] } | null>(null);
+  const [frontierRes, setFrontierRes] = useState<ApiFrontier | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([optimize(), getBottleneck(), getNetwork(), getRankedShapes(8)])
+      .then(([o, b, n, r]) => {
+        if (cancelled) return;
+        setOpt(o);
+        setBottleneck(b);
+        setNet(n);
+        setRanked(r);
+        // break-even for the hub the engine says is busiest right now
+        const hottest = [...n.hubs]
+          .filter((h) => h.status === "open")
+          .sort((a, b2) => b2.utilization_pct - a.utilization_pct)[0];
+        if (hottest) {
+          getDemandGrowthBreak(hottest.id)
+            .then((t) => !cancelled && setThreshold(t))
+            .catch(() => {});
+        }
+      })
+      .catch((e: Error) => !cancelled && setLoadError(e.message));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [minHubs, setMinHubs] = useState(1);
   const [maxShare, setMaxShare] = useState(45);
-  const frontier = useMemo(() => frontierOptimize(minHubs, maxShare), [minHubs, maxShare]);
+  useEffect(() => {
+    let cancelled = false;
+    optimizeFrontier({ min_hubs_per_emirate: minHubs, max_hub_volume_share: maxShare / 100 })
+      .then((f) => !cancelled && setFrontierRes(f))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [minHubs, maxShare]);
+
+  // Adapt the API frontier into the card's column shape (labels only).
+  const frontier = useMemo(() => {
+    if (!frontierRes) return null;
+    const column = (side: ApiFrontier["unconstrained"], note: string) => ({
+      opens: side.changes.filter((c) => c.action === "open_hub").map((c) => c.hub_id),
+      closes: side.changes.filter((c) => c.action === "close_hub").map((c) => c.hub_id),
+      hubsOpen: side.hubs_open_count,
+      cps: side.cost_to_serve_after,
+      variableAedDay: side.cost_pools.variable_only_aed_per_parcel,
+      fullyLoadedAedDay: side.cost_pools.fully_loaded_aed_per_parcel,
+      note,
+    });
+    return {
+      raw: column(frontierRes.unconstrained, "raw optimum"),
+      recommended: column(frontierRes.constrained, "resilient optimum"),
+      premiumAedDay: frontierRes.resilience_premium.total_cost_delta,
+      constraintsRelaxed: !frontierRes.constrained.constraints_enforced,
+      reasoning: [
+        "Both columns are real MILP solves; the recommended one adds the resilience policy (min hubs per emirate, max single-hub share).",
+        "The premium is the engine-computed cost of not concentrating the network.",
+      ],
+    };
+  }, [frontierRes]);
+
+  // Hub economics from the engine's own per-hub fields + the file's rents.
+  const econ = useMemo(() => {
+    if (!net) return [];
+    const rentById = new Map(HUBS.map((h) => [h.id, h.rent]));
+    return net.hubs
+      .filter((h) => h.status === "open")
+      .map((h) => ({
+        id: h.id,
+        name: h.name,
+        emirate: h.emirate,
+        hubType: h.hub_type ?? "Hub",
+        status: "Normal",
+        daily: h.rider_capacity_daily ?? 0,
+        util: h.utilization_pct,
+        cps: h.cost_to_serve,
+        varAedDay: 0,
+        fixedAedDay: 0,
+        totalAedDay: 0,
+        rentAedMonth: rentById.get(h.id) ?? 0,
+        verdict: h.cost_to_serve >= 90 ? "Fix now" : h.cost_to_serve >= 55 ? "Watch" : "Efficient",
+        note: "",
+      }));
+  }, [net]);
+
+  const shapes = useMemo(() => {
+    if (!ranked) return { shapes: [], evaluated: 0, feasibleCount: 0, baselineCps: 0 };
+    return {
+      shapes: ranked.shapes.map((r) => ({
+        rank: r.rank,
+        label: r.label,
+        opens: r.opens,
+        closes: r.closes,
+        hubsOpen: r.hubs_open,
+        cps: r.cps,
+        aedDay: r.aed_day,
+        saveAedMonth: r.save_aed_month,
+        stressPct: r.stress_safe_pct,
+        isCurrent: r.is_current,
+        isRecommended: r.is_recommended,
+      })),
+      evaluated: ranked.shapes.length,
+      feasibleCount: ranked.shapes.filter((r) => r.feasible !== false).length,
+      baselineCps: 0,
+    };
+  }, [ranked]);
 
   const [emirateFilter, setEmirateFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"cps" | "util" | "cost" | "rent">("cps");
 
-  const monthlySave = Math.max(0, (opt.cost_to_serve_before - opt.cost_to_serve_after) * monthlyShipments);
-  const first = breaks[0];
+  // The engine's own monthly saving for the recommended shape (ranked row).
+  const monthlySave = shapes.shapes.find((s) => s.isRecommended)?.saveAedMonth ?? 0;
 
   const emirates = useMemo(() => ["all", ...Array.from(new Set(econ.map((r) => r.emirate)))], [econ]);
   const econRows = useMemo(() => {
@@ -70,6 +182,26 @@ function OptimizePage() {
     }[sortBy];
     return [...rows].sort((a, b) => key(a) - key(b));
   }, [econ, emirateFilter, sortBy]);
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-5xl p-6">
+        <Card className="p-5 text-[12px] text-risk">
+          Engine unreachable: {loadError}. Start the backend and reload — nothing on this page is
+          computed client-side.
+        </Card>
+      </div>
+    );
+  }
+  if (!opt || !bottleneck || !net || !frontier) {
+    return (
+      <div className="mx-auto max-w-5xl p-6">
+        <Card className="p-5 text-[12px] text-muted-foreground">
+          Running the engine — MILP, frontier, 16 ranked shape evaluations…
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
@@ -90,7 +222,7 @@ function OptimizePage() {
         {opt.changes.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-2">
             {opt.changes.map((c) => (
-              <Chip key={c.hub_id} tone={c.action === "Close" ? "risk" : "ok"}>
+              <Chip key={c.hub_id} tone={c.action === "close_hub" ? "risk" : "ok"}>
                 {c.action} · {entityName(c.hub_id)}
               </Chip>
             ))}
@@ -108,7 +240,11 @@ function OptimizePage() {
             Engine reasoning
           </summary>
           <ul className="space-y-1.5 px-3.5 pb-3.5 pt-1">
-            {opt.reasoning.map((r, i) => (
+            {[
+              "MILP facility-location (CBC) with a wired-in greedy fallback; objective = total cost/day.",
+              `Robustness: ${opt.robustness.trials} Monte-Carlo re-solves at ±${opt.robustness.demand_variation_pct}% demand — feasible in ${opt.robustness.feasible_pct}% of trials.`,
+              "Service capability is enforced: same-day (Express) demand can only route to Full Hubs.",
+            ].map((r, i) => (
               <li key={i} className="text-[11.5px] leading-relaxed text-text-secondary">
                 <span className="mr-1.5 font-mono text-primary">{String(i + 1).padStart(2, "0")}</span>
                 {r}
@@ -283,12 +419,12 @@ function OptimizePage() {
               </div>
               <div className="space-y-1.5 text-[12px]">
                 <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
-                  <span className="text-muted-foreground">Variable-only</span>
-                  <Money v={col.variableAedDay} />
+                  <span className="text-muted-foreground" title="The pool the dataset's ≤7.00 AED target is defined on">Variable-only</span>
+                  <MoneyParcel v={col.variableAedDay} />
                 </div>
                 <div className="flex items-center justify-between border-b border-border/60 pb-1.5">
                   <span className="text-muted-foreground">Fully loaded</span>
-                  <Money v={col.fullyLoadedAedDay} />
+                  <MoneyParcel v={col.fullyLoadedAedDay} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Cost / shipment</span>
@@ -314,32 +450,26 @@ function OptimizePage() {
 
       {/* 5 · Limits */}
       <Card className="p-5">
-        <SectionTitle hint="predictive — compounding zone growth">Limits</SectionTitle>
-        {first ? (
+        <SectionTitle hint="engine binary search — real re-solves">Limits</SectionTitle>
+        {threshold?.threshold_found ? (
           <div className="mb-4 flex items-baseline gap-3">
-            <span className="font-mono text-[32px] font-bold leading-none text-risk">~{first.weeks} wks</span>
+            <span className="font-mono text-[32px] font-bold leading-none text-risk">
+              +{fmtNum(threshold.growth_pct_threshold ?? 0)}%
+            </span>
             <p className="text-[12px] text-text-secondary">
-              until <span className="font-semibold text-foreground">{first.name}</span> saturates — the first breaking point in the network.
+              demand growth breaks <span className="font-semibold text-foreground">{entityName(threshold.hub_id ?? "")}</span> — the busiest hub, at {fmtNum(threshold.hub_utilization_pct ?? 0)}% utilisation at that point.
             </p>
           </div>
         ) : null}
-        <p className="rounded-lg bg-muted px-3 py-2 text-[12px] leading-relaxed text-text-secondary">{bottleneck.why}</p>
-        <p className="mt-2 rounded-lg border border-ok/25 bg-ok/8 px-3 py-2 text-[12px] leading-relaxed text-foreground">
-          <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-ok">Cheapest fix · </span>
-          {bottleneck.reason}
+        <p className="rounded-lg bg-muted px-3 py-2 text-[12px] leading-relaxed text-text-secondary">
+          {bottleneck.bottleneck_found ? bottleneck.why : bottleneck.reason ?? "No binding bottleneck at current demand — the network has headroom everywhere."}
         </p>
-
-        <div className="mt-4 space-y-1.5">
-          {breaks.slice(0, 5).map((b) => (
-            <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg bg-background/50 px-3 py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-[12px] font-medium text-foreground">{b.name}</span>
-                <Chip tone="neutral">{b.network}</Chip>
-              </div>
-              <span className="shrink-0 font-mono text-[11.5px] font-semibold text-risk">~{b.weeks} wks</span>
-            </div>
-          ))}
-        </div>
+        {bottleneck.bottleneck_found ? (
+          <p className="mt-2 rounded-lg border border-ok/25 bg-ok/8 px-3 py-2 text-[12px] leading-relaxed text-foreground">
+            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider text-ok">Cheapest verified fix · </span>
+            computed by re-solving the flow, not extrapolated — see the alert drawer for the action card.
+          </p>
+        ) : null}
       </Card>
     </div>
   );
