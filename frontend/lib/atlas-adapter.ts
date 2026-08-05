@@ -193,7 +193,7 @@ export function nearestZoneEmirate(zones: DesignZone[], lat: number, lon: number
 /* ── KPI tiles — verbatim fields; null when the API lacks the field ───── */
 
 export interface KpiViewModel {
-  deliver: number | null; // cost_to_serve.breakdown.total_demand
+  deliver: number | null; // network_summary.total_demand (fallback: cost breakdown)
   room: number | null; // spare_capacity.value
   cost: number | null; // cost_to_serve.value
 }
@@ -202,10 +202,10 @@ export function kpiView(kpis: KpisResponse): KpiViewModel {
   const bag = kpis as unknown as Record<
     string,
     { value?: unknown; breakdown?: Record<string, unknown> } | undefined
-  >;
+  > & { network_summary?: { total_demand?: unknown } };
   const costMetric = bag.cost_to_serve;
   const spareMetric = bag.spare_capacity;
-  const totalDemand = costMetric?.breakdown?.total_demand;
+  const totalDemand = bag.network_summary?.total_demand ?? costMetric?.breakdown?.total_demand;
   return {
     deliver: typeof totalDemand === "number" ? totalDemand : null,
     room: typeof spareMetric?.value === "number" ? (spareMetric.value as number) : null,
