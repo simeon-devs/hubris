@@ -10,7 +10,11 @@ import pulp
 from hubris.core import assumptions
 from hubris.core.contracts import NetworkModel, OptimizerStrategy, Recommendation
 from hubris.core.registry import register_optimizer
-from hubris.engine.constraints import max_utilization_constraint
+from hubris.engine.constraints import (
+    max_hub_volume_share_constraint,
+    max_utilization_constraint,
+    min_hubs_per_emirate_constraint,
+)
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 from hubris.plugins.optimizers.greedy import GreedyOptimizer
 
@@ -73,6 +77,31 @@ class MILPOptimizer(OptimizerStrategy):
                 f"capacity_{hub.id}",
             )
 
+        # ---- realism constraints (Sims, 2026-08-05): configurable, off unless requested
+        min_per_emirate = min_hubs_per_emirate_constraint(constraints)
+        if min_per_emirate is not None:
+            by_emirate: dict[str, list[str]] = {}
+            for hub in model.hubs:
+                by_emirate.setdefault(hub.emirate, []).append(hub.id)
+            for emirate, hub_ids in by_emirate.items():
+                # capped by availability so a high floor can't make the
+                # problem trivially infeasible in a 1-facility emirate
+                floor = min(min_per_emirate, len(hub_ids))
+                prob += (
+                    pulp.lpSum(open_var[h] for h in hub_ids) >= floor,
+                    f"min_hubs_{emirate.replace(' ', '_')}",
+                )
+
+        max_share = max_hub_volume_share_constraint(constraints)
+        total_demand = sum(zone.demand for zone in model.zones)
+        if max_share is not None and total_demand > 0:
+            for hub in model.hubs:
+                hub_edges = [e for e in edges if e[0] == hub.id]
+                prob += (
+                    pulp.lpSum(flow_var[e] for e in hub_edges) <= max_share * total_demand,
+                    f"volume_share_{hub.id}",
+                )
+
         solver = pulp.PULP_CBC_CMD(msg=False, timeLimit=self._time_limit_seconds)
         status = prob.solve(solver)
 
@@ -80,6 +109,10 @@ class MILPOptimizer(OptimizerStrategy):
             raise RuntimeError(f"solver status: {pulp.LpStatus[status]}")
 
         open_hub_ids = {h for h, var in open_var.items() if (var.value() or 0.0) > 0.5}
+        volume_by_hub = {
+            h: sum((flow_var[e].value() or 0.0) for e in edges if e[0] == h)
+            for h in open_hub_ids
+        }
         transport_cost = sum(cost_by_edge[e] * (flow_var[e].value() or 0.0) for e in edges)
         fixed_cost = sum(fixed_by_hub[h] for h in open_hub_ids)
         total_cost = transport_cost + fixed_cost
@@ -110,5 +143,10 @@ class MILPOptimizer(OptimizerStrategy):
                 "hubs_closed_count": sum(1 for c in changes if c["action"] == "close_hub"),
                 "hubs_opened_count": sum(1 for c in changes if c["action"] == "open_hub"),
                 "solver_status": pulp.LpStatus[status],
+                # concentration evidence for the frontier narrative
+                "volume_share_by_hub": {
+                    h: round(v / total_demand, 4) if total_demand else 0.0
+                    for h, v in sorted(volume_by_hub.items())
+                },
             },
         )

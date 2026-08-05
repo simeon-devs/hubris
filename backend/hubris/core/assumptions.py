@@ -213,6 +213,24 @@ _register(
     ["hubris/ingestion/dataset_g_connector.py"],
 )
 
+# ---- realism frontier (Sims decision 2026-08-05) ---------------------------
+_register(
+    "frontier_min_hubs_per_emirate", 1, "assumed",
+    "Resilience policy for the constrained optimum: keep at least one open hub in "
+    "every emirate that has a facility (coverage — the unconstrained optimum "
+    "concentrates the network into two sites). A POLICY parameter, not a data "
+    "fact; overridable per call so 'what if we allow two per emirate?' is a "
+    "live-answerable question.",
+    ["hubris/agents/tools/optimise_frontier.py"],
+)
+_register(
+    "frontier_max_hub_volume_share", 0.40, "assumed",
+    "Resilience policy for the constrained optimum: no single hub may carry more "
+    "than this fraction of network volume (no single point of failure). A POLICY "
+    "parameter, overridable per call.",
+    ["hubris/agents/tools/optimise_frontier.py"],
+)
+
 # ---- monitoring (T-40) -----------------------------------------------------
 _register(
     "monitoring_interval_seconds", 300, "assumed",

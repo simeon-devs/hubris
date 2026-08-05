@@ -1,9 +1,18 @@
 """POST /optimize — run the network optimiser (T-11's `optimise_network`
 tool: MILP with its wired-in greedy fallback) and return the
-Recommendation as computed JSON."""
+Recommendation as computed JSON.
+
+POST /optimize/frontier — the realism frontier (Sims, 2026-08-05):
+unconstrained optimum vs the resilience-constrained one, side by side,
+labelled, with the computed resilience premium. Constraint parameters are
+configurable per call (defaults from the assumptions registry) so "what if
+we allow two hubs per emirate?" is answerable live."""
+
+from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException
 
+from hubris.agents.tools.optimise_frontier import OptimiseFrontierTool
 from hubris.agents.tools.optimise_network import OptimiseNetworkTool
 from hubris.api.schemas import OptimizeRequest, OptimizeResponse
 from hubris.api.state import state
@@ -13,6 +22,13 @@ from hubris.core.registry import OPTIMIZER
 from hubris.core.registry import registry as global_registry
 
 router = APIRouter()
+
+
+class FrontierRequest(BaseModel):
+    scenario_id: str | None = None
+    min_hubs_per_emirate: int | None = None   # default: assumptions registry
+    max_hub_volume_share: float | None = None  # default: assumptions registry
+    objective: dict = {}
 
 
 @router.post("/optimize", response_model=OptimizeResponse)
@@ -58,3 +74,36 @@ def optimize(req: OptimizeRequest) -> OptimizeResponse:
     )
     result = apply_heuristics("optimise_network", result)  # T-39
     return OptimizeResponse(**result)
+
+
+@router.post("/optimize/frontier")
+def optimize_frontier(req: FrontierRequest) -> dict:
+    try:
+        model = state.get_model(req.scenario_id)
+    except KeyError as exc:
+        raise HTTPException(404, f"Unknown scenario_id: {req.scenario_id}") from exc
+
+    result = OptimiseFrontierTool().run(
+        model=model,
+        min_hubs_per_emirate=req.min_hubs_per_emirate,
+        max_hub_volume_share=req.max_hub_volume_share,
+        objective=req.objective or None,
+    )
+
+    # T-38: the frontier run is an episode too (graceful, best-effort).
+    memory.record_episode(
+        scenario_name="optimise_frontier",
+        params=result["params"],
+        kpis={
+            "baseline_cost_to_serve": result["baseline"]["cost_to_serve"],
+            "unconstrained_delta_pct": result["unconstrained"]["delta_vs_baseline_pct"],
+            "constrained_delta_pct": result["constrained"]["delta_vs_baseline_pct"],
+        },
+        outcome={
+            "constrained_changes": result["constrained"]["changes"],
+            "resilience_premium": result["resilience_premium"],
+        },
+        scenario_id=req.scenario_id,
+        source="api:/optimize/frontier",
+    )
+    return result

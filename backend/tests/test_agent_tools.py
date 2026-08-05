@@ -128,6 +128,7 @@ def test_all_registered_tools_are_agent_usable():
         "find_spare_capacity",
         "simulate_scenario",
         "optimise_network",
+        "optimise_frontier",
         "compare_scenarios",
         "scan_opportunities",
         "find_demand_growth_break",
