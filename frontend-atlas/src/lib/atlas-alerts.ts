@@ -31,14 +31,16 @@ export interface AtlasAlert {
 
 /** "Abu_Dhabi-Al_Reem" -> the dark store / hub sitting in that zone — the
  *  point of CONCERN, so Show-on-map lands on the shortfall, not the
- *  busiest facility. */
-function targetForZone(zoneId: string): AlertTarget | undefined {
+ *  busiest facility. Exported: the Copilot resolves zone ids from tool
+ *  payloads through this same helper (labelPrefix "" there — its answers
+ *  aren't always about unserved demand). */
+export function targetForZone(zoneId: string, labelPrefix = "Unserved: "): AlertTarget | undefined {
   const zoneName = (zoneId.split("-")[1] ?? "").replace(/_/g, " ").trim();
   if (!zoneName) return undefined;
   const store = DARK_STORES.find((s) => s.zone.toLowerCase().includes(zoneName.toLowerCase()));
-  if (store) return { lat: store.lat, lng: store.lng, zoom: 12, label: `Unserved: ${zoneName}` };
+  if (store) return { lat: store.lat, lng: store.lng, zoom: 12, label: `${labelPrefix}${zoneName}` };
   const hub = HUBS.find((h) => h.zone.toLowerCase().includes(zoneName.toLowerCase()));
-  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 12, label: `Unserved: ${zoneName}` };
+  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 12, label: `${labelPrefix}${zoneName}` };
   return undefined;
 }
 
