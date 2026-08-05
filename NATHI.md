@@ -1,5 +1,19 @@
 # Nathi — frontend brief
 
+> **2026-08-05 integration note:** your `hubris-main` frontend is now adopted on `main`
+> (squashed; your branch stays as the record). Three things changed under you, all
+> committed: (1) the verification badge now renders the backend's three states —
+> `verified` / `regenerated` ("self-corrected") / `flagged` naming the exact figures;
+> (2) alert surfaces read `GET /memory/alerts` (computed watchdog findings — severity,
+> unmet demand per zone, verified recommended action, `brief_link`; ack is
+> `POST /memory/alerts/{id}/ack`, ids are uuids); (3) the home page's embedded
+> cps/weekly/network-volume literals now hydrate from `GET /event/metrics` when live.
+> Your `/event/metrics`, `/route-cost`, exports, and both metrics are ported and live
+> on main — pull before continuing. New since your fork: `demand_served` KPI,
+> `POST /optimize/frontier` (FrontierPanel on /optimize shows the pattern), and the
+> boot is the REAL dataset (baseline_provenance "provided", `qcomm_twin` crisis seeded,
+> delete-protected 409).
+
 The backend is done through Wave 3. Every API contract below is **frozen** — build against
 it with confidence. **The design is yours**: layout, visual language, motion, interaction —
 no mockups imposed. This brief only fixes *what* must be visible and *what the data means*.
