@@ -35,6 +35,6 @@ def test_module_constants_are_registry_values_not_copies():
 def test_verified_entries_cite_a_document():
     for a in all_assumptions():
         if a.status == "verified":
-            assert any(doc in a.source for doc in ("BUILD_SPEC", "SCHEMA.md", "CLAUDE.md", "brief")), (
+            assert any(doc in a.source for doc in ("BUILD_SPEC", "SCHEMA.md", "CLAUDE.md", "brief", "Dataset G")), (
                 f"{a.name} claims 'verified' without citing a document"
             )

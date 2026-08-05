@@ -199,6 +199,20 @@ _register(
     ["hubris/ingestion/dataset_g_connector.py"],
 )
 
+_register(
+    "dataset_g_sla_standard_hours", 24.0, "verified",
+    "Dataset G README: Standard = next-day delivery. Stated in the file itself.",
+    ["hubris/ingestion/dataset_g_connector.py"],
+)
+_register(
+    "dataset_g_sla_express_hours", 8.0, "derived",
+    "Dataset G README: Express = same-day. Interpreted as an 8-hour same-day window "
+    "(order-to-door within the working day); the file states the service tier, not the "
+    "hour count. QComm SLAs are NOT here — they come per-store from "
+    "Dark_Store_Network.target_delivery_min (real data).",
+    ["hubris/ingestion/dataset_g_connector.py"],
+)
+
 # ---- monitoring (T-40) -----------------------------------------------------
 _register(
     "monitoring_interval_seconds", 300, "assumed",

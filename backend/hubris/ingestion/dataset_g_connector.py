@@ -40,10 +40,13 @@ AVG_SPEED_KMH = assumptions.value("avg_speed_kmh")
 
 FINGERPRINT_SHEETS = {"Hub_Network", "Demand_by_Zone", "Cost_to_Serve"}
 
-# Service-model SLA windows (hours). Standard/Express are stated in the
-# file's README (next-day / same-day); QComm zone SLAs come from each
-# store's own target_delivery_min, not from here.
-SLA_HOURS = {"Standard": 24.0, "Express": 8.0}
+# Service-model SLA windows (hours) — registry-labelled (T-32): Standard is
+# verified from the file's own README, Express is a stated interpretation.
+# QComm zone SLAs come from each store's own target_delivery_min (data).
+SLA_HOURS = {
+    "Standard": assumptions.value("dataset_g_sla_standard_hours"),
+    "Express": assumptions.value("dataset_g_sla_express_hours"),
+}
 
 BASELINE_WEEK = 13  # latest week = the current operating state
 
