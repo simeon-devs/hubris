@@ -76,6 +76,13 @@ function toComputation(net: ApiNetwork, res: ApiSimulateResponse | null): HsComp
       monthlyVar: 0,
       monthlyFixed: 0,
       cps: h.cost_to_serve,
+      // Live extras straight off /network — resize and right-size-riders
+      // tiles read these (null -> undefined, e.g. hubs with no roster).
+      capacity: h.capacity,
+      ridersFte: h.riders_fte ?? undefined,
+      ridersFtc: h.riders_ftc ?? undefined,
+      riderCapacityDaily: h.rider_capacity_daily ?? undefined,
+      riderWeeklyCost: h.rider_weekly_cost ?? undefined,
     }));
 
   const kpis = res

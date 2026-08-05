@@ -141,20 +141,124 @@ function Stepper({ value, onChange }: { value: number; onChange: (v: number) => 
 
 /* ------------------------------ result tiles ------------------------------ */
 
-function DeltaTile({ label, before, after, unit, goodWhenDown = true }: { label: string; before: number; after: number; unit: string; goodWhenDown?: boolean }) {
+function DeltaTile({ label, before, after, unit, goodWhenDown = true, decimals }: { label: string; before: number; after: number; unit: string; goodWhenDown?: boolean; decimals?: number }) {
   const delta = after - before;
   const good = delta === 0 ? null : goodWhenDown ? delta < 0 : delta > 0;
+  const dp = decimals ?? (unit === "%" ? 1 : 2);
   return (
     <div className="rounded-xl border bg-background/50 px-3 py-2.5">
       <p className="kicker">{label}</p>
       <div className="mt-1 flex items-baseline gap-1.5 font-mono">
-        <span className="text-[12px] text-muted-foreground">{fmtNum(before, unit === "%" ? 1 : 2)}</span>
+        <span className="text-[12px] text-muted-foreground">{fmtNum(before, dp)}</span>
         <span className="text-muted-foreground">→</span>
-        <span className={cn("text-[15px] font-bold", good === null ? "text-foreground" : good ? "text-ok" : "text-risk")}>{fmtNum(after, unit === "%" ? 1 : 2)}</span>
+        <span className={cn("text-[15px] font-bold", good === null ? "text-foreground" : good ? "text-ok" : "text-risk")}>{fmtNum(after, dp)}</span>
         <span className="text-[9.5px] uppercase tracking-wider text-muted-foreground">{unit}</span>
       </div>
     </div>
   );
+}
+
+/* ---------------- scenario-aware result tiles (fix: 5 of 8 scenarios
+   showed 0.00% because the four fixed tiles measured things they don't
+   move). Everything below is GROUPING of engine rows — no figure is
+   computed that the engine didn't return. ---------------- */
+
+interface TileSpec { label: string; before: number; after: number; unit: string; goodWhenDown?: boolean; decimals?: number }
+
+const hubIn = (comp: ScenarioRun["baseline"], id: string | null | undefined) =>
+  id ? comp.hubs.find((h) => h.id === id) : undefined;
+
+/** Daily volume of one service model — sum of the engine's own flow rows. */
+const modelDaily = (comp: ScenarioRun["baseline"], model: "Standard" | "Express") =>
+  comp.assignments.filter((a) => a.model === model).reduce((s, a) => s + a.weekly, 0) / 7;
+
+/** How many zone-flows changed serving hub between the two engine solves. */
+function movedFlows(run: ScenarioRun): number {
+  const before = new Map(run.baseline.assignments.map((a) => [`${a.emirate}|${a.zone}|${a.model}`, a.hubId]));
+  return run.scenario.assignments.filter((a) => {
+    const b = before.get(`${a.emirate}|${a.zone}|${a.model}`);
+    return b !== undefined && b !== a.hubId;
+  }).length;
+}
+
+function tilesFor(run: ScenarioRun): TileSpec[] {
+  const kpi = (m: "cost_to_serve" | "utilization" | "coverage" | "spare_capacity") => ({
+    b: run.res.baseline_kpis[m].value,
+    a: run.res.scenario_kpis[m].value,
+  });
+  const cost = kpi("cost_to_serve");
+  const util = kpi("utilization");
+  const served = kpi("coverage");
+  const spare = kpi("spare_capacity");
+  const base: TileSpec[] = [
+    { label: "Cost / parcel", before: cost.b, after: cost.a, unit: "AED" },
+    { label: "Utilisation", before: util.b, after: util.a, unit: "%", goodWhenDown: false },
+    { label: "Served", before: served.b, after: served.a, unit: "%", goodWhenDown: false },
+    { label: "Spare / day", before: spare.b, after: spare.a, unit: "pcs", goodWhenDown: false, decimals: 0 },
+  ];
+  const hb = hubIn(run.baseline, run.touchedId);
+  const ha = hubIn(run.scenario, run.touchedId);
+
+  switch (run.kind) {
+    case "resize":
+      if (hb?.capacity !== undefined && ha?.capacity !== undefined) {
+        return [
+          { label: "Hub capacity / day", before: hb.capacity, after: ha.capacity, unit: "pcs", goodWhenDown: false, decimals: 0 },
+          { label: "Hub utilisation", before: hb.util, after: ha.util, unit: "%", goodWhenDown: false },
+          ...base,
+        ];
+      }
+      return base;
+    case "riders":
+      if (hb?.riderWeeklyCost !== undefined && ha?.riderWeeklyCost !== undefined) {
+        return [
+          { label: "Wage bill / week", before: hb.riderWeeklyCost, after: ha.riderWeeklyCost, unit: "AED", decimals: 0 },
+          { label: "Rider capacity / day", before: hb.riderCapacityDaily ?? 0, after: ha.riderCapacityDaily ?? 0, unit: "pcs", goodWhenDown: false, decimals: 0 },
+          { label: "Riders — FTE", before: hb.ridersFte ?? 0, after: ha.ridersFte ?? 0, unit: "", goodWhenDown: false, decimals: 0 },
+          { label: "Riders — FTC", before: hb.ridersFtc ?? 0, after: ha.ridersFtc ?? 0, unit: "", goodWhenDown: false, decimals: 0 },
+          ...base.filter((t) => t.label === "Served" || t.label === "Utilisation"),
+        ];
+      }
+      return base;
+    case "shift":
+    case "surge":
+      return [
+        { label: "Same-day (Express) / day", before: modelDaily(run.baseline, "Express"), after: modelDaily(run.scenario, "Express"), unit: "pcs", goodWhenDown: false, decimals: 0 },
+        { label: "Next-day (Standard) / day", before: modelDaily(run.baseline, "Standard"), after: modelDaily(run.scenario, "Standard"), unit: "pcs", goodWhenDown: false, decimals: 0 },
+        ...base,
+      ];
+    default:
+      return base;
+  }
+}
+
+/** One plain sentence on what the engine actually did — the tiles show the
+ *  numbers, this says which lever moved. */
+function whatChanged(run: ScenarioRun): string | null {
+  const moved = movedFlows(run);
+  const hb = hubIn(run.baseline, run.touchedId);
+  const ha = hubIn(run.scenario, run.touchedId);
+  switch (run.kind) {
+    case "close":
+    case "absorb":
+      return moved > 0
+        ? `The engine re-solved every flow: ${moved} zone-flow${moved === 1 ? "" : "s"} re-routed to the remaining hubs (amber on the map).`
+        : "The engine re-solved every flow; no zone needed to move.";
+    case "open":
+      return moved > 0
+        ? `${moved} zone-flow${moved === 1 ? "" : "s"} re-routed to the new site (amber on the map).`
+        : "No zone re-routed to the new site — at today's demand, every zone is already served cheaper by an existing hub. The site's fixed cost is still added, which is why cost per parcel ticks up.";
+    case "riders":
+      return ha && hb
+        ? "Wages are priced from the roster's own per-type rates. They sit outside the transport pool, so Cost/parcel does not move — the wage bill is the money line here."
+        : null;
+    case "resize":
+      return "Capacity is the lever; flows were re-solved against the new limit. Watch hub utilisation and network spare.";
+    case "shift":
+      return "Volume moves between service models inside each zone — total demand is conserved by construction.";
+    default:
+      return null;
+  }
 }
 
 const utilColor = (u: number) => (u >= 92 ? "text-risk" : u >= 80 ? "text-warn" : "text-ok");
@@ -244,7 +348,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
     setRunError(null);
     compute()
       .then((out) => {
-        setRun(out);
+        setRun({ ...out, kind });
         setOpp(null);
         setLabel(lbl);
         setCompare("scenario");
@@ -672,12 +776,19 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
                   <FeasBadge feasible={feasible} />
                 </div>
                 <p className="text-[12.5px] font-semibold leading-snug text-foreground">{label}</p>
+                {(() => {
+                  const changed = whatChanged(run);
+                  return changed ? (
+                    <p className="rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-2 text-[11px] leading-relaxed text-text-secondary">
+                      {changed}
+                    </p>
+                  ) : null;
+                })()}
 
                 <div className="grid grid-cols-2 gap-2">
-                  <DeltaTile label="Cost / parcel" before={run.res.baseline_kpis.cost_to_serve.value} after={run.res.scenario_kpis.cost_to_serve.value} unit="AED" />
-                  <DeltaTile label="Utilisation" before={run.res.baseline_kpis.utilization.value} after={run.res.scenario_kpis.utilization.value} unit="%" goodWhenDown={false} />
-                  <DeltaTile label="Served" before={run.res.baseline_kpis.coverage.value} after={run.res.scenario_kpis.coverage.value} unit="%" goodWhenDown={false} />
-                  <DeltaTile label="Spare / day" before={run.res.baseline_kpis.spare_capacity.value} after={run.res.scenario_kpis.spare_capacity.value} unit="pcs" goodWhenDown={false} />
+                  {tilesFor(run).map((t) => (
+                    <DeltaTile key={t.label} {...t} />
+                  ))}
                 </div>
 
                 <div>

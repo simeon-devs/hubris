@@ -238,6 +238,14 @@ export interface HubResult {
   /** Fixed spend (rent-driven overhead) — the cost of keeping the hub open. */
   monthlyFixed: number;
   cps: number;
+  /** Live-engine extras (absent on the retired in-browser solver's output):
+   *  physical capacity and the rider roster — what resize / right-size
+   *  riders actually move, so the result tiles can show it. */
+  capacity?: number | undefined;
+  ridersFte?: number | undefined;
+  ridersFtc?: number | undefined;
+  riderCapacityDaily?: number | undefined;
+  riderWeeklyCost?: number | undefined;
 }
 
 export interface HsComputation {
@@ -1192,6 +1200,9 @@ export interface ScenarioRun {
   closedId?: string | undefined;
   newHub?: ScenarioNewHub | undefined;
   touchedId?: string | undefined;
+  /** Which scenario produced this run — the result tiles pick their
+   *  measures by it (riders -> wage bill, resize -> capacity, ...). */
+  kind?: string | undefined;
 }
 
 function makeRun(scenario: HsComputation, baseline: HsComputation, extra: Partial<ScenarioRun> = {}): ScenarioRun {
