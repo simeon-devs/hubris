@@ -23,19 +23,21 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AtlasButton, Chip, FeasBadge, PageHead } from "@/components/atlas/ui";
 import { ACTIVE_HUBS, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
 import {
-  assessOpportunity,
   nearestZone,
   runBaseline,
-  runCloseHub,
-  runCustomHub,
-  runDemandScale,
-  runResizeHub,
-  runRiders,
-  runSameDaySurge,
-  runShiftToNextDay,
   type OpportunityAssessment,
   type ScenarioRun,
 } from "@/lib/atlas-engine";
+import {
+  liveAddCustomer,
+  liveCloseHub,
+  liveCustomHub,
+  liveDemandScale,
+  liveResizeHub,
+  liveRiders,
+  liveSameDaySurge,
+  liveShiftToNextDay,
+} from "@/lib/atlas-live";
 import { useAtlas } from "@/lib/atlas-store";
 import { cn } from "@/lib/utils";
 
@@ -191,6 +193,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   const [opp, setOpp] = useState<OpportunityAssessment | null>(null);
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const [compare, setCompare] = useState<"baseline" | "scenario">("scenario");
   const [modelFilter, setModelFilter] = useState<"all" | "Standard" | "Express">("all");
 
@@ -224,91 +227,105 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   const microHubs = ACTIVE_HUBS.filter((h) => h.hubType === "Micro Hub");
   const resizeHub = ACTIVE_HUBS.find((h) => h.id === resizeHubId);
   const openPreset = OPEN_TYPES[openType]!;
+  // Form DEFAULTS only (the engine prices the run): median daily fixed cost
+  // and the candidates' pool-pure median handling from the dataset itself.
+  const rents = ACTIVE_HUBS.map((h) => h.rent).sort((a, b) => a - b);
+  const medianFixedCost = (rents[4]! + rents[5]!) / 2 / 30;
+  const medianHandling = 10.8;
   const pickOpenType = (i: number) => {
     setOpenType(i);
     setOpenCap(OPEN_TYPES[i]!.cap);
     setOpenRiders(OPEN_TYPES[i]!.riders);
   };
 
-  const execute = (lbl: string, compute: () => ScenarioRun) => {
+  // REAL engine runs — async, with an honest error path (no fake latency).
+  const execute = (lbl: string, compute: () => Promise<ScenarioRun>) => {
     setBusy(true);
-    setTimeout(() => {
-      const out = compute();
-      setRun(out);
-      setOpp(null);
-      setLabel(lbl);
-      setCompare("scenario");
-      logEvent(`Tested — ${lbl}`);
-      setBusy(false);
-    }, 180);
-  };
-
-  const executeOpp = (lbl: string, compute: () => OpportunityAssessment) => {
-    setBusy(true);
-    setTimeout(() => {
-      const out = compute();
-      setOpp(out);
-      setRun(null);
-      setLabel(lbl);
-      logEvent(`Assessed — ${lbl}`);
-      setBusy(false);
-    }, 180);
+    setRunError(null);
+    compute()
+      .then((out) => {
+        setRun(out);
+        setOpp(null);
+        setLabel(lbl);
+        setCompare("scenario");
+        logEvent(`Tested — ${lbl}`);
+      })
+      .catch((e: Error) => {
+        setRunError(e.message);
+        setLabel("Engine error");
+      })
+      .finally(() => setBusy(false));
   };
 
   const runScenario = () => {
     switch (kind) {
       case "close": {
         const hub = ACTIVE_HUBS.find((h) => h.id === closeHubId);
-        execute(`Close ${hub?.name ?? closeHubId}`, () => runCloseHub(closeHubId));
+        execute(`Close ${hub?.name ?? closeHubId}`, () => liveCloseHub(closeHubId));
         break;
       }
       case "absorb": {
         const hub = microHubs.find((h) => h.id === microHubId);
-        execute(`Absorb ${hub?.name ?? microHubId} (micro)`, () => runCloseHub(microHubId));
+        execute(`Absorb ${hub?.name ?? microHubId} (micro)`, () => liveCloseHub(microHubId));
         break;
       }
       case "open": {
         if (!openLoc) return;
-        execute(`Open ${openPreset.title} at ${openLoc.lat.toFixed(3)},${openLoc.lng.toFixed(3)}`, () =>
-          runCustomHub({
-            id: `CUST_${Date.now()}`,
-            name: `${openPreset.title} · custom`,
-            lat: openLoc.lat,
-            lng: openLoc.lng,
-            maxDaily: openCap,
-            kind: openPreset.kind,
-          }),
-        );
+        {
+          const near = nearestZone(openLoc.lat, openLoc.lng);
+          execute(`Open ${openPreset.title} at ${openLoc.lat.toFixed(3)},${openLoc.lng.toFixed(3)}`, () =>
+            liveCustomHub({
+              id: `CUST_${Date.now()}`,
+              name: `${openPreset.title} · custom`,
+              lat: openLoc.lat,
+              lng: openLoc.lng,
+              maxDaily: openCap,
+              kind: openPreset.kind,
+              emirate: near?.emirate ?? "Dubai",
+              // pre-filled from the current network's own medians (engine data)
+              fixedCost: Math.round(medianFixedCost),
+              handlingCost: medianHandling,
+            }),
+          );
+        }
         break;
       }
       case "resize":
         execute(`Resize ${resizeHub?.name ?? ""} to ${resizePct}%`, () =>
-          runResizeHub(resizeHubId, Math.round(((resizeHub?.maxDaily ?? 1) * resizePct) / 100)),
+          liveResizeHub(resizeHubId, Math.round(((resizeHub?.maxDaily ?? 1) * resizePct) / 100)),
         );
         break;
       case "surge":
-        execute(`Same-day surge +${surgePct}%`, () => runSameDaySurge(surgePct));
+        execute(`Same-day surge +${surgePct}%`, () => liveSameDaySurge(surgePct));
         break;
       case "shift":
-        execute(`Shift ${shiftPct}% same-day → next-day`, () => runShiftToNextDay(shiftPct));
+        execute(`Shift ${shiftPct}% same-day → next-day`, () => liveShiftToNextDay(shiftPct));
         break;
       case "riders": {
         const hub = ACTIVE_HUBS.find((h) => h.id === ridersHubId);
         execute(`Riders at ${hub?.name ?? ridersHubId}: FTE ${fteDelta >= 0 ? "+" : ""}${fteDelta}, FTC ${ftcDelta >= 0 ? "+" : ""}${ftcDelta}`, () =>
-          runRiders(ridersHubId, fteDelta, ftcDelta),
+          liveRiders(ridersHubId, fteDelta, ftcDelta),
         );
         break;
       }
       case "demand":
-        execute(`Demand ${demandPct > 0 ? "+" : ""}${demandPct}%`, () => runDemandScale(1 + demandPct / 100));
+        execute(`Demand ${demandPct > 0 ? "+" : ""}${demandPct}%`, () => liveDemandScale(1 + demandPct / 100));
         break;
       case "customer": {
         if (!custLoc) return;
         const z = nearestZone(custLoc.lat, custLoc.lng);
         if (!z) return;
         const model = (custPromise.split(" · ")[0] ?? "Standard") as "Standard" | "Express" | "QComm";
-        executeOpp(`New customer — ${custName.trim() || "Unnamed"} (${z.zone})`, () =>
-          assessOpportunity({ clientName: custName.trim() || "Unnamed customer", emirate: z.emirate, zone: z.zone, model, weeklyVolume: custVolume }),
+        const slaHours = model === "Express" ? 8 : model === "QComm" ? 0.25 : 24;
+        execute(`New customer — ${custName.trim() || "Unnamed"} (${z.zone}, ${model})`, () =>
+          liveAddCustomer({
+            name: custName.trim() || "Unnamed customer",
+            lat: custLoc.lat,
+            lng: custLoc.lng,
+            emirate: z.emirate,
+            dailyVolume: Math.round(custVolume / 7),
+            slaHours,
+          }),
         );
         break;
       }
@@ -332,6 +349,11 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   };
 
   const shownComp = run ? (compare === "baseline" ? run.baseline : run.scenario) : baseline.scenario;
+  const errorBox = runError ? (
+    <div className="rounded-lg border border-risk/30 bg-risk/10 px-3 py-2 text-[11px] text-risk">
+      Engine error: {runError}
+    </div>
+  ) : null;
   const showingScenario = Boolean(run) && compare === "scenario";
   const feasible = run ? run.res.scenario_flow_feasible : opp ? opp.verdict === "GO" : true;
 
@@ -626,6 +648,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
           {/* right — results */}
           <aside className="w-full shrink-0 border-t p-4 lg:w-[348px] lg:overflow-y-auto lg:border-l lg:border-t-0">
+            {errorBox}
             {!run && !opp ? (
               <div className="space-y-3">
                 <p className="kicker">Baseline · week 13</p>

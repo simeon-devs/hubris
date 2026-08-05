@@ -489,7 +489,13 @@ export function SimMap({
       comp.assignments
         .filter((a) => modelFilter === "all" || a.model === modelFilter)
         .map((a) => {
-          const z = zoneInfo(a.emirate, a.zone);
+          // Live runs carry their own engine coords; embedded lookup is the fallback.
+          const live = a as typeof a & { lat?: number; lng?: number };
+          const z =
+            zoneInfo(a.emirate, a.zone) ??
+            (live.lat !== undefined && live.lng !== undefined
+              ? { emirate: a.emirate, zone: a.zone, lat: live.lat, lng: live.lng }
+              : null);
           const hub = HUB_BY_ID.get(a.hubId) ?? (newHub && newHub.id === a.hubId ? newHub : null);
           const reassigned = ORIGINAL_SERVING.get(`${a.emirate}|${a.zone}|${a.model}`) !== a.hubId;
           return { a, z, hub, reassigned };
