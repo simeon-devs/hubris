@@ -190,6 +190,15 @@ _register(
     "something real to say while min-cost flow still fully serves demand.",
     ["hubris/data/demo_scenario.py"],
 )
+# ---- dataset G (T-28) ------------------------------------------------------
+_register(
+    "dataset_g_days_per_month", 30, "assumed",
+    "Normalises Dataset G's monthly money (rent, overhead, fleet lease) onto the DAY "
+    "period its capacities and demand use. The file states no working-days convention; "
+    "30 is the calendar approximation.",
+    ["hubris/ingestion/dataset_g_connector.py"],
+)
+
 # ---- monitoring (T-40) -----------------------------------------------------
 _register(
     "monitoring_interval_seconds", 300, "assumed",

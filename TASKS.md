@@ -61,7 +61,7 @@
 | T-25 | Demand forecast (Prophet) | 6 Stretch | D | TODO |
 | T-26 | Institutional memory (Qdrant) | 6 Stretch | B | TODO |
 | T-27 | SimPy waves | 6 Stretch | A | TODO |
-| T-28 | Real dataset ingestion + calibration (EVENT DAY) | 7 Event | A | TODO |
+| T-28 | Real dataset ingestion + calibration (EVENT DAY) | 7 Event | A | WIP |
 | T-29 | Baseline validation + sensitivity + sanity checks | 7 Event | A/D | TODO |
 | T-30 | Demo seed scenario + pitch + Q&A rehearsal | 7 Event | L | TODO |
 | **T-33** | **W1 · Runtime provenance verification** | **8 Integrity** | **A** | **DONE** |
@@ -311,7 +311,9 @@ Log:
 ### Phase 7 — Event day
 
 **T-28 · Real dataset ingestion + calibration** — Depends on: T-06. Done when: real Excel mapped, loaded, cost model calibrated; open questions in `VISION.md §8c` answered. **(H0–2 on the day.)**
+Approved decisions (Sims, 2026-08-05): primary twin = Hub & Spoke (candidates live there); QComm as its own twin for the capacity-crisis view, shown SIDE BY SIDE with H&S; On-Demand report-only; never blend cost pools; cross-network proximity analysis is STRETCH only. Cost: always report BOTH quantities labelled — variable-only (their ≤7.00 target's pool) AND fully-loaded (the 70.4%-overhead pool consolidation attacks). Zone coords via facility zone-name joins; the 2 On-Demand pseudo-zones are flagged unmappable, never faked. T-31 label must flip to "provided" on every surface; T-32 registry re-labelled against real data; speed baselines (8h assessment / 4-8h scenario) measured and logged as scoring lines.
 Log:
+- WIP — Claude — 2026-08-05
 
 **T-29 · Baseline validation + sensitivity + sanity checks** — Depends on: T-28. Done when: baseline recovers a sane current cost; saving decomposed; conservation/capacity/coverage checks pass; sensitivity holds.
 Log:
