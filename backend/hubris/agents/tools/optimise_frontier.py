@@ -17,6 +17,8 @@ from hubris.core import assumptions
 from hubris.core.contracts import AgentTool, NetworkModel
 from hubris.core.registry import OPTIMIZER, register_agent_tool
 from hubris.core.registry import registry as global_registry
+from hubris.engine.assignment import dominant_hub_per_zone
+from hubris.engine.flow import solve_min_cost_flow
 from hubris.engine.monte_carlo import apply_recommendation_changes
 from hubris.plugins.metrics.cost_to_serve import CostToServeMetric
 
@@ -115,6 +117,14 @@ class OptimiseFrontierTool(AgentTool):
         for label, constraints in (("unconstrained", []), ("constrained", realism)):
             rec = optimizer.optimize(model, objective, constraints)
             after_model = apply_recommendation_changes(model, rec.changes)
+            # Reassign before pricing (same discipline as /simulate): the
+            # changes only flip statuses, and the cost metric prices
+            # `assignments` — pricing the stale map would charge zones to
+            # closed hubs at zero distance and understate the variable pool.
+            flow = solve_min_cost_flow(after_model)
+            after_model = after_model.model_copy(
+                update={"assignments": dominant_hub_per_zone(flow.flows)}
+            )
             after_metric = metric.compute(after_model, None)
             sides[label] = {
                 "objective_value": rec.objective_value,
