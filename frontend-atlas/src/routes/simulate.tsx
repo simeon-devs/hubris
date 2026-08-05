@@ -725,7 +725,9 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
             {/* compare + model filter */}
             <div className="absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 flex-wrap items-center justify-center gap-2">
-              <div className="flex rounded-full border bg-card/90 p-0.5 shadow-card backdrop-blur">
+              {/* Which of the two engine solves the map is drawing */}
+              <div className="flex items-center gap-1.5 rounded-full border bg-card/90 py-0.5 pl-2.5 pr-0.5 shadow-card backdrop-blur">
+                <span className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">Showing</span>
                 {(["baseline", "scenario"] as const).map((c) => (
                   <button
                     key={c}
@@ -736,11 +738,13 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
                       compare === c ? "bg-primary text-primary-foreground" : "text-text-secondary hover:text-foreground",
                     )}
                   >
-                    {c}
+                    {c === "baseline" ? "Before" : "After"}
                   </button>
                 ))}
               </div>
-              <div className="flex rounded-full border bg-card/90 p-0.5 shadow-card backdrop-blur">
+              {/* View filter only — hides flows of the other service model */}
+              <div className="flex items-center gap-1.5 rounded-full border bg-card/90 py-0.5 pl-2.5 pr-0.5 shadow-card backdrop-blur">
+                <span className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">Service</span>
                 {(["all", "Standard", "Express"] as const).map((m) => (
                   <button
                     key={m}
@@ -749,8 +753,9 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
                       "rounded-full px-3 py-1 font-mono text-[9.5px] font-semibold uppercase tracking-wider transition-colors",
                       modelFilter === m ? "bg-muted text-foreground" : "text-text-secondary hover:text-foreground",
                     )}
+                    title="View filter: show only this service model's flows"
                   >
-                    {m}
+                    {m === "all" ? "All" : m === "Standard" ? "Next-day" : "Same-day"}
                   </button>
                 ))}
               </div>
