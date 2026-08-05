@@ -11,6 +11,7 @@ import {
   DARK_STORES,
   DEMAND,
   ELECTRIC_HEX,
+  MICRO_HEX,
   HUBS,
   OD_NETWORK,
   STATUS_HEX,
@@ -85,14 +86,20 @@ function UaeMask() {
 
 function hubIcon(hub: HubInfo, status: HubStatus, selected: boolean): L.DivIcon {
   const sz = Math.round(20 + hub.maxDaily / 130); // capacity-sized: 23…51 px
-  const color = STATUS_HEX[status];
+  // Colour encodes TYPE (deep blue Full / pale blue Micro — one family, the
+  // H&S network); STATUS moves to a warning ring + dot, so two Full hubs
+  // never wear two different colours for no visible reason.
+  const color = hub.hubType === "Full Hub" ? ELECTRIC_HEX : MICRO_HEX;
+  const alert = status !== "Normal";
+  const statusColor = STATUS_HEX[status];
+  const ring = alert ? `box-shadow:0 0 0 3px ${statusColor}59,0 0 12px 2px ${statusColor}40;` : "";
   const badge = hub.hubType === "Full Hub" ? "FULL" : "MICRO";
   return L.divIcon({
     className: "atlas-divicon",
     iconSize: [sz, sz],
     iconAnchor: [sz / 2, sz / 2],
-    html: `<div class="hub-pin${selected ? " hub-pin-selected" : ""}" style="width:${sz}px;height:${sz}px;border-color:${color};background:${color}2e;color:${color}">
-      <span class="hub-pin-dot" style="background:${color}"></span>
+    html: `<div class="hub-pin${selected ? " hub-pin-selected" : ""}" style="width:${sz}px;height:${sz}px;border-color:${color};background:${color}2e;color:${color};${ring}">
+      <span class="hub-pin-dot" style="background:${alert ? statusColor : color}"></span>
       <span class="hub-pin-badge" style="border-color:${color}66;color:${color}">${badge}</span>
     </div>`,
   });

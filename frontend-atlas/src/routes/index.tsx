@@ -140,10 +140,12 @@ function MapHomePage() {
       <div className="absolute bottom-4 left-4 z-[1000] flex flex-wrap items-center gap-2 rounded-full border bg-card/85 px-3 py-1.5 backdrop-blur-md">
         {(
           [
-            ["#5b9dff", "Hubs & flows"],
+            ["#5b9dff", "Full hub (same-day)"],
+            ["#a9c6ff", "Micro hub (next-day)"],
             ["#8b7cf6", "Dark stores (15-min radius)"],
             ["#3fd2ef", "On-Demand coverage"],
-            ["#f0504d", "Point of concern"],
+            ["#f0a42a", "Ring: high load"],
+            ["#f0504d", "Ring: at risk / concern"],
           ] as const
         ).map(([hex, label]) => (
           <span key={label} className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">

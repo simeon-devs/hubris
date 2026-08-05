@@ -76,6 +76,9 @@ export const EMX_BLUE = "#00239c"; // official emx.ae brand blue
 export const ELECTRIC_HEX = "#5b9dff"; // EMX interactive blue, brightened for dark UI
 export const VIOLET_HEX = "#8b7cf6";
 export const CYAN_HEX = "#3fd2ef";
+/** Micro hubs: same blue family as Full (both are the H&S network), one
+ *  clearly lighter step — colour now encodes TYPE, status lives on the ring. */
+export const MICRO_HEX = "#a9c6ff";
 export const STATUS_HEX: Record<HubStatus, string> = {
   Normal: "#1fc96d",
   "High Load": "#f0a42a",

@@ -758,10 +758,12 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
             {/* legend */}
             <div className="absolute bottom-3 left-3 z-[1000] rounded-lg border bg-card/90 px-3 py-2 shadow-card backdrop-blur">
-              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                 <span className="inline-block h-0.5 w-5 bg-primary" /> current flow
                 <span className="ml-2 inline-block h-0.5 w-5 bg-warn" /> re-routed
                 <span className="ml-2 inline-block h-2 w-2 rounded-full bg-cyan" /> express zone
+                <span className="ml-2 inline-block h-2 w-2 rounded-full" style={{ background: "#5b9dff" }} /> full hub
+                <span className="ml-1 inline-block h-2 w-2 rounded-full" style={{ background: "#a9c6ff" }} /> micro hub
               </div>
             </div>
           </main>
