@@ -125,7 +125,7 @@ def test_demand_scale_scoped_to_one_emirate():
     assert original_demand == {"Z1": 30.0, "Z2": 20.0, "Z3": 10.0}
 
 
-def test_all_six_scenarios_are_registered_and_agent_usable():
+def test_all_nine_scenarios_are_registered_and_agent_usable():
     from hubris.core.registry import SCENARIO, load_plugins
     from hubris.core.registry import registry as global_registry
 
@@ -138,6 +138,9 @@ def test_all_six_scenarios_are_registered_and_agent_usable():
         "change_fleet_mix",
         "add_customer",
         "demand_scale",
+        "change_hub_capacity",
+        "shift_service_mix",
+        "change_workforce",
     }
 
     tools = global_registry.as_agent_tools()

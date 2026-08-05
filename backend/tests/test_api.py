@@ -73,7 +73,7 @@ def test_kpis_unknown_scenario_id_is_404(client):
     assert response.status_code == 404
 
 
-def test_scenarios_lists_all_six_registered_modules(client):
+def test_scenarios_lists_all_nine_registered_modules(client):
     response = client.get("/scenarios")
     assert response.status_code == 200
     names = {s["name"] for s in response.json()}
@@ -84,6 +84,9 @@ def test_scenarios_lists_all_six_registered_modules(client):
         "change_fleet_mix",
         "add_customer",
         "demand_scale",
+        "change_hub_capacity",
+        "shift_service_mix",
+        "change_workforce",
     }
 
 
