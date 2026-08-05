@@ -181,6 +181,19 @@ export function liveCloseHub(hubId: string): Promise<ScenarioRun> {
   return liveRun("close", "close_hub", { hub_id: hubId }, { closedId: hubId });
 }
 
+/** Absorb: the micro CLOSES and its capacity + rider roster MOVE into the
+ *  absorber (backend absorb_hub). touchedId = the absorbing hub, resolved
+ *  from the engine's own output when the engine picked it (capacity grew). */
+export async function liveAbsorbHub(microId: string, intoId?: string): Promise<ScenarioRun> {
+  const params: Record<string, unknown> = intoId
+    ? { micro_id: microId, into_id: intoId }
+    : { micro_id: microId };
+  const run = await liveRun("absorb", "absorb_hub", params, { closedId: microId });
+  const baseCap = new Map(run.baseline.hubs.map((h) => [h.id, h.capacity ?? 0]));
+  const grew = run.scenario.hubs.find((h) => (h.capacity ?? 0) > (baseCap.get(h.id) ?? 0) + 0.001);
+  return { ...run, touchedId: intoId ?? grew?.id };
+}
+
 export function liveCustomHub(hub: {
   id: string; name: string; lat: number; lng: number; maxDaily: number;
   kind: "full" | "micro" | "darkstore"; emirate: string;

@@ -29,6 +29,7 @@ import {
   type ScenarioRun,
 } from "@/lib/atlas-engine";
 import {
+  liveAbsorbHub,
   liveAddCustomer,
   liveCloseHub,
   liveCustomHub,
@@ -207,6 +208,17 @@ function tilesFor(run: ScenarioRun): TileSpec[] {
   const ha = hubIn(run.scenario, run.touchedId);
 
   switch (run.kind) {
+    case "absorb":
+      if (hb?.capacity !== undefined && ha?.capacity !== undefined) {
+        return [
+          { label: "Absorber capacity / day", before: hb.capacity, after: ha.capacity, unit: "pcs", goodWhenDown: false, decimals: 0 },
+          ...(hb.riderWeeklyCost !== undefined && ha.riderWeeklyCost !== undefined
+            ? [{ label: "Absorber wage bill / wk", before: hb.riderWeeklyCost, after: ha.riderWeeklyCost, unit: "AED", goodWhenDown: false, decimals: 0 } satisfies TileSpec]
+            : []),
+          ...base,
+        ];
+      }
+      return base;
     case "resize":
       if (hb?.capacity !== undefined && ha?.capacity !== undefined) {
         return [
@@ -249,10 +261,20 @@ function whatChanged(run: ScenarioRun): string | null {
   const ha = hubIn(run.scenario, run.touchedId);
   switch (run.kind) {
     case "close":
-    case "absorb":
       return moved > 0
         ? `The engine re-solved every flow: ${moved} zone-flow${moved === 1 ? "" : "s"} re-routed to the remaining hubs (amber on the map).`
         : "The engine re-solved every flow; no zone needed to move.";
+    case "absorb": {
+      const capLine =
+        hb?.capacity !== undefined && ha?.capacity !== undefined && ha.capacity > hb.capacity
+          ? `${ha.name} inherited the micro's capacity (${fmtInt(Math.round(hb.capacity))} → ${fmtInt(Math.round(ha.capacity))}/day) and its riders. `
+          : "";
+      return `${capLine}${
+        moved > 0
+          ? `${moved} zone-flow${moved === 1 ? "" : "s"} re-routed (amber on the map).`
+          : "No zone needed to move."
+      }`;
+    }
     case "open":
       return moved > 0
         ? `${moved} zone-flow${moved === 1 ? "" : "s"} re-routed to the new site (amber on the map).`
@@ -327,6 +349,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   // form state
   const [closeHubId, setCloseHubId] = useState("HUB_RAK_01");
   const [microHubId, setMicroHubId] = useState("HUB_AJM_01");
+  const [absorbIntoId, setAbsorbIntoId] = useState(""); // "" = engine picks nearest Full Hub
   const [openType, setOpenType] = useState(0);
   const [openLoc, setOpenLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [openCap, setOpenCap] = useState(1800);
@@ -386,7 +409,11 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
       }
       case "absorb": {
         const hub = microHubs.find((h) => h.id === microHubId);
-        execute(`Absorb ${hub?.name ?? microHubId} (micro)`, () => liveCloseHub(microHubId));
+        const into = ACTIVE_HUBS.find((h) => h.id === absorbIntoId);
+        execute(
+          `Absorb ${hub?.name ?? microHubId} into ${into?.name ?? "nearest Full Hub"}`,
+          () => liveAbsorbHub(microHubId, absorbIntoId || undefined),
+        );
         break;
       }
       case "open": {
@@ -556,11 +583,25 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
               {kind === "absorb" ? (
                 <>
-                  <Field label="Micro hub">
+                  <Field label="Micro hub to fold in">
                     <HubSelect value={microHubId} onChange={setMicroHubId} onlyMicro />
                   </Field>
+                  <Field label="Absorbing hub">
+                    <select
+                      value={absorbIntoId}
+                      onChange={(e) => setAbsorbIntoId(e.target.value)}
+                      className="w-full rounded-lg border bg-background px-2.5 py-2 text-[12px] text-foreground"
+                    >
+                      <option value="">Auto — nearest Full Hub (engine picks)</option>
+                      {ACTIVE_HUBS.filter((h) => h.hubType === "Full Hub").map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    {microHubs.length} micro hubs run thin volume — absorbing one cuts its fixed rent while neighbours take the load.
+                    Unlike a plain close, the micro's capacity and riders MOVE into the absorbing hub — the building goes, the people and throughput stay.
                   </p>
                 </>
               ) : null}

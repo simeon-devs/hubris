@@ -87,6 +87,7 @@ def test_scenarios_lists_all_nine_registered_modules(client):
         "change_hub_capacity",
         "shift_service_mix",
         "change_workforce",
+        "absorb_hub",
     }
 
 
