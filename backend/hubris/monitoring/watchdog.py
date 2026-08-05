@@ -70,8 +70,12 @@ def _evaluate(model: NetworkModel, target: str, stress_factor: float | None) -> 
 
     unlock = find_cheapest_bottleneck_unlock(model)
     if unlock.get("bottleneck_found"):
+        # `kind` travels with the alert so the card can say "serves N/day
+        # now unserved" instead of dressing a feasibility fix up as a
+        # saving — the two answers are not interchangeable.
         recommended = {
             "action": "add_capacity",
+            "kind": unlock.get("kind", "reduce_cost"),
             "detail": unlock["recommendation"],
             "why": unlock["why"],
             "source_tool": "find_bottleneck_unlock",
@@ -79,11 +83,15 @@ def _evaluate(model: NetworkModel, target: str, stress_factor: float | None) -> 
     else:
         recommended = {
             "action": "review_robustness",
-            "detail": (
+            # The engine's own verdict when it has one (e.g. "no open
+            # facility can reach this zone in time — it needs a new site"),
+            # which is far more use than a generic robustness pointer.
+            "detail": unlock.get("reason")
+            or (
                 f"No single capacity unlock verifies a saving; review {hottest_id}'s "
                 "robustness band before committing to this load."
             ),
-            "source_tool": "optimise_network(robustness)",
+            "source_tool": "find_bottleneck_unlock",
         }
 
     return {

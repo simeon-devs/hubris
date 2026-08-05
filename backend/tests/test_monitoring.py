@@ -90,9 +90,17 @@ def test_seeded_crisis_produces_critical_alert_with_recommended_action():
             "Abu_Dhabi-Khalidiyah",
         }
         assert sum(alert["finding"]["unmet_demand"].values()) == 17.0
-        # a computed recommended action always ships with the card
-        assert alert["recommended_action"]["action"] in {"add_capacity", "review_robustness"}
-        assert alert["recommended_action"]["source_tool"]
+        # a computed recommended action always ships with the card — and it
+        # must fix the emirate that is actually short. The bug this guards:
+        # the card read "Abu Dhabi cannot serve all demand" while
+        # recommending capacity at QED_DXB_04, in Dubai, because the unlock
+        # search ranked cost savings and a feasibility fix never saves money.
+        action = alert["recommended_action"]
+        assert action["action"] == "add_capacity"
+        assert action["kind"] == "restore_feasibility"
+        assert action["detail"]["hub_id"] == "QED_AUH_02"  # Al Reem, Abu Dhabi
+        assert action["detail"]["unmet_cleared"] == 17.0
+        assert action["source_tool"]
         assert alert["brief_link"] == "/brief?scenario_id=qcomm_twin"
         assert alert["provenance"].startswith("watchdog:sweep:")
 
