@@ -10,13 +10,15 @@
  */
 
 import {
+  getKpis,
   getNetwork,
   simulate,
+  type ApiKpis,
   type ApiNetwork,
   type ApiSimulateResponse,
   type ApiZone,
 } from "@/lib/api";
-import type { HsComputation, ScenarioRun, SimulateResponse } from "@/lib/atlas-engine";
+import type { EngineTotals, HsComputation, ScenarioRun, SimulateResponse } from "@/lib/atlas-engine";
 
 let runCounter = 0;
 function nextScenarioId(prefix: string): string {
@@ -138,6 +140,18 @@ export interface LiveRunExtras {
   newHub?: { id: string; name: string; lat: number; lng: number; maxDaily: number; kind: "full" | "micro" | "darkstore" };
 }
 
+/** The engine's own cost decomposition, verbatim from /kpis breakdown. */
+function toTotals(kpis: ApiKpis): EngineTotals {
+  const b = (kpis.cost_to_serve.breakdown ?? {}) as Record<string, unknown>;
+  const num = (key: string) => (typeof b[key] === "number" ? (b[key] as number) : 0);
+  return {
+    totalCost: num("total_cost"),
+    totalDemand: num("total_demand"),
+    transportCost: num("transport_cost"),
+    fixedCost: num("fixed_cost"),
+  };
+}
+
 async function liveRun(
   prefix: string,
   scenarioName: string,
@@ -146,11 +160,17 @@ async function liveRun(
 ): Promise<ScenarioRun> {
   const scenarioId = nextScenarioId(prefix);
   const res = await simulate({ scenario_name: scenarioName, params, save_as: scenarioId });
-  const [baseNet, scenNet] = await Promise.all([getNetwork(), getNetwork(scenarioId)]);
+  const [baseNet, scenNet, baseKpis, scenKpis] = await Promise.all([
+    getNetwork(),
+    getNetwork(scenarioId),
+    getKpis(),
+    getKpis(scenarioId),
+  ]);
   const run: ScenarioRun = {
     res: toSimResponse(res, scenarioId),
     baseline: toComputation(baseNet, null),
     scenario: toComputation(scenNet, res),
+    totals: { baseline: toTotals(baseKpis), scenario: toTotals(scenKpis) },
     ...extras,
   } as ScenarioRun;
   return run;

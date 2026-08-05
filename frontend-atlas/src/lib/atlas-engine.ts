@@ -1193,6 +1193,16 @@ export interface ScenarioNewHub {
  * computations (baseline + scenario) so the map can draw the simulated network:
  * animated flows, reassignments, per-hub utilisation, closures and openings.
  */
+/** The engine's own cost decomposition (cost_to_serve.breakdown) — lets
+ *  the tiles show total AED/day next to AED/parcel, which is what makes a
+ *  demand surge read correctly (total UP, per-parcel DOWN). */
+export interface EngineTotals {
+  totalCost: number;
+  totalDemand: number;
+  transportCost: number;
+  fixedCost: number;
+}
+
 export interface ScenarioRun {
   res: SimulateResponse;
   baseline: HsComputation;
@@ -1203,6 +1213,8 @@ export interface ScenarioRun {
   /** Which scenario produced this run — the result tiles pick their
    *  measures by it (riders -> wage bill, resize -> capacity, ...). */
   kind?: string | undefined;
+  /** Present on live runs only (fetched from /kpis, engine breakdown). */
+  totals?: { baseline: EngineTotals; scenario: EngineTotals } | undefined;
 }
 
 function makeRun(scenario: HsComputation, baseline: HsComputation, extra: Partial<ScenarioRun> = {}): ScenarioRun {

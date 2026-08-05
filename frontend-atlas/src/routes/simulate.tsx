@@ -190,12 +190,19 @@ function tilesFor(run: ScenarioRun): TileSpec[] {
   const util = kpi("utilization");
   const served = kpi("coverage");
   const spare = kpi("spare_capacity");
+  const t = run.totals;
   const base: TileSpec[] = [
     { label: "Cost / parcel", before: cost.b, after: cost.a, unit: "AED" },
+    // The pair that keeps a surge honest: per-parcel can fall while the
+    // network bill rises. Both numbers are the engine's own breakdown.
+    ...(t ? [{ label: "Total cost / day", before: t.baseline.totalCost, after: t.scenario.totalCost, unit: "AED", decimals: 0 } satisfies TileSpec] : []),
     { label: "Utilisation", before: util.b, after: util.a, unit: "%", goodWhenDown: false },
     { label: "Served", before: served.b, after: served.a, unit: "%", goodWhenDown: false },
     { label: "Spare / day", before: spare.b, after: spare.a, unit: "pcs", goodWhenDown: false, decimals: 0 },
   ];
+  const demandTile: TileSpec[] = t
+    ? [{ label: "Demand / day", before: t.baseline.totalDemand, after: t.scenario.totalDemand, unit: "pcs", goodWhenDown: false, decimals: 0 }]
+    : [];
   const hb = hubIn(run.baseline, run.touchedId);
   const ha = hubIn(run.scenario, run.touchedId);
 
@@ -227,6 +234,8 @@ function tilesFor(run: ScenarioRun): TileSpec[] {
         { label: "Next-day (Standard) / day", before: modelDaily(run.baseline, "Standard"), after: modelDaily(run.scenario, "Standard"), unit: "pcs", goodWhenDown: false, decimals: 0 },
         ...base,
       ];
+    case "demand":
+      return [...demandTile, ...base];
     default:
       return base;
   }
@@ -256,6 +265,13 @@ function whatChanged(run: ScenarioRun): string | null {
       return "Capacity is the lever; flows were re-solved against the new limit. Watch hub utilisation and network spare.";
     case "shift":
       return "Volume moves between service models inside each zone — total demand is conserved by construction.";
+    case "surge":
+    case "demand": {
+      const t = run.totals;
+      if (!t) return null;
+      const up = t.scenario.totalCost >= t.baseline.totalCost;
+      return `The network bill ${up ? "rises" : "falls"}: ${fmtInt(Math.round(t.baseline.totalCost))} → ${fmtInt(Math.round(t.scenario.totalCost))} AED/day. Cost per parcel can move the other way — the fixed pool (${fmtInt(Math.round(t.scenario.fixedCost))} AED/day) does not grow with demand, so it spreads over ${fmtInt(Math.round(t.scenario.totalDemand))} parcels instead of ${fmtInt(Math.round(t.baseline.totalDemand))}.`;
+    }
     default:
       return null;
   }
