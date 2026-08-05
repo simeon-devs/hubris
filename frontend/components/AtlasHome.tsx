@@ -348,6 +348,8 @@ export default function AtlasHome() {
   /* ── report (verbatim /kpis + /brief + session log) ── */
   const openReport = useCallback(() => { void (async () => {
     if (!model || !view) return;
+    // The overlay opens IMMEDIATELY — the brief streams in when it lands.
+    setReportHtml(`<div class="repBody"><p class="repLead">Preparing the report…</p></div>`);
     const busiest = model.hubs.reduce((a, b) => (a.busy > b.busy ? a : b), model.hubs[0]);
     const k = kpiView(view.kpis);
     const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });

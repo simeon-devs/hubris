@@ -924,9 +924,12 @@ function MapPane({
       point: { x: number; y: number };
       lngLat?: { lng: number; lat: number };
     }) => {
-      const hits = map.queryRenderedFeatures(e.point as never, {
-        layers: [PILLAR_LAYER, CORRIDOR_HIT_LAYER],
-      } as never) as { layer?: { id?: string } }[] | undefined;
+      // Query only layers that actually exist — a click during style
+      // (re)build otherwise throws in the SDK (seen live via Playwright).
+      const queryable = [PILLAR_LAYER, CORRIDOR_HIT_LAYER].filter((id) => map.getLayer(id));
+      const hits = (queryable.length
+        ? map.queryRenderedFeatures(e.point as never, { layers: queryable } as never)
+        : []) as { layer?: { id?: string } }[] | undefined;
       // Build mode: an armed location pick claims any click that isn't on a
       // hub pillar (corridors don't block placement).
       if (pickingRef.current === "location" && onPickRef.current && e.lngLat) {

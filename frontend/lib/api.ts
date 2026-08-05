@@ -28,9 +28,14 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// A hung socket (flaky localhost relay) must surface as an error the UI can
+// show — never an invisible forever-pending await (seen live via Playwright).
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     headers: init?.body instanceof FormData ? undefined : { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...init,
   });
   if (!response.ok) {
