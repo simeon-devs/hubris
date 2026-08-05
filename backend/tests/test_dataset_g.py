@@ -34,9 +34,11 @@ def test_hub_spoke_twin_shape_and_candidates():
     # period-normalised money: DXB_01 rent 180000/30
     dxb1 = next(h for h in raw.hubs if h["id"] == "HUB_DXB_01")
     assert dxb1["fixed_cost"] == 6000.0 and dxb1["capacity"] == 3500.0
-    # calibrated handling from the file's own cost sheet:
-    # (labour 11696+6689 + vehicle 3392+1888) / (3200+1600) = 4.93
-    assert dxb1["handling_cost"] == 4.93
+    # calibrated handling = the hub's FULL variable rate from the cost
+    # sheet: (fuel 18022+9496 + labour 11696+6689 + vehicle 3392+1888)
+    # / (3200+1600) = 10.66  (fuel included — T-29 finding: zone coords sit
+    # on the serving facility, so per-km can't carry intra-zone route fuel)
+    assert dxb1["handling_cost"] == 10.66
 
 
 def test_provided_assignments_flip_baseline_provenance():
@@ -56,7 +58,7 @@ def test_candidate_handling_is_pool_pure_median():
     )
     expected_median = round((active[4] + active[5]) / 2, 2)  # 10 actives
     cand = next(h for h in raw.hubs if h["status"] == "candidate")
-    assert cand["handling_cost"] == expected_median == 5.01  # H&S-only pool
+    assert cand["handling_cost"] == expected_median == 10.8  # H&S-only pool
 
 
 def test_qcomm_twin_shape_and_sla():

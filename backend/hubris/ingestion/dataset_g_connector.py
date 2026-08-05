@@ -216,17 +216,31 @@ class DatasetGConnector(DataConnector):
 
     # ---- cost calibration ----------------------------------------------------
     def _handling_cost_per_shipment(self, cts: pd.DataFrame) -> dict[str, float]:
-        """Per-facility variable non-fuel cost per shipment, from the file's
-        own Cost_to_Serve: (labour + vehicle) / shipments, summed across
-        service models. Fuel is excluded here because it rides per-km in
-        the OD cost; overhead is excluded because it is the FIXED pool
-        (Sims' two-pools rule)."""
+        """Per-facility TOTAL VARIABLE cost per shipment from the file's own
+        Cost_to_Serve: (fuel + labour + vehicle) / shipments, summed across
+        service models. Overhead is excluded — that is the FIXED pool
+        (Sims' two-pools rule).
+
+        Fuel is IN here, deliberately (T-29 validation finding): zones
+        inherit their serving facility's coordinates, so the point-to-point
+        OD distance at the CURRENT assignment is ~0 and a per-km fuel rate
+        would silently drop their intra-zone route cost (their
+        avg_distance_per_ship_km is multi-stop ROUTE length, 12–32 km for
+        hubs). Semantics after this calibration: `handling_cost` carries the
+        facility's full variable rate at its current serving structure, and
+        the od per-km term prices only the INCREMENTAL distance when a
+        what-if serves a zone from a DIFFERENT, farther facility — exactly
+        the marginal question our scenarios ask."""
         out: dict[str, float] = {}
         for fac, grp in cts.groupby("hub_or_store_id"):
             shipments = grp.monthly_shipments.sum()
             if shipments > 0:
                 out[fac] = round(
-                    float((grp.labour_cost_aed.sum() + grp.vehicle_cost_aed.sum()) / shipments), 2
+                    float(
+                        (grp.fuel_cost_aed.sum() + grp.labour_cost_aed.sum() + grp.vehicle_cost_aed.sum())
+                        / shipments
+                    ),
+                    2,
                 )
         return out
 
