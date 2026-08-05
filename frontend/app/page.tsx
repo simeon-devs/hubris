@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * HOME — the REAL TomTom map with the approved AtlasVision skin on top.
- * The pure-canvas prototype lives at /vision; the previous UI at /classic.
+ * HOME — the approved EMX interface (frontend/design/atlas-app.html), live
+ * against the real engine with the official dataset as offline fallback.
+ * The previous TomTom home lives at /vision; the classic UI at /classic.
  */
 
 import dynamic from "next/dynamic";
 
-const AtlasHome = dynamic(() => import("@/components/AtlasHome"), { ssr: false });
+const EmxAtlas = dynamic(() => import("@/components/EmxAtlas"), { ssr: false });
 
 export default function HomePage() {
-  return <AtlasHome />;
+  return <EmxAtlas />;
 }

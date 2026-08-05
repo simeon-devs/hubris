@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * /vision — the pure-canvas AtlasVision prototype, kept intact (real data,
- * no map SDK). The home page carries the same skin over the real TomTom map.
+ * /vision — the previous home: the real TomTom map wearing the AtlasVision
+ * skin (intro flight, story mode, glass hub cards). Preserved in full.
  */
 
 import dynamic from "next/dynamic";
 
-const AtlasVision = dynamic(() => import("@/components/AtlasVision"), { ssr: false });
+const AtlasHome = dynamic(() => import("@/components/AtlasHome"), { ssr: false });
 
 export default function VisionPage() {
-  return <AtlasVision />;
+  return <AtlasHome />;
 }
