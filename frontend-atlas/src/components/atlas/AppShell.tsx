@@ -3,6 +3,7 @@ import { Bot, FileText, FlaskConical, Map as MapIcon, Sparkles } from "lucide-re
 import { useEffect, useState, type ReactNode } from "react";
 
 import emxLogo from "@/assets/emx-logo.svg.asset.json";
+import { getHealth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PulseDot } from "./ui";
 
@@ -39,12 +40,37 @@ function LiveClock() {
 }
 
 function EnginePill() {
+  // Honest status: a real /health poll every 20s — never a painted-green pill.
+  const [live, setLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const ping = () =>
+      getHealth()
+        .then(() => !cancelled && setLive(true))
+        .catch(() => !cancelled && setLive(false));
+    ping();
+    const timer = setInterval(ping, 20_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+  const tone = live ? "ok" : "risk";
   return (
-    <div className={cn("flex w-full items-center gap-2 rounded-full border px-3 py-1.5", "border-ok/30 bg-ok/10")}>
-      <PulseDot tone="ok" />
+    <div
+      className={cn(
+        "flex w-full items-center gap-2 rounded-full border px-3 py-1.5",
+        live ? "border-ok/30 bg-ok/10" : "border-risk/30 bg-risk/10",
+      )}
+    >
+      <PulseDot tone={tone} />
       <span className="min-w-0">
-        <span className="block text-[10px] font-bold uppercase tracking-wider text-ok">Local twin · live</span>
-        <span className="block truncate text-[9.5px] text-ok/70">official 7X dataset embedded</span>
+        <span className={cn("block text-[10px] font-bold uppercase tracking-wider", live ? "text-ok" : "text-risk")}>
+          {live === null ? "Engine · connecting" : live ? "Live engine" : "Engine offline"}
+        </span>
+        <span className={cn("block truncate text-[9.5px]", live ? "text-ok/70" : "text-risk/70")}>
+          {live ? "real solver · real 7X dataset" : "start the backend, results paused"}
+        </span>
       </span>
     </div>
   );
