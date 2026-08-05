@@ -18,6 +18,22 @@ pushed to a pricier one) has a dominant hub that IS still its cheapest
 option, so T-21's zone-level view would miss exactly the displaced units
 that matter here. This works directly off `flow.flows`' per-hub-per-zone
 volumes instead, unit for unit.
+
+TWO KINDS OF UNLOCK (2026-08-06 fix). The cost-saving search above is the
+wrong question when the network cannot serve all its demand: clearing
+unserved parcels *raises* real transport cost (you are now moving parcels
+you previously moved not at all), so a saving-ranked search filters the
+feasibility fix out and recommends a cheaper reroute in some other emirate
+— which is what the QComm crisis alert did (unserved demand in Abu Dhabi,
+recommended capacity in Dubai). So:
+
+* infeasible flow  -> `restore_feasibility`: rank by unserved demand
+  actually cleared in a verified re-solve. Report the ADDED transport cost
+  honestly; never call it a saving.
+* feasible flow    -> `reduce_cost`: the original dual-guided search.
+
+Both kinds carry `kind` so every consumer (alert card, /bottleneck, agent
+tool, MCP) reads the same recommendation without its own branch.
 """
 
 from pydantic import BaseModel
@@ -43,6 +59,20 @@ class BottleneckUnlock(BaseModel):
     new_capacity: float
     verified_cost_savings: float
     unlocked_zone_ids: list[str]
+
+
+class FeasibilityUnlock(BaseModel):
+    """The fix for demand that is not served AT ALL. Deliberately has no
+    `verified_cost_savings` field: serving previously-unserved parcels costs
+    MORE, and `added_transport_cost` says so in the open."""
+
+    hub_id: str
+    unlock_units: float
+    new_capacity: float
+    unmet_cleared: float
+    unmet_remaining: float
+    served_zone_ids: list[str]
+    added_transport_cost: float
 
 
 def find_binding_hubs(model: NetworkModel, flow: FlowResult) -> list[str]:
@@ -97,8 +127,134 @@ def find_displaced_flow_volumes(model: NetworkModel, flow: FlowResult) -> list[D
     return displaced
 
 
+def find_cheapest_feasibility_unlock(model: NetworkModel, flow: FlowResult | None = None) -> dict:
+    """The fix for UNSERVED demand: which single open facility, given more
+    capacity, actually lets the flow serve the parcels it currently drops?
+
+    Only facilities that can reach an unmet zone within that zone's own SLA
+    are candidates — a store three hours away cannot fix a 15-minute
+    promise, however much capacity it is given. Each candidate is verified
+    by a real re-solve; `unmet_cleared` is what the LP genuinely served.
+    """
+    flow = flow if flow is not None else solve_min_cost_flow(model)
+    if not flow.unmet_demand:
+        return {
+            "bottleneck_found": False,
+            "reason": "Every parcel is served — there is no unserved demand to unlock.",
+        }
+
+    unmet_before = round(sum(flow.unmet_demand.values()), 2)
+    zone_by_id = {zone.id: zone for zone in model.zones}
+    open_hubs = [hub for hub in model.hubs if hub.status == "open"]
+
+    # Each reachable facility's candidate size = all the unmet demand it
+    # could legally take. (A hub reachable from an unmet zone is necessarily
+    # at capacity, else the LP would already have used it.)
+    units_by_hub: dict[str, float] = {}
+    for zone_id, missing in flow.unmet_demand.items():
+        zone = zone_by_id.get(zone_id)
+        if zone is None:
+            continue
+        for hub in open_hubs:
+            od = model.od_matrix.get((hub.id, zone_id))
+            if od is None or od.time_min > zone.sla_hours * 60:
+                continue
+            units_by_hub[hub.id] = round(units_by_hub.get(hub.id, 0.0) + missing, 2)
+
+    if not units_by_hub:
+        unreachable = ", ".join(sorted(flow.unmet_demand))
+        return {
+            "bottleneck_found": False,
+            "reason": (
+                f"No OPEN facility can reach {unreachable} within its promised delivery "
+                "time, so no amount of added capacity fixes this — it needs a new site."
+            ),
+            "unmet_demand": flow.unmet_demand,
+        }
+
+    hub_by_id = {hub.id: hub for hub in model.hubs}
+    candidates: list[FeasibilityUnlock] = []
+    for hub_id, unlock_units in units_by_hub.items():
+        trial_model = model.model_copy(deep=True)
+        for hub in trial_model.hubs:
+            if hub.id == hub_id:
+                hub.capacity = round(hub.capacity + unlock_units, 4)
+        trial_flow = solve_min_cost_flow(trial_model)
+
+        unmet_after = round(sum(trial_flow.unmet_demand.values()), 2)
+        cleared = round(unmet_before - unmet_after, 2)
+        if cleared <= 0:
+            continue
+
+        candidates.append(
+            FeasibilityUnlock(
+                hub_id=hub_id,
+                unlock_units=unlock_units,
+                new_capacity=round(hub_by_id[hub_id].capacity + unlock_units, 2),
+                unmet_cleared=cleared,
+                unmet_remaining=unmet_after,
+                served_zone_ids=sorted(
+                    zone_id
+                    for zone_id in flow.unmet_demand
+                    if trial_flow.unmet_demand.get(zone_id, 0.0) < flow.unmet_demand[zone_id]
+                ),
+                # Serving more parcels costs more. Stated, never hidden.
+                added_transport_cost=round(trial_flow.total_cost - flow.total_cost, 2),
+            )
+        )
+
+    if not candidates:
+        return {
+            "bottleneck_found": False,
+            "reason": (
+                "Capacity was added at every reachable facility and the flow still could "
+                "not serve the demand — the shortfall is structural, not a single unlock."
+            ),
+            "unmet_demand": flow.unmet_demand,
+        }
+
+    # Clear the most demand; then the smallest capacity add; then the
+    # cheapest to run; then hub id, so the answer is fully deterministic.
+    best = min(
+        candidates,
+        key=lambda c: (-c.unmet_cleared, c.unlock_units, c.added_transport_cost, c.hub_id),
+    )
+    zones_phrase = ", ".join(best.served_zone_ids).replace("_", " ") or "the unserved zones"
+    remaining = (
+        f" {best.unmet_remaining} unit(s)/day remain unserved and need a separate fix."
+        if best.unmet_remaining > 0
+        else " That clears the shortfall completely."
+    )
+
+    return {
+        "bottleneck_found": True,
+        "kind": "restore_feasibility",
+        "recommendation": best.model_dump(),
+        "all_candidates": [c.model_dump() for c in candidates],
+        "why": (
+            f"{unmet_before} unit(s)/day of demand cannot be served at all. {best.hub_id} is "
+            f"the facility that fixes the most of it: adding {best.unlock_units} units of "
+            f"capacity there (to {best.new_capacity}) serves {best.unmet_cleared} unit(s)/day "
+            f"in {zones_phrase} — verified by re-solving the flow, not estimated.{remaining} "
+            f"Serving that demand ADDS {best.added_transport_cost} AED/period of transport "
+            f"cost; this fix buys service, not savings. Chosen from "
+            f"{len(candidates)} reachable candidate facility(ies)."
+        ),
+    }
+
+
 def find_cheapest_bottleneck_unlock(model: NetworkModel) -> dict:
     flow = solve_min_cost_flow(model)
+
+    # Unserved demand outranks a cheaper reroute: a saving-ranked search
+    # cannot see the feasibility fix at all (clearing unmet demand raises
+    # real cost), so asking it first is what put a Dubai recommendation on
+    # an Abu Dhabi shortfall. If nothing restores feasibility we return that
+    # verdict too, rather than changing the subject to a cost saving in an
+    # emirate that is not the one dropping parcels.
+    if flow.unmet_demand:
+        return find_cheapest_feasibility_unlock(model, flow)
+
     binding_hub_ids = find_binding_hubs(model, flow)
     if not binding_hub_ids:
         return {
@@ -158,6 +314,7 @@ def find_cheapest_bottleneck_unlock(model: NetworkModel) -> dict:
 
     return {
         "bottleneck_found": True,
+        "kind": "reduce_cost",
         "recommendation": best.model_dump(),
         "all_candidates": [c.model_dump() for c in candidates],
         "why": (
