@@ -31,9 +31,23 @@ def test_hub_spoke_twin_shape_and_candidates():
     assert [k for k, v in statuses.items() if v == "candidate"] == [
         "CAND_DXB_01", "CAND_AUH_01", "CAND_SHJ_01",
     ]
-    # period-normalised money: DXB_01 rent 180000/30
+    # period-normalised money: DXB_01 fixed = its own overhead allocation
+    # 186481/30 (NOT rent — the file's fully-loaded pool is defined on
+    # overhead_cost_aed, which subsumes rent; reconciliation decision)
     dxb1 = next(h for h in raw.hubs if h["id"] == "HUB_DXB_01")
-    assert dxb1["fixed_cost"] == 6000.0 and dxb1["capacity"] == 3500.0
+    assert dxb1["fixed_cost"] == round(186481 / 30, 2) and dxb1["capacity"] == 3500.0
+    # candidates carry no cost rows: rent uplifted by the actives' median
+    # overhead/rent ratio — recompute the expectation from the raw file
+    import pandas as pd
+
+    xl = pd.ExcelFile(REAL_FILE)
+    cts = xl.parse("Cost_to_Serve").query("network_type == 'Hub & Spoke'")
+    hub = xl.parse("Hub_Network").set_index("hub_id")
+    ovh = cts.groupby("hub_or_store_id").overhead_cost_aed.sum()
+    ratios = sorted(float(ovh[h]) / float(hub.monthly_rent_aed[h]) for h in ovh.index)
+    median_ratio = (ratios[4] + ratios[5]) / 2  # 10 actives
+    cand = next(h for h in raw.hubs if h["id"] == "CAND_DXB_01")
+    assert cand["fixed_cost"] == round(170000 * median_ratio / 30, 2)
     # calibrated handling = the hub's FULL variable rate from the cost
     # sheet: (fuel 18022+9496 + labour 11696+6689 + vehicle 3392+1888)
     # / (3200+1600) = 10.66  (fuel included — T-29 finding: zone coords sit

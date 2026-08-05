@@ -24,6 +24,7 @@ DATASET_REPORT.md §6 and Sims' approved decisions (2026-08-05):
   On-Demand pseudo-zones never reach this connector.)
 """
 
+import statistics
 from typing import Any
 
 import pandas as pd
@@ -81,7 +82,11 @@ class DatasetGConnector(DataConnector):
         )
 
         if network == "hub_spoke":
-            hubs = self._hub_spoke_hubs(sheets["Hub_Network"], handling)
+            hubs = self._hub_spoke_hubs(
+                sheets["Hub_Network"],
+                handling,
+                sheets["Cost_to_Serve"][sheets["Cost_to_Serve"].network_type == cts_network],
+            )
             demand_rows = sheets["Demand_by_Zone"].query(
                 "network_type == 'Hub & Spoke' and week_number == @BASELINE_WEEK"
             )
@@ -108,10 +113,30 @@ class DatasetGConnector(DataConnector):
         )
 
     # ---- facilities ---------------------------------------------------------
-    def _hub_spoke_hubs(self, hub_df: pd.DataFrame, handling: dict[str, float]) -> list[dict]:
+    def _hub_spoke_hubs(
+        self, hub_df: pd.DataFrame, handling: dict[str, float], cts: pd.DataFrame
+    ) -> list[dict]:
         median_handling = _median(handling)
+        # Fixed cost = the file's own per-facility overhead allocation
+        # (Cost_to_Serve.overhead_cost_aed), NOT rent: the file defines
+        # fully-loaded cost as (fuel+labour+vehicle+overhead)/shipments, and
+        # overhead subsumes rent (ratio 0.88–1.14, median ~1.01 across the 10
+        # actives). Reconciliation finding, Sims decision 2026-08-05.
+        overhead = cts.groupby("hub_or_store_id").overhead_cost_aed.sum()
+        rent = hub_df.set_index("hub_id").monthly_rent_aed
+        active_ids = [h for h in overhead.index if h in rent.index]
+        # Candidates have no Cost_to_Serve rows: uplift their rent by the
+        # actives' median overhead/rent ratio (derived from the file itself;
+        # full precision — _median's 2dp rounding is for money, not ratios).
+        ovh_rent_ratio = statistics.median(
+            float(overhead[h]) / float(rent[h]) for h in active_ids if rent[h] > 0
+        )
         hubs = []
         for _, r in hub_df.iterrows():
+            if r.hub_id in overhead.index:
+                fixed_monthly = float(overhead[r.hub_id])
+            else:
+                fixed_monthly = float(r.monthly_rent_aed) * ovh_rent_ratio
             hubs.append(
                 {
                     "id": r.hub_id,
@@ -120,7 +145,7 @@ class DatasetGConnector(DataConnector):
                     "lon": float(r.lng),
                     "emirate": r.emirate,
                     "capacity": float(r.max_daily_shipments),
-                    "fixed_cost": round(float(r.monthly_rent_aed) / DAYS_PER_MONTH, 2),
+                    "fixed_cost": round(fixed_monthly / DAYS_PER_MONTH, 2),
                     # Candidates have no Cost_to_Serve rows -> network median
                     # (derived, not assumed — from the file's own hubs).
                     "handling_cost": handling.get(r.hub_id, median_handling),
