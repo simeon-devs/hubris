@@ -12,14 +12,14 @@
     "hubs_open_count": 10
   },
   "unconstrained": {
-    "objective_value": 25445.58,
-    "delta_vs_baseline_pct": -44.38,
-    "cost_to_serve_after": 24.0053,
+    "objective_value": 30285.8,
+    "delta_vs_baseline_pct": -33.79,
+    "cost_to_serve_after": 28.5715,
     "cost_pools": {
-      "variable_only_aed_per_parcel": 18.2519,
-      "fully_loaded_aed_per_parcel": 24.0053,
+      "variable_only_aed_per_parcel": 19.2747,
+      "fully_loaded_aed_per_parcel": 28.5715,
       "variable_target_aed": 7.0,
-      "variable_vs_target_aed": 11.2519,
+      "variable_vs_target_aed": 12.2747,
       "meets_variable_target": false
     },
     "changes": [
@@ -29,7 +29,7 @@
       },
       {
         "action": "close_hub",
-        "hub_id": "HUB_AUH_01"
+        "hub_id": "HUB_AUH_02"
       },
       {
         "action": "close_hub",
@@ -37,7 +37,7 @@
       },
       {
         "action": "close_hub",
-        "hub_id": "HUB_DXB_02"
+        "hub_id": "HUB_DXB_03"
       },
       {
         "action": "close_hub",
@@ -57,33 +57,33 @@
       }
     ],
     "hubs_open": [
-      "HUB_AUH_02",
-      "HUB_DXB_03"
+      "HUB_AUH_01",
+      "HUB_DXB_02"
     ],
     "hubs_open_count": 2,
     "volume_share_by_hub": {
-      "HUB_AUH_02": 0.1557,
-      "HUB_DXB_03": 0.8443
+      "HUB_AUH_01": 0.1557,
+      "HUB_DXB_02": 0.8443
     },
     "constraints_enforced": true,
     "constraints_used": [],
     "solver": "milp_cflp"
   },
   "constrained": {
-    "objective_value": 31634.08,
-    "delta_vs_baseline_pct": -30.85,
-    "cost_to_serve_after": 28.2381,
+    "objective_value": 32981.63,
+    "delta_vs_baseline_pct": -27.9,
+    "cost_to_serve_after": 30.9585,
     "cost_pools": {
-      "variable_only_aed_per_parcel": 15.9684,
-      "fully_loaded_aed_per_parcel": 28.2381,
+      "variable_only_aed_per_parcel": 16.857,
+      "fully_loaded_aed_per_parcel": 30.9585,
       "variable_target_aed": 7.0,
-      "variable_vs_target_aed": 8.9684,
+      "variable_vs_target_aed": 9.857,
       "meets_variable_target": false
     },
     "changes": [
       {
         "action": "close_hub",
-        "hub_id": "HUB_AUH_01"
+        "hub_id": "HUB_AUH_02"
       },
       {
         "action": "close_hub",
@@ -100,7 +100,7 @@
     ],
     "hubs_open": [
       "HUB_AJM_01",
-      "HUB_AUH_02",
+      "HUB_AUH_01",
       "HUB_DXB_03",
       "HUB_FUJ_01",
       "HUB_RAK_01",
@@ -109,7 +109,7 @@
     "hubs_open_count": 6,
     "volume_share_by_hub": {
       "HUB_AJM_01": 0.0198,
-      "HUB_AUH_02": 0.1557,
+      "HUB_AUH_01": 0.1557,
       "HUB_DXB_03": 0.4,
       "HUB_FUJ_01": 0.0142,
       "HUB_RAK_01": 0.0236,
@@ -129,8 +129,8 @@
     "solver": "milp_cflp"
   },
   "resilience_premium": {
-    "total_cost_delta": 6188.5,
-    "pct_points_of_saving_given_up": 13.53
+    "total_cost_delta": 2695.83,
+    "pct_points_of_saving_given_up": 5.89
   },
   "params": {
     "min_hubs_per_emirate": 1,

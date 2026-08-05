@@ -51,13 +51,13 @@ The whole network recomputes: who picks up the work, the new cost, and whether a
 
 \[Optimize → the frontier card.\]
 
-"So what's the best network? Here's where we're different.
+"So what's the best network? Here's where we're different — twice.
 
-The raw maths says: close eight of ten hubs, save 44 percent. We are **not** recommending that — it puts 84 percent of the country's parcels through one building. One fire, one strike, and the country stops.
+First: our early optimiser said save 44 percent by closing eight hubs. Then we taught the model that same-day delivery only works from Full Hubs — a rule from your own data — and it **withdrew its own answer**. The honest raw optimum is: close eight, save **34 percent**, still pushing 84 percent of parcels through one building. We are **not** recommending that either.
 
-So we told the system: keep a hub in every emirate, and cap any single hub at 40 percent. The answer becomes: close four, save **31 percent**. And the safety itself has a price — 6,188 AED a day, computed, not guessed.
+So we told the system: keep a hub in every emirate, cap any single hub at 40 percent. The recommendation becomes: close four, save **28 percent**. And the safety itself has a price — about 2,700 AED a day, computed, not guessed.
 
-That's the real decision: not 'what's cheapest', but 'what's cheapest that you can live with' — with the cost of caution in dirhams."
+That's the real decision: not 'what's cheapest', but 'what's cheapest that you can actually live with' — with the cost of caution in dirhams."
 
 ---
 
@@ -97,7 +97,7 @@ It's running live — you can open it yourself at the link. Thank you."
 
 1. "We reproduce your own numbers exactly. 10.91 against 10.91. 60.11 against 60.11."
 2. "The maths does the numbers. The AI only explains them. Three of five answers had an invented number until we built the check."
-3. "The maths says close eight. We recommend four — and we can tell you exactly what the caution costs."
+3. "The maths says close eight, save 34. We recommend four, save 28 — and we can tell you exactly what the caution costs: 2,700 AED a day."
 
 ## If the demo breaks
 

@@ -52,5 +52,17 @@ services:
       - /app/node_modules
       - /app/.next
 
+  atlas:
+    build: ./frontend-atlas
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend-atlas:/app
+      - /app/node_modules
+
 volumes:
   hubris_pgdata:

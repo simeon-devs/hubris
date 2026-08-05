@@ -48,9 +48,10 @@ Dark stores at **87–102%** · Hubs at **2–12%**.
 
 **The maths says close 8 hubs. We say close 4.**
 
-- Raw optimum: **−44%** — but 84% of parcels through one building
-- Recommended: **−31%** — a hub in every emirate, no hub above 40%
-- The price of that safety: **6,188 AED/day** — computed, not guessed
+- Raw optimum: **−34%** — but 84% of parcels through one building
+- Recommended: **−28%** — a hub in every emirate, no hub above 40%
+- The price of that safety: **≈2,700 AED/day** — computed, not guessed
+- *(and the model rejected its own earlier −44%: that shape couldn't serve same-day)*
 
 Two findings: *the 7 AED target is a routing lever, not a buildings lever* · *contract riders: −25% cost, equal output*
 
