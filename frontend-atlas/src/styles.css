@@ -1,0 +1,558 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * EMX ATLAS design system — "Control Tower", branded on the official emx.ae identity.
+ * EMX ink navy (#000A2F) glass surfaces, official EMX blue (#00239C) brightened to
+ * #5B9DFF as the single accent, Darker Grotesque headings + Alexandria body
+ * (the official emx.ae typefaces), JetBrains Mono micro-labels.
+ * Status colors are used ONLY for status: green (ok), amber (warn), red (risk).
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
+  --font-sans: "Alexandria", ui-sans-serif, system-ui, sans-serif; /* official emx.ae body face */
+  --font-display: "Darker Grotesque", "Alexandria", ui-sans-serif, sans-serif; /* official emx.ae display face */
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-deep: var(--primary-deep);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-text-secondary: var(--text-secondary);
+  --color-sidebar: var(--sidebar);
+
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-risk: var(--risk);
+  --color-violet: var(--violet);
+  --color-cyan: var(--cyan);
+
+  --shadow-card:
+    0 1px 0 oklch(1 0 0 / 9%) inset,
+    0 -1px 0 oklch(0 0 0 / 22%) inset,
+    0 16px 40px -18px oklch(0 0 0 / 75%);
+  --shadow-tray: 0 -16px 60px -16px oklch(0 0 0 / 78%), 0 0 0 1px oklch(1 0 0 / 7%);
+  --shadow-glow: 0 0 22px -8px var(--primary);
+
+  --animate-tray-up: tray-up 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-banner-in: banner-in 0.22s ease-out;
+  --animate-rise: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pulse-dot: pulse-dot 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-slide-in: slide-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-workspace-in: workspace-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.25s ease-out both;
+}
+
+:root {
+  --radius: 0.8125rem; /* 13px */
+  --background: oklch(0.156 0.068 262); /* EMX ink #000A2F, deepened */
+  --foreground: oklch(0.93 0.012 260);
+  --card: oklch(0.218 0.065 264); /* EMX navy #0A1838 — glass panel base (used with /80 + blur) */
+  --card-foreground: oklch(0.93 0.012 260);
+  --popover: oklch(0.218 0.065 264);
+  --popover-foreground: oklch(0.93 0.012 260);
+  --primary: oklch(0.7 0.16 258); /* EMX interactive blue #006DDF, brightened to ~#5B9DFF for dark UI */
+  --primary-foreground: oklch(0.16 0.07 262);
+  --primary-hover: oklch(0.76 0.125 255);
+  --primary-deep: oklch(0.347 0.194 263.8); /* #00239C — official emx.ae brand blue (logo chip) */
+  --secondary: oklch(0.25 0.06 264);
+  --secondary-foreground: oklch(0.93 0.012 260);
+  --muted: oklch(0.246 0.075 264.4); /* #0E1E44 — inset panels */
+  --muted-foreground: oklch(0.66 0.05 266);
+  --accent: oklch(0.28 0.07 263);
+  --accent-foreground: oklch(0.93 0.012 260);
+  --destructive: oklch(0.66 0.21 25);
+  --destructive-foreground: oklch(0.97 0.01 260);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.16 258 / 45%);
+  --text-secondary: oklch(0.78 0.05 264);
+  --sidebar: oklch(0.19 0.062 265); /* EMX navy #071230 */
+
+  --ok: oklch(0.72 0.17 155); /* status green */
+  --warn: oklch(0.78 0.15 75); /* status amber */
+  --risk: oklch(0.637 0.215 25.5); /* status red */
+  --violet: oklch(0.68 0.16 290);
+  --cyan: oklch(0.83 0.115 197);
+}
+
+@keyframes tray-up {
+  from {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes banner-in {
+  from {
+    transform: translate(-50%, -10px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes workspace-in {
+  from {
+    transform: translateY(22px) scale(0.982);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    background-image:
+      radial-gradient(1100px 520px at 85% -8%, oklch(0.7 0.16 258 / 7%), transparent 62%),
+      radial-gradient(900px 500px at -10% 110%, oklch(0.347 0.194 263.8 / 22%), transparent 60%);
+    background-attachment: fixed;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: oklch(0.7 0.16 258 / 32%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(1 0 0 / 12%);
+    border-radius: 8px;
+    border: 2px solid var(--color-background);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  select option {
+    background-color: var(--color-card);
+    color: var(--color-foreground);
+  }
+}
+
+/* The EMX wordmark is blue-on-white art — give it a paper chip on dark chrome */
+.logo-chip {
+  background: #ffffff;
+}
+
+/* ---- Gloss / reflection system ----
+   Every glass surface carries a specular top reflection and a lit top edge,
+   like a pane of smoked glass in a control tower. */
+.glass-panel {
+  background-color: color-mix(in oklab, var(--card) 84%, transparent);
+  background-image: linear-gradient(
+    162deg,
+    oklch(1 0 0 / 9%) 0%,
+    oklch(1 0 0 / 3%) 22%,
+    oklch(1 0 0 / 0%) 46%
+  );
+  box-shadow: var(--shadow-card);
+}
+
+/* Glossy primary action — light catches the top, weight sits at the bottom */
+.btn-primary-gloss {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary) 72%, white) 0%,
+    var(--primary) 52%,
+    color-mix(in oklab, var(--primary) 86%, black) 100%
+  );
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 30%) inset,
+    0 -1px 0 oklch(0 0 0 / 20%) inset,
+    var(--shadow-glow);
+}
+
+.btn-primary-gloss:hover:not(:disabled) {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--primary-hover) 78%, white) 0%,
+    var(--primary-hover) 60%,
+    var(--primary) 100%
+  );
+}
+
+/* Sheen sweep — a light band glides across on hover (menu cards, trays) */
+.sheen-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.sheen-card::after {
+  content: "";
+  position: absolute;
+  top: -45%;
+  bottom: -45%;
+  left: 0;
+  width: 42%;
+  transform: translateX(-160%) rotate(16deg);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 7%), transparent);
+  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.sheen-card:hover::after {
+  transform: translateX(340%) rotate(16deg);
+}
+
+/* Mono micro-label: the control-tower voice */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+/* ---- Leaflet / map theming (dark) ---- */
+.leaflet-container {
+  font-family: var(--font-sans);
+  z-index: 0;
+  background: var(--color-background);
+}
+
+.atlas-map-armed .leaflet-container {
+  cursor: crosshair;
+}
+
+.leaflet-container .leaflet-bar a {
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  color: var(--color-foreground);
+  border-color: var(--color-border);
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-container .leaflet-bar a:hover {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+}
+
+.leaflet-control-attribution {
+  background: oklch(0.127 0.018 268 / 72%);
+  color: var(--color-muted-foreground);
+  font-size: 9px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-text-secondary);
+}
+
+.leaflet-tooltip {
+  background: var(--color-card);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+  font-family: var(--font-sans);
+}
+
+.leaflet-tooltip-top::before {
+  border-top-color: var(--color-border);
+}
+
+/* ---- Map markers (div icons) ---- */
+.atlas-divicon {
+  background: transparent;
+  border: none;
+}
+
+.hub-pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid;
+  box-shadow: 0 0 18px -5px currentColor;
+  transition: transform 0.15s ease;
+}
+
+.hub-pin:hover {
+  transform: scale(1.1);
+}
+
+.hub-pin-dot {
+  width: 32%;
+  height: 32%;
+  border-radius: 9999px;
+}
+
+.hub-pin-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: oklch(0.15 0.025 268 / 94%);
+  border: 1px solid;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.hub-pin-selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.store-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1.5px solid;
+  background: oklch(0.15 0.025 268 / 88%);
+  box-shadow: 0 0 12px -4px currentColor;
+}
+
+.pick-pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 3px solid var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 35%, transparent);
+  animation: pick-pulse 1.6s ease-out infinite;
+}
+
+@keyframes pick-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-primary) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+/* Animated demand flows — the only motion on the map, and it is data */
+.leaflet-overlay-pane .flow-line {
+  animation: flow-dash 1.25s linear infinite;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+/* Particles riding the flow paths (SMIL animateMotion, injected by FlowParticles) */
+.leaflet-overlay-pane .flow-particle {
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+/* Zone demand dots breathe softly */
+.leaflet-overlay-pane .zone-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: zone-dot-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes zone-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.45;
+  }
+}
+
+/* Simulation markers */
+.sim-closed-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-risk);
+  background: color-mix(in oklab, var(--color-risk) 16%, oklch(0.156 0.068 262 / 92%));
+  color: var(--color-risk);
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 0 18px -4px var(--color-risk);
+}
+
+.sim-new-pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2.5px solid var(--color-cyan);
+  background: color-mix(in oklab, var(--color-cyan) 26%, transparent);
+  box-shadow: 0 0 26px -6px var(--color-cyan);
+  animation: sim-new-pulse 1.8s ease-out infinite;
+}
+
+@keyframes sim-new-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-cyan) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 20px transparent;
+  }
+}
+
+/* Pulsing red ring around hubs that saturate in a simulation */
+.leaflet-overlay-pane .overload-ring {
+  animation: ring-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* ---- Range slider ---- */
+.atlas-slider {
+  accent-color: var(--color-primary);
+}
+
+/* ---- Report sheet: paper-light island inside the dark app ---- */
+.report-sheet {
+  --background: oklch(0.97 0.008 271.3);
+  --foreground: oklch(0.224 0.073 271.4);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.224 0.073 271.4);
+  --muted: oklch(0.955 0.012 271);
+  --muted-foreground: oklch(0.666 0.04 271.8);
+  --text-secondary: oklch(0.449 0.057 272.5);
+  --border: oklch(0.224 0.073 271.4 / 10%);
+  --primary: oklch(0.347 0.194 263.8); /* official emx.ae #00239C on paper */
+  --primary-foreground: oklch(0.99 0.002 271);
+  --shadow-card: 0 1px 2px oklch(0.224 0.073 271.4 / 4%), 0 6px 20px -6px oklch(0.224 0.073 271.4 / 7%);
+  background: var(--card);
+  color: var(--foreground);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+/* ---- Print: only the report sheet survives ---- */
+@media print {
+  .app-chrome,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+  }
+
+  .report-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+}

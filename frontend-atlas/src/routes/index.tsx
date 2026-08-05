@@ -1,0 +1,267 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { Bell, Check, Layers, MapPin, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { CopilotDrawer } from "@/components/atlas/CopilotDrawer";
+import { AtlasButton, Card, Chip, LabelValueRow, StatusBadge, UtilBar } from "@/components/atlas/ui";
+import { currentAlerts, type AtlasAlert } from "@/lib/atlas-alerts";
+import { fmtAed, fmtInt, fmtNum, type HubInfo } from "@/lib/atlas-data";
+import { blendedCps, hubSnapshot } from "@/lib/atlas-engine";
+import { useAtlas } from "@/lib/atlas-store";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Network Map — EMX ATLAS" },
+      {
+        name: "description",
+        content:
+          "Live control-tower map of the EMX UAE network: 10 hubs, 10 dark stores and on-demand coverage, with alerts, a copilot and one-click scenarios.",
+      },
+      { property: "og:title", content: "Network Map — EMX ATLAS" },
+      { property: "og:description", content: "Live control-tower map of the EMX UAE delivery network." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: MapHomePage,
+});
+
+type LeafletMapModule = typeof import("@/components/atlas/LeafletMap");
+
+const SEVERITY_STYLES: Record<AtlasAlert["severity"], { bar: string; chip: "risk" | "warn" | "teal"; label: string }> = {
+  critical: { bar: "border-l-risk", chip: "risk", label: "Critical" },
+  warning: { bar: "border-l-warn", chip: "warn", label: "Warning" },
+  info: { bar: "border-l-cyan", chip: "teal", label: "Info" },
+};
+
+function MapHomePage() {
+  const { acked, ackAlert, mapFocus, clearMapFocus } = useAtlas();
+
+  const [MapComp, setMapComp] = useState<LeafletMapModule["LeafletMap"] | null>(null);
+  const [layers, setLayers] = useState({ hubs: true, stores: true, od: true });
+  const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [focus, setFocus] = useState<{ lat: number; lng: number; zoom?: number; stamp?: number } | null>(null);
+
+  const alerts = useMemo(() => currentAlerts(), []);
+  const unacked = alerts.filter((a) => !acked.includes(a.id));
+  const cps = useMemo(() => blendedCps(), []);
+  const snapshot = selectedHubId ? hubSnapshot(selectedHubId) : null;
+
+  useEffect(() => {
+    void import("@/components/atlas/LeafletMap").then((m) => setMapComp(() => m.LeafletMap));
+  }, []);
+
+  /* A "Show on map" pressed on another page lands here. */
+  useEffect(() => {
+    if (mapFocus) {
+      setFocus(mapFocus);
+      clearMapFocus();
+    }
+  }, [mapFocus, clearMapFocus]);
+
+  const showOnMap = (t: { lat: number; lng: number; zoom?: number }) => setFocus({ ...t, stamp: Date.now() });
+
+  const toggleLayer = (key: keyof typeof layers) => setLayers((l) => ({ ...l, [key]: !l[key] }));
+
+  return (
+    <div className="relative h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Map */}
+      <div className="absolute inset-0">
+        {MapComp ? (
+          <MapComp
+            layers={layers}
+            focus={focus}
+            selectedHubId={selectedHubId}
+            onSelectHub={(hub: HubInfo) => setSelectedHubId(hub.id)}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[12.5px] text-muted-foreground">Loading map…</div>
+        )}
+      </div>
+
+      {/* Headline — the ONE big number */}
+      <div className="absolute left-4 top-4 z-[1000] w-[292px]">
+        <Card className="p-4">
+          <p className="kicker">Blended cost / shipment · W13</p>
+          <div className="mt-1.5 flex items-baseline gap-1.5">
+            <span className="font-mono text-[36px] font-bold leading-none tracking-tight text-foreground">
+              {fmtNum(cps, 2)}
+            </span>
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">AED</span>
+          </div>
+          <p className="mt-2 text-[10.5px] leading-relaxed text-muted-foreground">
+            Fully loaded across Hub &amp; Spoke, QComm and On-Demand. Click any hub for its live card.
+          </p>
+        </Card>
+
+        {/* Layer toggles */}
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg border bg-card/80 text-text-secondary backdrop-blur-md">
+            <Layers className="h-3.5 w-3.5" />
+          </span>
+          {(
+            [
+              ["hubs", "Hubs"],
+              ["stores", "Dark stores"],
+              ["od", "On-Demand"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => toggleLayer(key)}
+              aria-pressed={layers[key]}
+              className={cn(
+                "rounded-full border px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider backdrop-blur-md transition-colors",
+                layers[key]
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "bg-card/80 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Alert bell */}
+      <div className="absolute right-4 top-4 z-[1250]">
+        <button
+          onClick={() => setAlertsOpen((o) => !o)}
+          aria-label="Open alerts"
+          className="relative flex h-10 w-10 items-center justify-center rounded-xl border bg-card/80 text-foreground shadow-card backdrop-blur-md transition-colors hover:bg-muted"
+        >
+          <Bell className="h-4.5 w-4.5" />
+          {unacked.length > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-risk px-1 font-mono text-[10px] font-bold text-primary-foreground">
+              {unacked.length}
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      {/* Alerts drawer */}
+      {alertsOpen ? (
+        <div className="absolute right-4 top-16 z-[1240] max-h-[calc(100%-7rem)] w-[384px] animate-slide-in overflow-y-auto">
+          <Card className="p-3">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <p className="kicker">Alerts · {unacked.length} open</p>
+              <button onClick={() => setAlertsOpen(false)} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close alerts">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {alerts.map((a) => {
+                const s = SEVERITY_STYLES[a.severity];
+                const isAcked = acked.includes(a.id);
+                return (
+                  <div key={a.id} className={cn("rounded-xl border border-l-[3px] bg-background/50 p-3", s.bar, isAcked && "opacity-55")}>
+                    <div className="flex items-center justify-between gap-2">
+                      <Chip tone={s.chip}>{s.label}</Chip>
+                      {isAcked ? <Chip tone="ok">Acked</Chip> : null}
+                    </div>
+                    <p className="mt-2 text-[12.5px] font-semibold leading-snug text-foreground">{a.title}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-text-secondary">{a.finding}</p>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                      <span className="font-semibold text-foreground">Action: </span>
+                      {a.action}
+                    </p>
+                    <div className="mt-2.5 flex gap-1.5">
+                      {a.target ? (
+                        <AtlasButton
+                          variant="outline"
+                          className="h-7 px-2.5 py-0 text-[11px]"
+                          onClick={() => {
+                            showOnMap(a.target!);
+                            setAlertsOpen(false);
+                          }}
+                        >
+                          <MapPin className="h-3 w-3" /> Show on map
+                        </AtlasButton>
+                      ) : null}
+                      {!isAcked ? (
+                        <AtlasButton variant="ghost" className="h-7 px-2.5 py-0 text-[11px]" onClick={() => ackAlert(a.id)}>
+                          <Check className="h-3 w-3" /> Acknowledge
+                        </AtlasButton>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {/* Hub side card */}
+      {snapshot ? (
+        <div className="absolute bottom-4 left-4 z-[1100] max-h-[74%] w-[336px] animate-rise overflow-y-auto">
+          <Card>
+            <div className="flex items-start justify-between gap-2 border-b px-4 pb-3 pt-3.5">
+              <div>
+                <p className="text-[14px] font-bold leading-tight text-foreground">{snapshot.hub.name}</p>
+                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {snapshot.hub.emirate} · {snapshot.hub.hubType} · {snapshot.hub.id}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <StatusBadge status={snapshot.status} />
+                <button onClick={() => setSelectedHubId(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close hub card">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-1 py-1">
+              <LabelValueRow label="Today's load" value={`${fmtInt(Math.round(snapshot.dailyLoad))} parcels`} />
+              <LabelValueRow label="Effective capacity" value={`${fmtInt(Math.round(snapshot.effCap))} /day`} />
+              <div className="px-3.5 py-2">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[11.5px] text-muted-foreground">Courier utilisation</span>
+                  <span className="font-mono text-[12px] font-semibold text-foreground">{fmtNum(snapshot.util)}%</span>
+                </div>
+                <UtilBar value={snapshot.util} status={snapshot.status} />
+              </div>
+              <LabelValueRow label="Riders — FTE" value={fmtInt(snapshot.fte)} />
+              <LabelValueRow label="Riders — FTC" value={fmtInt(snapshot.ftc)} />
+              <LabelValueRow label="On-time delivery" value={`${fmtNum(snapshot.otd)}%`} />
+              <LabelValueRow label="SLA breaches (W13)" value={fmtInt(Math.round(snapshot.breaches))} />
+              {snapshot.costs.map((c) => (
+                <LabelValueRow key={c.model} label={`Cost / shipment · ${c.model}`} value={fmtAed(c.cps)} />
+              ))}
+            </div>
+
+            {/* Fleet — straight from Fleet_Roster */}
+            <details className="group border-t" open>
+              <summary className="cursor-pointer list-none px-4 py-2.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.16em] text-text-secondary hover:text-foreground">
+                Fleet · {fmtInt(snapshot.fleet.reduce((s, f) => s + f.totalMonthlyCost, 0))} AED/mo
+              </summary>
+              <div className="space-y-1.5 px-3 pb-3">
+                {snapshot.fleet.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-background/50 px-2.5 py-1.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-[11.5px] font-semibold text-foreground">
+                        {f.count}× {f.vehicleType}
+                      </p>
+                      <p className="font-mono text-[9.5px] text-muted-foreground">
+                        {f.role} · {f.ownership} · {fmtNum(f.fuelPerKm, 2)} AED/km
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-mono text-[11px] font-semibold text-foreground">
+                      {fmtInt(f.totalMonthlyCost)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </Card>
+        </div>
+      ) : null}
+
+      {/* Atlas AI copilot — EMX-branded white bot chip, right edge */}
+      <CopilotDrawer onShowOnMap={showOnMap} />
+    </div>
+  );
+}
