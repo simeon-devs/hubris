@@ -1,42 +1,35 @@
 {
-  "_what_this_is": "T-40 (Sims' Wave-3 ask): a captured REAL alert, produced with zero user action. The watchdog self-ran at backend boot (runs=1 before any request), swept baseline+1.2x stress (real demand_scale simulation re-solved through the flow LP \u2014 healthy, no alert) and the seeded demo_surge scenario (H5 at 100.0% flow utilisation >= the 90% threshold) and pushed this warning: computed finding, recommended action from a real T-23 re-solve (+307 units at H5 -> 393.41 AED/period verified savings), a resolvable brief link, and sweep provenance. Dedup keeps it to one unacknowledged card per target; POST /memory/alerts/{id}/ack clears it.",
-  "GET /memory/alerts": {
-    "available": true,
-    "alerts": [
-      {
-        "id": "60ca6b6e459247ee8cec3ae5b50c92ed",
-        "agent_name": "capacity_watchdog",
-        "severity": "warning",
-        "finding": {
-          "target": "demo_surge",
-          "feasible": true,
-          "hottest_hub": "H5",
-          "unmet_demand": {},
-          "stress_factor": null,
-          "hot_threshold_pct": 90.0,
-          "hottest_utilization_pct": 100.0
-        },
-        "recommended_action": {
-          "why": "Hub H5 is capacity-constrained, forcing 2 zone(s) onto a pricier route. Adding 307.0 units of capacity there (to 1833.0) \u2014 verified by re-solving the flow, not estimated \u2014 lets those zones reroute back to H5, saving 393.41 AED/period. This is the cheapest verified unlock among 1 candidate hub(s).",
-          "action": "add_capacity",
-          "detail": {
-            "hub_id": "H5",
-            "new_capacity": 1833.0,
-            "unlock_units": 307.0,
-            "unlocked_zone_ids": [
-              "Z54",
-              "Z61"
-            ],
-            "verified_cost_savings": 393.41
-          },
-          "source_tool": "find_bottleneck_unlock"
-        },
-        "brief_link": "/brief?scenario_id=demo_surge",
-        "acknowledged": false,
-        "provenance": "watchdog:sweep:0fc8edcc4242",
-        "created_at": "2026-08-04T12:33:57.325647+00:00"
-      }
-    ],
-    "total_returned": 1
-  }
+  "id": "abb92f7be64a4aa4abb036909b4bf079",
+  "agent_name": "capacity_watchdog",
+  "severity": "critical",
+  "finding": {
+    "target": "qcomm_twin",
+    "feasible": false,
+    "hottest_hub": "QED_DXB_04",
+    "unmet_demand": {
+      "Abu_Dhabi-Al_Reem": 12.0,
+      "Abu_Dhabi-Khalidiyah": 5.0
+    },
+    "stress_factor": null,
+    "hot_threshold_pct": 90.0,
+    "hottest_utilization_pct": 100.0
+  },
+  "recommended_action": {
+    "why": "Hub QED_DXB_04 is capacity-constrained, forcing 1 zone(s) onto a pricier route. Adding 511.0 units of capacity there (to 1191.0) \u2014 verified by re-solving the flow, not estimated \u2014 lets those zones reroute back to QED_DXB_04, saving 194.18 AED/period. This is the cheapest verified unlock among 3 candidate hub(s).",
+    "action": "add_capacity",
+    "detail": {
+      "hub_id": "QED_DXB_04",
+      "new_capacity": 1191.0,
+      "unlock_units": 511.0,
+      "unlocked_zone_ids": [
+        "Dubai-Al_Karama"
+      ],
+      "verified_cost_savings": 194.18
+    },
+    "source_tool": "find_bottleneck_unlock"
+  },
+  "brief_link": "/brief?scenario_id=qcomm_twin",
+  "acknowledged": false,
+  "provenance": "watchdog:sweep:885b1458d8b3",
+  "created_at": "2026-08-05T07:52:41.530145+00:00"
 }
