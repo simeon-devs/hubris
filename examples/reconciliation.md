@@ -53,13 +53,22 @@ Every 'ours' figure comes from the live connector + live cost metric; every
 
 ## The two volume bases (the honest residual)
 
-The workbook is internally inconsistent about volume: the `Demand_by_Zone`
-panel (week 13) implies roughly 2.7× the daily volume that `Cost_to_Serve`
-states for Hub & Spoke (DATASET_REPORT §5). The twin **operates** on the
+The workbook is internally inconsistent about volume. For Hub & Spoke,
+`Demand_by_Zone` (week 13) totals 1,060 parcels/day while `Cost_to_Serve`'s
+stated monthly shipments imply 683/day — a network-wide gap of **1.55×**
+(worst single facility: HUB_DXB_01 at ~2.7× — DATASET_REPORT §5.3; do not
+quote the per-hub figure as the network one). The twin **operates** on the
 demand panel — that is what drives flows, capacity and scenarios — so the
-live engine metric amortises fixed cost over demand-panel volume and lands
-lower than the stated-volume figure. Same rates, same fixed pool, different
-denominator; both are reported, labelled, everywhere.
+live engine metric amortises the same daily fixed pool over more parcels
+and lands lower than the stated-volume figure:
+
+| Volume basis | Parcels/day | Fixed AED/parcel | Variable AED/parcel | Fully loaded |
+|---|---|---|---|---|
+| `Cost_to_Serve` stated | 683 | 49.19 | 10.91 | **60.11** |
+| `Demand_by_Zone` W13 (the twin) | 1,060 | 31.72 | 11.44 | **43.16** |
+
+Same rates, same fixed pool (~33,615 AED/day), different denominator; both
+are reported, labelled, everywhere.
 
 ## Granularity note (where the old 16.1% came from)
 
