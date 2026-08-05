@@ -27,13 +27,21 @@ export interface CopilotAnswer {
   untraceableFigures: number[];
 }
 
-export const PRESET_QUESTIONS: string[] = [
-  "Which hub breaks first if demand keeps growing?",
-  "What is the best network shape, and what would you actually recommend?",
-  "What happens if we close the RAK hub?",
-  "Why is Fujairah so expensive per shipment?",
-  "What is wrong with the dark-store network?",
-  "What is the cheapest verified fix for the Abu Dhabi shortfall?",
+export interface PresetQuestion {
+  q: string;
+  short: string;
+  // Chips about the dark-store crisis bind the agent's tools to the
+  // qcomm_twin scenario — the accurate context for those questions.
+  scenarioId?: string;
+}
+
+export const PRESET_QUESTIONS: PresetQuestion[] = [
+  { q: "Which hub breaks first if demand keeps growing, and at what growth?", short: "Which hub breaks first?" },
+  { q: "Use the frontier: compare the raw optimal network shape with the resilience-constrained recommendation, both cost pools, and the resilience premium.", short: "Best network shape?" },
+  { q: "Simulate closing hub HUB_RAK_01 (Ras Al Khaimah): what happens to cost, utilization and feasibility?", short: "Close the RAK hub?" },
+  { q: "Why is Fujairah so expensive per shipment?", short: "Why is Fujairah expensive?" },
+  { q: "What is wrong with this dark-store network? Check demand served and utilization.", short: "Dark-store crisis?", scenarioId: "qcomm_twin" },
+  { q: "Find the cheapest verified capacity fix for the unserved Abu Dhabi demand.", short: "Cheapest fix for Abu Dhabi?", scenarioId: "qcomm_twin" },
 ];
 
 /** Resolve the first entity id an answer's tool calls touched to map
@@ -74,8 +82,8 @@ function summarizeToolCall(call: ApiToolCall): string {
   return argKeys.length ? `${call.tool}(${argKeys.join(", ")})` : call.tool;
 }
 
-export async function answerQuestion(raw: string): Promise<CopilotAnswer> {
-  const response = await queryAgent(raw);
+export async function answerQuestion(raw: string, scenarioId?: string): Promise<CopilotAnswer> {
+  const response = await queryAgent(raw, scenarioId ?? null);
   const pill: CopilotPill =
     response.verification.status === "verified"
       ? "verified"

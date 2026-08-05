@@ -29,6 +29,19 @@ export interface AtlasAlert {
   createdAt: string;
 }
 
+/** "Abu_Dhabi-Al_Reem" -> the dark store / hub sitting in that zone — the
+ *  point of CONCERN, so Show-on-map lands on the shortfall, not the
+ *  busiest facility. */
+function targetForZone(zoneId: string): AlertTarget | undefined {
+  const zoneName = (zoneId.split("-")[1] ?? "").replace(/_/g, " ").trim();
+  if (!zoneName) return undefined;
+  const store = DARK_STORES.find((s) => s.zone.toLowerCase().includes(zoneName.toLowerCase()));
+  if (store) return { lat: store.lat, lng: store.lng, zoom: 12, label: `Unserved: ${zoneName}` };
+  const hub = HUBS.find((h) => h.zone.toLowerCase().includes(zoneName.toLowerCase()));
+  if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 12, label: `Unserved: ${zoneName}` };
+  return undefined;
+}
+
 function targetFor(id: string): AlertTarget | undefined {
   const hub = HUBS.find((h) => h.id === id);
   if (hub) return { lat: hub.lat, lng: hub.lng, zoom: 11, label: hub.name };
@@ -78,7 +91,12 @@ export async function fetchAlerts(): Promise<AtlasAlert[]> {
         : `${a.finding.target}: cannot serve all demand`,
       finding: findingSentence(a),
       action: actionSentence(a),
-      target: targetFor(a.finding.hottest_hub ?? "") ?? undefined,
+      target:
+        (!a.finding.feasible
+          ? targetForZone(Object.keys(a.finding.unmet_demand)[0] ?? "")
+          : undefined) ??
+        targetFor(a.finding.hottest_hub ?? "") ??
+        undefined,
       acknowledged: a.acknowledged,
       provenance: a.provenance,
       createdAt: a.created_at,

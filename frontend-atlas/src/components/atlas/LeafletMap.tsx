@@ -230,6 +230,18 @@ export function FlowParticles({ dep }: { dep?: unknown }) {
   return null;
 }
 
+function FocusRing({ focus }: { focus?: MapFocus | null | undefined }) {
+  if (!focus) return null;
+  // The point of concern, visibly different from ordinary pins: a pulsing
+  // double ring at the exact target the alert/copilot named.
+  return (
+    <>
+      <CircleMarker center={[focus.lat, focus.lng]} radius={18} pathOptions={{ color: "#f0504d", weight: 2, fillOpacity: 0.06, className: "focus-ring" }} interactive={false} />
+      <CircleMarker center={[focus.lat, focus.lng]} radius={7} pathOptions={{ color: "#f0504d", weight: 2, fillColor: "#f0504d", fillOpacity: 0.5 }} interactive={false} />
+    </>
+  );
+}
+
 function FocusController({ focus }: { focus?: MapFocus | null | undefined }) {
   const map = useMap();
   useEffect(() => {
@@ -311,6 +323,9 @@ interface LeafletMapProps {
   onPlace?: (lat: number, lon: number) => void;
   pickMarker?: { lat: number; lng: number } | null;
   mini?: boolean;
+  typeFilter?: "all" | "Full Hub" | "Micro Hub";
+  statusFilter?: "all" | "At Risk" | "High Load" | "Normal";
+  showCandidates?: boolean;
 }
 
 export function LeafletMap({
@@ -322,6 +337,9 @@ export function LeafletMap({
   onPlace,
   pickMarker,
   mini = false,
+  typeFilter = "all",
+  statusFilter = "all",
+  showCandidates = true,
 }: LeafletMapProps) {
   return (
     <MapContainer
@@ -339,6 +357,7 @@ export function LeafletMap({
       {!mini ? <ZoomControl position="bottomright" /> : null}
       <FullUaeViewport focus={focus} />
       <FocusController focus={focus} />
+      <FocusRing focus={focus} />
       <ClickHandler armed={armed} onPlace={onPlace} />
 
       {/* ——— On-Demand: soft city shading, no markers ——— */}
@@ -395,9 +414,14 @@ export function LeafletMap({
       <UaeMask />
 
       {layers.hubs
-        ? ACTIVE_HUBS.map((hub) => {
+        ? ACTIVE_HUBS.filter(
+            (hub) =>
+              (typeFilter === "all" || hub.hubType === typeFilter) &&
+              (statusFilter === "all" || (perfOf(hub.id)?.status ?? "Normal") === statusFilter),
+          ).map((hub) => {
             const perf = perfOf(hub.id);
             const status = perf?.status ?? "Normal";
+            const util = perf ? (perf.util[12] ?? 0) : 0;
             return (
               <Marker
                 key={hub.id}
@@ -406,16 +430,21 @@ export function LeafletMap({
                 eventHandlers={{ click: () => onSelectHub?.(hub) }}
               >
                 <Tooltip>
-                  <span className="font-medium">
-                    {hub.name} — {hub.hubType} · {fmtInt(hub.maxDaily)}/day
+                  <span className="block text-[11px] font-bold">{hub.name}</span>
+                  <span className="block text-[10px]">
+                    {hub.hubType === "Full Hub" ? "FULL · next-day + same-day" : "MICRO · next-day only"} · {status}
                   </span>
+                  <span className="block text-[10px]">
+                    {fmtInt(hub.maxDaily)}/day capacity · util {fmtNum(util, 1)}% (official W13)
+                  </span>
+                  <span className="block text-[9.5px] opacity-70">click for the full live card</span>
                 </Tooltip>
               </Marker>
             );
           })
         : null}
 
-      {layers.hubs
+      {layers.hubs && showCandidates
         ? CANDIDATES.map((c) => (
             <Marker key={c.id} position={[c.lat, c.lng]} icon={candidateIcon(c)}>
               <Tooltip>
@@ -541,6 +570,7 @@ export function SimMap({
       <ZoomControl position="bottomright" />
       <FullUaeViewport focus={focus} />
       <FocusController focus={focus} />
+      <FocusRing focus={focus} />
       <ClickHandler armed={armed} onPlace={onPlace} />
 
       {/* Animated flows — amber = re-routed by the scenario */}

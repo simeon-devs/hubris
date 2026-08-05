@@ -111,6 +111,10 @@ function MapHomePage() {
   const showOnMap = (t: { lat: number; lng: number; zoom?: number }) => setFocus({ ...t, stamp: Date.now() });
 
   const toggleLayer = (key: keyof typeof layers) => setLayers((l) => ({ ...l, [key]: !l[key] }));
+  // Analyse-from-many-angles filters (hub layer only)
+  const [typeFilter, setTypeFilter] = useState<"all" | "Full Hub" | "Micro Hub">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "At Risk" | "High Load" | "Normal">("all");
+  const [showCandidates, setShowCandidates] = useState(true);
 
   return (
     <div className="relative h-[calc(100vh-3.5rem)] overflow-hidden">
@@ -122,6 +126,9 @@ function MapHomePage() {
             focus={focus}
             selectedHubId={selectedHubId}
             onSelectHub={(hub: HubInfo) => setSelectedHubId(hub.id)}
+            typeFilter={typeFilter}
+            statusFilter={statusFilter}
+            showCandidates={showCandidates}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[12.5px] text-muted-foreground">Loading map…</div>
@@ -150,25 +157,60 @@ function MapHomePage() {
           </span>
           {(
             [
-              ["hubs", "Hubs"],
-              ["stores", "Dark stores"],
-              ["od", "On-Demand"],
+              ["hubs", "Hubs", "#5b9dff"],
+              ["stores", "Dark stores", "#8b7cf6"],
+              ["od", "On-Demand", "#3fd2ef"],
             ] as const
-          ).map(([key, label]) => (
+          ).map(([key, label, hex]) => (
             <button
               key={key}
               onClick={() => toggleLayer(key)}
               aria-pressed={layers[key]}
               className={cn(
-                "rounded-full border px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider backdrop-blur-md transition-colors",
-                layers[key]
-                  ? "border-primary/40 bg-primary/15 text-primary"
-                  : "bg-card/80 text-muted-foreground hover:text-foreground",
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider backdrop-blur-md transition-colors",
+                layers[key] ? "" : "bg-card/80 text-muted-foreground hover:text-foreground",
               )}
+              style={layers[key] ? { borderColor: `${hex}66`, background: `${hex}22`, color: hex } : undefined}
             >
+              <span className="h-2 w-2 rounded-full" style={{ background: layers[key] ? hex : "#556" }} />
               {label}
             </button>
           ))}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {(["all", "Full Hub", "Micro Hub"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={cn(
+                "rounded-full border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider backdrop-blur-md",
+                typeFilter === t ? "border-primary/40 bg-primary/15 text-primary" : "bg-card/80 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t === "all" ? "All types" : t === "Full Hub" ? "Full (same-day)" : "Micro (next-day)"}
+            </button>
+          ))}
+          {(["all", "At Risk", "High Load", "Normal"] as const).map((st) => (
+            <button
+              key={st}
+              onClick={() => setStatusFilter(st)}
+              className={cn(
+                "rounded-full border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider backdrop-blur-md",
+                statusFilter === st ? "border-warn/50 bg-warn/15 text-warn" : "bg-card/80 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {st === "all" ? "Any status" : st}
+            </button>
+          ))}
+          <button
+            onClick={() => setShowCandidates((v) => !v)}
+            className={cn(
+              "rounded-full border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wider backdrop-blur-md",
+              showCandidates ? "border-primary/40 bg-primary/10 text-primary" : "bg-card/80 text-muted-foreground",
+            )}
+          >
+            Candidates
+          </button>
         </div>
       </div>
 

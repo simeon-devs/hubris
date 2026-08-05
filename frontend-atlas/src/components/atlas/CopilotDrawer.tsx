@@ -47,14 +47,14 @@ export function CopilotDrawer({ onShowOnMap }: { onShowOnMap?: (f: MapFocus) => 
 
   // The REAL agent: async, with loading + honest error states. Every answer
   // is provenance-verified server-side before it arrives here.
-  const send = (q: string) => {
+  const send = (q: string, scenarioId?: string) => {
     const t = q.trim();
     if (!t || busy) return;
     setBusy(true);
     setMsgs((m) => [...m, { role: "user", text: t }]);
     setInput("");
     logEvent(`Copilot — asked "${t.slice(0, 48)}"`);
-    answerQuestion(t)
+    answerQuestion(t, scenarioId)
       .then((a) => {
         setMsgs((m) => [
           ...m,
@@ -187,9 +187,9 @@ export function CopilotDrawer({ onShowOnMap }: { onShowOnMap?: (f: MapFocus) => 
           <div className="border-t px-4 pb-4 pt-3">
             <div className="mb-2.5 flex flex-wrap gap-1.5">
               {PRESET_QUESTIONS.slice(0, 6).map((p) => (
-                <button key={p} onClick={() => send(p)}>
+                <button key={p.q} onClick={() => send(p.q, p.scenarioId)}>
                   <Chip tone="blue" className="cursor-pointer normal-case tracking-normal transition-colors hover:bg-primary/20">
-                    {p.length > 36 ? `${p.slice(0, 36)}…` : p}
+                    {p.short}
                   </Chip>
                 </button>
               ))}
