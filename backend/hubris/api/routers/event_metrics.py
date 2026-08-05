@@ -95,6 +95,18 @@ def get_event_metrics() -> dict[str, Any]:
         {"week": week, "total_volume": round(volume, 2)} for week, volume in sorted(totals.items())
     ]
 
+    # ── Hub & Spoke DAILY volume per week (Σ daily_avg) — the home page's
+    # 13-week demand line uses this series, not the all-network weekly one ──
+    hs_daily: dict[int, float] = {}
+    for r in wb["Demand_by_Zone"].iter_rows(min_row=2, values_only=True):
+        if r[0] is None or str(r[2]) != "Hub & Spoke":
+            continue
+        week = int(r[0])
+        hs_daily[week] = hs_daily.get(week, 0.0) + float(r[8] or 0)
+    weekly_hub_spoke_daily = [
+        {"week": week, "daily_volume": round(volume, 2)} for week, volume in sorted(hs_daily.items())
+    ]
+
     # ── latest-week daily volume per network type ──
     demand_rows = list(wb["Demand_by_Zone"].iter_rows(min_row=2, values_only=True))
     latest_demand_week = max(int(r[0]) for r in demand_rows if r[0] is not None)
@@ -113,6 +125,7 @@ def get_event_metrics() -> dict[str, Any]:
         "at_risk_count": len(at_risk),
         "baselines": baselines,
         "weekly_demand": weekly_demand,
+        "weekly_hub_spoke_daily": weekly_hub_spoke_daily,
         "cost_per_shipment": cost_per_shipment,
         "network_volumes": network_volumes,
     }

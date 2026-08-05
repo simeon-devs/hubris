@@ -40,6 +40,10 @@ def test_baselines_and_weekly_series_come_from_the_sheet():
     assert len(data["baselines"]) == 7  # the Baseline_Metrics table rows
     assert len(data["weekly_demand"]) == 13
     assert data["weekly_demand"][0]["week"] == 1
+    # the home page's demand line: H&S DAILY volumes, week 1 -> 13
+    hs = data["weekly_hub_spoke_daily"]
+    assert hs[0] == {"week": 1, "daily_volume": 979.0}
+    assert hs[-1] == {"week": 13, "daily_volume": 1060.0}
 
 
 def test_cost_per_shipment_is_the_files_own_fully_loaded_arithmetic():
