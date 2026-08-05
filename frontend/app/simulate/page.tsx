@@ -16,6 +16,7 @@ import MapCanvas from "@/components/MapCanvas";
 import MapViewControls from "@/components/MapViewControls";
 import ScenarioDiff from "@/components/ScenarioDiff";
 import { simulate } from "@/lib/api";
+import EVENT_CANDIDATES from "@/lib/event-candidates.json";
 import { useAtlas } from "@/lib/atlas-context";
 import {
   addCustomerDefaults,
@@ -159,6 +160,40 @@ export default function SimulatePage() {
     [closeHubId, demandPct, fleetId, fleetCount, setSimResult],
   );
 
+  /** One-click candidate preset: add_hub with the dataset's REAL params —
+   *  no new engine code; identical flow to a hand-built hub. */
+  const runCandidate = useCallback(
+    (cand: (typeof EVENT_CANDIDATES)[number]) => {
+      setRunBusy(cand.id);
+      setRunError(null);
+      const saveAs = nextScenarioId(savedScenarios.map((s) => s.id), cand.id.toLowerCase());
+      simulate({
+        scenario_name: "add_hub",
+        params: {
+          id: cand.id,
+          name: cand.name,
+          lat: cand.lat,
+          lon: cand.lon,
+          emirate: cand.emirate,
+          capacity: cand.capacity,
+          fixed_cost: cand.fixed_cost,
+          handling_cost: cand.handling_cost,
+        },
+        save_as: saveAs,
+      })
+        .then((result) => {
+          setSimResult(result);
+          setPinned(true);
+          setTrayOpen(true);
+          reloadScenarios();
+          setScenarioId(saveAs);
+        })
+        .catch((err: Error) => setRunError(err.message))
+        .finally(() => setRunBusy(null));
+    },
+    [savedScenarios, reloadScenarios, setScenarioId, setSimResult],
+  );
+
   const pinScenario = useCallback(() => {
     if (!simResult || pinned) return;
     setPinBusy(true);
@@ -296,6 +331,35 @@ export default function SimulatePage() {
               {buildError ?? runError}
             </div>
           )}
+
+          {/* ── Candidate hubs — official dataset presets, one click each ── */}
+          <div className="mt-3 pt-3 border-t border-white/[0.07]">
+            <div className="flex items-center gap-2 px-1.5 pb-2">
+              <span className="text-[10px] font-mono text-amber-400">⬢</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+                Candidate hubs
+              </span>
+              <span className="text-[9px] text-slate-500 normal-case tracking-normal">
+                from the official dataset
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {EVENT_CANDIDATES.map((cand) => (
+                <button
+                  key={cand.id}
+                  disabled={runBusy === cand.id}
+                  onClick={() => runCandidate(cand)}
+                  className="text-left text-xs px-3 py-2 rounded-xl border bg-amber-500/5
+                             border-amber-500/25 text-amber-100 hover:bg-amber-500/15
+                             hover:border-amber-500/45 cursor-pointer disabled:opacity-50
+                             transition-colors duration-150"
+                  title={`Runs add_hub with this candidate's real dataset parameters (capacity ${cand.capacity.toLocaleString()}, ${cand.emirate})`}
+                >
+                  {runBusy === cand.id ? "Running…" : `▷ Open ${cand.name.replace(" (Candidate)", "")} (${cand.id})`}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

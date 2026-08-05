@@ -6,13 +6,18 @@ if this ever needs multiple concurrent users.
 """
 
 from hubris.core.contracts import NetworkModel
+from hubris.data.event_dataset import load_event_baseline
 from hubris.data.synthetic import generate_synthetic_raw_tables
 from hubris.engine.routing import MODE_FALLBACK
 
 
 class AppState:
     def __init__(self) -> None:
-        self.baseline: NetworkModel = NetworkModel.from_raw_tables(generate_synthetic_raw_tables())
+        # Official event dataset when present (survives restarts); synthetic
+        # fixture otherwise — see hubris/data/event_dataset.py.
+        self.baseline: NetworkModel = load_event_baseline() or NetworkModel.from_raw_tables(
+            generate_synthetic_raw_tables()
+        )
         self.scenarios: dict[str, NetworkModel] = {}
         # Human-readable label per saved scenario, for the frontend's
         # scenario picker (T-30). Falls back to the id when unset.
