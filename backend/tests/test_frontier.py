@@ -69,6 +69,30 @@ def test_emirate_floor_is_capped_by_availability(model):
     assert result["constrained"]["constraints_enforced"] is True
 
 
+def test_every_frontier_point_carries_both_labelled_cost_pools(model):
+    # CLOSE_HUB hand math: baseline (both open) transport 110 over 25 units
+    # -> variable 4.4/parcel; +5500 fixed -> fully-loaded 5610/25 = 224.4.
+    # Unconstrained (H1 only) transport 150 -> variable 6.0; fully-loaded
+    # 650/25 = 26.0. Both pools present, labelled, never blended.
+    result = OptimiseFrontierTool().run(
+        model=model, min_hubs_per_emirate=1, max_hub_volume_share=1.0
+    )
+    base, unc = result["baseline"]["cost_pools"], result["unconstrained"]["cost_pools"]
+    assert base["variable_only_aed_per_parcel"] == 4.4
+    assert base["fully_loaded_aed_per_parcel"] == 224.4
+    assert unc["variable_only_aed_per_parcel"] == 6.0
+    assert unc["fully_loaded_aed_per_parcel"] == 26.0
+    # consolidation moved the pools in OPPOSITE directions — the pitch point
+    assert unc["variable_only_aed_per_parcel"] > base["variable_only_aed_per_parcel"]
+    assert unc["fully_loaded_aed_per_parcel"] < base["fully_loaded_aed_per_parcel"]
+    # the verified 7.00 target comparison is precomputed, not agent math
+    from hubris.core import assumptions
+
+    assert base["variable_target_aed"] == assumptions.value("dataset_g_variable_cost_target_aed")
+    assert base["meets_variable_target"] is True and base["variable_vs_target_aed"] == -2.6
+    assert unc["meets_variable_target"] is True and unc["variable_vs_target_aed"] == -1.0
+
+
 def test_defaults_come_from_the_assumptions_registry(model):
     from hubris.core import assumptions
 
@@ -104,6 +128,12 @@ def test_frontier_on_the_real_twin_respects_both_realism_rules():
         con["delta_vs_baseline_pct"]
         >= result["unconstrained"]["delta_vs_baseline_pct"]
     )
+    # on the real twin the pools move in opposite directions under
+    # consolidation: variable rises (incremental distance), loaded falls
+    base_pools = result["baseline"]["cost_pools"]
+    con_pools = con["cost_pools"]
+    assert con_pools["variable_only_aed_per_parcel"] > base_pools["variable_only_aed_per_parcel"]
+    assert con_pools["fully_loaded_aed_per_parcel"] < base_pools["fully_loaded_aed_per_parcel"]
 
 
 def test_frontier_endpoint_is_reachable():
