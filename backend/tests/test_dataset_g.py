@@ -87,6 +87,26 @@ def test_qcomm_twin_shape_and_sla():
     assert q1["fixed_cost"] == round(25247 / 30, 2)
 
 
+def test_qcomm_crisis_shows_both_named_quantities():
+    # Sims (2026-08-05): "Coverage 100%" next to "17/day unmet" must never
+    # read as a contradiction — reachability and served are separate,
+    # labelled quantities.
+    from hubris.plugins.metrics.coverage import CoverageMetric
+    from hubris.plugins.metrics.demand_served import DemandServedMetric
+
+    model = NetworkModel.from_raw_tables(_load("qcomm"))
+    assert CoverageMetric().compute(model, None).value == 100.0  # SLA reach
+
+    served = DemandServedMetric().compute(model, None)
+    total = sum(model.demand.values())
+    assert served.value == round((total - 17.0) / total * 100, 2)
+    assert served.breakdown["unmet_by_zone"] == {
+        "Abu_Dhabi-Al_Reem": 12.0,
+        "Abu_Dhabi-Khalidiyah": 5.0,
+    }
+    assert served.breakdown["Abu Dhabi"] < 100.0  # the emirate that hurts
+
+
 def test_unknown_network_is_refused():
     with pytest.raises(ValueError):
         _load("on_demand")  # report-only by decision — no twin

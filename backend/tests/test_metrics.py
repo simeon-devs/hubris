@@ -57,13 +57,45 @@ def test_coverage():
     assert result.breakdown == {"Dubai": 100.0, "Abu Dhabi": 100.0}
 
 
+def test_demand_served_full_when_capacity_suffices():
+    from hubris.plugins.metrics.demand_served import DemandServedMetric
+
+    result = DemandServedMetric().compute(_model(), None)
+    assert result.value == 100.0
+    assert result.breakdown["served"] == 60.0
+    assert result.breakdown["unmet_total"] == 0.0
+    assert result.breakdown["unmet_by_zone"] == {}
+    # per-emirate served mirrors coverage's shape
+    assert result.breakdown["Dubai"] == 100.0 and result.breakdown["Abu Dhabi"] == 100.0
+
+
+def test_demand_served_reports_the_capacity_shortfall_coverage_cannot_see():
+    # Same tiny network, capacities squeezed to 25+25=50 vs 60 demand:
+    # coverage stays 100% (every zone still within SLA REACH of its hub)
+    # while served drops to 50/60 = 83.33% — the two named quantities.
+    from hubris.plugins.metrics.demand_served import DemandServedMetric
+
+    starved = TINY_RAW_TABLES.model_copy(deep=True)
+    for hub in starved.hubs:
+        hub["capacity"] = 25.0
+    model = NetworkModel.from_raw_tables(starved)
+
+    assert CoverageMetric().compute(model, None).value == 100.0  # reachability
+    served = DemandServedMetric().compute(model, None)
+    assert served.value == 83.33
+    assert served.breakdown["unmet_total"] == 10.0
+    assert sum(served.breakdown["unmet_by_zone"].values()) == 10.0
+
+
 def test_metrics_are_registered_and_agent_usable():
     from hubris.core.registry import METRIC, load_plugins
     from hubris.core.registry import registry as global_registry
 
     load_plugins()
     registered_names = {m.name for m in global_registry.all(METRIC)}
-    assert {"cost_to_serve", "utilization", "coverage", "spare_capacity"} <= registered_names
+    assert {
+        "cost_to_serve", "utilization", "coverage", "spare_capacity", "demand_served"
+    } <= registered_names
 
     tools = global_registry.as_agent_tools()
     tool = next(t for t in tools if t.name == "metric_cost_to_serve")
