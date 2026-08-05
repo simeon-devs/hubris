@@ -207,6 +207,16 @@ _register(
     ["hubris/ingestion/dataset_g_connector.py"],
 )
 
+_register(
+    "dataset_g_variable_cost_target_aed", 7.00, "verified",
+    "Dataset G Baseline_Metrics sheet, Target column: 'Hub & Spoke ≤ AED 7.00'. Their "
+    "~8.50 'current' is the VARIABLE pool (report §5.1: stripping overhead reproduces "
+    "it as 10.91 weighted), so the target is judged against variable-only cost — "
+    "which consolidation RAISES (longer incremental distances) while it cuts the "
+    "fully-loaded pool. The frontier reports both, labelled.",
+    ["hubris/agents/tools/optimise_frontier.py"],
+)
+
 # ---- realism frontier (Sims decision 2026-08-05) ---------------------------
 _register(
     "frontier_min_hubs_per_emirate", 1, "assumed",
