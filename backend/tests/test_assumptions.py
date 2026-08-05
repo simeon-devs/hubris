@@ -18,7 +18,6 @@ def test_module_constants_are_registry_values_not_copies():
     # Spot-check across layers: if someone re-hardcodes a constant, this
     # breaks — the registry is the single source, not a parallel catalogue.
     from hubris.agents import threshold_finder
-    from hubris.data import demo_scenario
     from hubris.engine import flow, geo, h3_zoning, monte_carlo, opportunities
 
     assert geo.ROAD_FACTOR == value("road_factor")
@@ -29,7 +28,6 @@ def test_module_constants_are_registry_values_not_copies():
     assert monte_carlo.DEFAULT_SEED == value("mc_seed")
     assert threshold_finder.DEFAULT_MAX_CUSTOMER_COUNT == value("threshold_max_customer_count")
     assert h3_zoning.DEFAULT_H3_RESOLUTION == value("h3_default_resolution")
-    assert demo_scenario.DEMO_DEMAND_FACTOR == value("demo_demand_factor")
 
 
 def test_verified_entries_cite_a_document():

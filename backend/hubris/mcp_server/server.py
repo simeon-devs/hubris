@@ -22,7 +22,7 @@ prose IT writes is outside our boundary. Our guarantee is that every
 number it receives from us is engine-computed.
 
 State note (honest limitation): the MCP server is its own process with its
-own twin instance — baseline + the seeded demo scenario (`demo_surge`).
+own twin instance — the real Dataset G baseline + the seeded `qcomm_twin`.
 Scenarios saved via the HTTP API live in that process's memory and are NOT
 visible here (and vice versa); durable cross-process state is exactly what
 the Postgres-backed memory tiers are for. Pass `_scenario_id` to target a
@@ -45,7 +45,7 @@ _SCENARIO_PARAM = {
     "type": "string",
     "description": (
         "Optional: id of a scenario saved in this MCP twin instance "
-        "('demo_surge' is pre-seeded). Omit for the live baseline."
+        "('qcomm_twin' is pre-seeded). Omit for the live baseline."
     ),
 }
 
@@ -90,7 +90,7 @@ def _run_tool(state: AppState, name: str, args: dict) -> dict:
     except KeyError:
         return {
             "error": f"unknown _scenario_id: {scenario_id}",
-            "hint": "omit it for the baseline; 'demo_surge' is pre-seeded in this instance",
+            "hint": "omit it for the baseline; 'qcomm_twin' is pre-seeded in this instance",
         }
 
     try:

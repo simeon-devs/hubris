@@ -546,7 +546,7 @@ def test_assumptions_endpoint_serves_the_labelled_registry(client):
     assert body["total"] >= 20
     assert set(body["counts_by_status"]) <= {"verified", "derived", "assumed"}
     names = {a["name"] for a in body["assumptions"]}
-    assert {"road_factor", "avg_speed_kmh", "mc_trials", "demo_demand_factor"} <= names
+    assert {"road_factor", "avg_speed_kmh", "mc_trials", "frontier_max_hub_volume_share"} <= names
     # the honest number: most inputs are assumptions until T-28's real data
     assert body["counts_by_status"]["assumed"] >= 10
 

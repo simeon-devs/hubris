@@ -44,7 +44,7 @@ async def _session_roundtrip():
             )
             sim = json.loads(sim_raw.content[0].text)
 
-            demo_raw = await session.call_tool("get_kpis", {"_scenario_id": "demo_surge"})
+            demo_raw = await session.call_tool("get_kpis", {"_scenario_id": "qcomm_twin"})
             demo = json.loads(demo_raw.content[0].text)
 
             bad_raw = await session.call_tool("optimise_network", {"optimizer_name": "MILP"})
