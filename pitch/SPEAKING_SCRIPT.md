@@ -87,7 +87,7 @@ Two: your contract riders cost 25 percent less than staff riders — at identica
 
 \[Slide 4 stays up: the three numbers + the link.\]
 
-"Eight hours, now one second. A 31-percent recommendation with the price of safety attached. And every number traceable to a real calculation — or flagged.
+"Eight hours, now one second. A 28-percent recommendation with the price of safety attached. And every number traceable to a real calculation — or flagged.
 
 It's running live — you can open it yourself at the link. Thank you."
 
