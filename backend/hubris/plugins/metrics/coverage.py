@@ -1,5 +1,11 @@
-"""Coverage: % of demand served within its zone's SLA window, per BUILD_SPEC
-§3's "coverage %?" canonical question (maximal-covering-style check)."""
+"""Coverage = SLA REACHABILITY: % of demand whose assigned facility is
+within its zone's SLA window (BUILD_SPEC §3's "coverage %?" canonical
+question, maximal-covering-style check). Deliberately capacity-blind — a
+zone counts as covered if its facility is close enough, even when that
+facility has no capacity left. The companion `demand_served` metric
+carries the capacity-constrained quantity; the two are surfaced together,
+labelled, so "coverage 100%" next to real unmet demand never reads as a
+contradiction (Sims, 2026-08-05)."""
 
 from hubris.core.contracts import Metric, MetricResult, NetworkModel
 from hubris.core.registry import register_metric
