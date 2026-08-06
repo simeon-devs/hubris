@@ -130,12 +130,49 @@ function toSimResponse(res: ApiSimulateResponse, scenarioId: string): SimulateRe
     scenario_flow_feasible: res.scenario_flow_feasible,
     scenario_id: scenarioId,
     reasoning: [
-      `Engine re-solve: ${res.scenario_name} with ${JSON.stringify(res.params)}.`,
+      `Engine re-solve — ${describeScenario(res.scenario_name, res.params)}.`,
       res.scenario_flow_feasible
         ? "Every parcel is served in the re-solved flow."
         : "The re-solved flow CANNOT serve all demand — see the red zones.",
     ],
   };
+}
+
+/** The run's own inputs as a sentence a planner can read — echoes the
+ *  params verbatim (they are inputs, not computed figures), instead of the
+ *  raw-JSON dump that used to leak into run panels and saved reports. */
+function describeScenario(name: string, params: Record<string, unknown>): string {
+  const p = params as Record<string, string | number | undefined>;
+  const num = (v: unknown, dp = 0) => (typeof v === "number" ? v.toFixed(dp) : String(v ?? "?"));
+  const sign = (v: unknown) => (typeof v === "number" && v > 0 ? `+${v}` : String(v ?? 0));
+  switch (name) {
+    case "close_hub":
+      return `close ${p["hub_id"]}`;
+    case "absorb_hub":
+      return `fold ${p["micro_id"]} into ${p["into_id"] ?? "the nearest Full Hub (engine's pick)"}`;
+    case "add_hub":
+      return `open ${p["hub_type"] ?? "a site"} "${p["name"]}" in ${p["emirate"]} at (${num(p["lat"], 3)}, ${num(p["lon"], 3)}), capacity ${num(p["capacity"])}/day`;
+    case "convert_hub_type":
+      return `convert ${p["hub_id"]} to ${p["to"]}`;
+    case "change_hub_capacity":
+      return p["new_capacity"] != null
+        ? `set ${p["hub_id"]} capacity to ${num(p["new_capacity"])}/day`
+        : `scale ${p["hub_id"]} capacity ×${p["factor"]}`;
+    case "change_workforce":
+      return `${p["hub_id"]} riders — FTE ${sign(p["fte_delta"])}, FTC ${sign(p["ftc_delta"])}`;
+    case "change_fleet_mix":
+      return `${p["fleet_type_id"]} — ${p["count_delta"] != null ? `${sign(p["count_delta"])} vehicles` : `set to ${num(p["count_available"])} vehicles`}`;
+    case "demand_scale":
+      return `demand ×${p["factor"]}${p["service_model"] ? ` (${p["service_model"]} only)` : " network-wide"}`;
+    case "shift_service_mix":
+      return `move ${p["pct"]}% of same-day volume to next-day`;
+    case "merge_zones":
+      return `fold ${p["merged_zone_id"]} into the ${p["absorbing_zone_id"]} delivery run`;
+    case "add_customer":
+      return `new customer "${p["name"]}" in ${p["emirate"]}, ${num(p["demand"])}/day`;
+    default:
+      return `${name} ${JSON.stringify(params)}`;
+  }
 }
 
 export interface LiveRunExtras {

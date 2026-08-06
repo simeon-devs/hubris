@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Download, FileText } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { CheckCircle2, Download, FileText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AtlasButton, Card, Chip, PageHead, SectionTitle } from "@/components/atlas/ui";
 import { exportUrl } from "@/lib/api";
+import { fmtNum } from "@/lib/atlas-data";
 import { useAtlas, type SavedReport } from "@/lib/atlas-store";
 import { cn } from "@/lib/utils";
 
@@ -25,10 +26,22 @@ export const Route = createFileRoute("/reports")({
 });
 
 function downloadMd(report: SavedReport) {
-  // Chat-saved reports keep their captured text; the download itself is the
-  // backend's export (the engine-composed brief), never client-assembled.
-  window.open(exportUrl("/export/report.md"), "_blank");
-  void report;
+  if (report.auto) {
+    // The live brief downloads as the backend's own engine-composed export.
+    window.open(exportUrl("/export/report.md"), "_blank");
+    return;
+  }
+  // A saved run report downloads EXACTLY the text on screen — previously
+  // this button silently downloaded the unrelated baseline brief instead.
+  const blob = new Blob([`# ${report.title}\n\n${report.summary}\n\n${report.bodyMd}\n`], {
+    type: "text/markdown",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${report.title.replace(/[^\w-]+/g, "_").slice(0, 60)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function downloadXlsx(report: SavedReport) {
@@ -37,7 +50,7 @@ function downloadXlsx(report: SavedReport) {
 }
 
 function ReportsPage() {
-  const { savedReports } = useAtlas();
+  const { savedReports, decisions } = useAtlas();
 
   const [autoBrief, setAutoBrief] = useState<SavedReport>({
     id: "auto-baseline",
@@ -89,8 +102,44 @@ function ReportsPage() {
         kicker="Decision briefs"
         value={String(reports.length)}
         unit={reports.length === 1 ? "report" : "reports"}
-        sub="Everything you adopt or save on the Simulate page lands here as a plain-language brief you can hand to leadership."
+        sub="Adopted decisions and saved run reports from the Simulate page, next to the engine's live decision brief."
       />
+
+      {/* Adopted decisions — the planner's shortlist from this session */}
+      <Card className="p-4">
+        <SectionTitle hint={`${decisions.length} this session`}>
+          <span className="inline-flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-ok" /> Adopted decisions
+          </span>
+        </SectionTitle>
+        {decisions.length === 0 ? (
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            Nothing adopted yet. Run a scenario on the{" "}
+            <Link to="/simulate" className="text-primary underline-offset-2 hover:underline">
+              Simulate page
+            </Link>{" "}
+            and press <span className="font-semibold text-foreground">Adopt</span> — the decision and its
+            verified cost delta land here.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {decisions.map((d, i) => (
+              <div key={i} className="flex items-center gap-2.5 rounded-lg bg-background/50 px-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{d.label}</span>
+                {d.costDeltaPct !== null ? (
+                  <Chip tone={d.costDeltaPct <= 0 ? "ok" : "warn"}>
+                    {d.costDeltaPct > 0 ? "+" : ""}
+                    {fmtNum(d.costDeltaPct, 1)}% cost
+                  </Chip>
+                ) : (
+                  <Chip tone="neutral">no cost delta</Chip>
+                )}
+                <span className="shrink-0 font-mono text-[9.5px] text-muted-foreground">{d.time}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* List */}

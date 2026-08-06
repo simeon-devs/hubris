@@ -671,10 +671,26 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
   const saveResult = () => {
     const reasoning = run?.res.reasoning ?? opp?.reasoning ?? [];
+    // The report carries what the SCREEN showed: the scenario-aware tiles
+    // (every figure engine-returned) + the what-changed sentence — not the
+    // one-line param echo it used to be.
+    const changed = run ? whatChanged(run) : null;
+    const tileLines = run
+      ? tilesFor(run).map(
+          (t) =>
+            `- ${t.label}: ${fmtNum(t.before, t.decimals ?? (t.unit === "%" ? 1 : 2))} → ${fmtNum(t.after, t.decimals ?? (t.unit === "%" ? 1 : 2))} ${t.unit}`.trimEnd(),
+        )
+      : [];
     saveReport({
       title: label,
-      summary: reasoning[0] ?? label,
-      bodyMd: `## ${label}\n\n${reasoning.map((r) => `- ${r}`).join("\n")}\n`,
+      summary: changed ?? reasoning[0] ?? label,
+      bodyMd: [
+        `## ${label}`,
+        `- Network: ${isQcomm ? "Dark stores (QComm twin)" : "Hub & Spoke"}`,
+        ...reasoning.map((r) => `- ${r}`),
+        ...(changed ? ["", "## What changed", changed] : []),
+        ...(tileLines.length ? ["", "## Result — engine figures, before → after", ...tileLines] : []),
+      ].join("\n"),
     });
   };
 
