@@ -44,7 +44,10 @@ services:
     runtime: node
     plan: free
     rootDir: frontend-atlas
-    buildCommand: npm ci && npm run build
+    # --include=dev: Render sets NODE_ENV=production, which makes a bare
+    # `npm ci` skip devDependencies — where vite and the whole build
+    # toolchain live. Without it the build dies with "vite: not found".
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node .output/server/index.mjs
     envVars:
       - key: NODE_VERSION
