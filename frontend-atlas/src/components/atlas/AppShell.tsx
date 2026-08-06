@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Bot, FileText, FlaskConical, Map as MapIcon, Sparkles } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
-import emxLogo from "@/assets/emx-logo.svg.asset.json";
+import { EmxLockup } from "@/components/atlas/EmxLockup";
 import { getHealth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PulseDot } from "./ui";
@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="app-chrome fixed inset-y-0 left-0 z-40 flex w-[216px] flex-col border-r bg-sidebar">
         <div className="border-b px-5 py-4">
           <div className="logo-chip inline-flex rounded-lg px-2.5 py-1.5">
-            <img src={emxLogo.url} alt="EMX — a 7X company" className="h-6 w-auto" />
+            <EmxLockup label="EMX — a 7X company" fontPx={24} />
           </div>
           <p className="kicker mt-3">Atlas · Control Tower</p>
         </div>
@@ -124,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               3 networks · 22 entities · 13 weeks
             </span>
             <div className="logo-chip rounded-md px-1.5 py-1">
-              <img src={emxLogo.url} alt="EMX" className="h-4 w-auto" />
+              <EmxLockup label="EMX" fontPx={15} />
             </div>
           </div>
         </header>

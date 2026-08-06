@@ -6,6 +6,7 @@ import { AtlasButton, Card, Chip, PageHead, SectionTitle } from "@/components/at
 import { exportUrl } from "@/lib/api";
 import { fmtNum } from "@/lib/atlas-data";
 import { useAtlas, type SavedReport } from "@/lib/atlas-store";
+import { reportPdfHtml } from "@/lib/report-pdf";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/reports")({
@@ -25,23 +26,14 @@ export const Route = createFileRoute("/reports")({
   component: ReportsPage,
 });
 
-function downloadMd(report: SavedReport) {
-  if (report.auto) {
-    // The live brief downloads as the backend's own engine-composed export.
-    window.open(exportUrl("/export/report.md"), "_blank");
-    return;
-  }
-  // A saved run report downloads EXACTLY the text on screen — previously
-  // this button silently downloaded the unrelated baseline brief instead.
-  const blob = new Blob([`# ${report.title}\n\n${report.summary}\n\n${report.bodyMd}\n`], {
-    type: "text/markdown",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${report.title.replace(/[^\w-]+/g, "_").slice(0, 60)}.md`;
-  a.click();
-  URL.revokeObjectURL(url);
+function downloadPdf(report: SavedReport) {
+  // A branded A4 template of EXACTLY the report on screen; the print
+  // dialog's "Save as PDF" produces the file. No backend round-trip, no
+  // client-computed figures — layout only.
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(reportPdfHtml(report));
+  w.document.close();
 }
 
 function downloadXlsx(report: SavedReport) {
@@ -184,8 +176,8 @@ function ReportsPage() {
               )}
           </div>
           <div className="mt-4 flex gap-2 border-t pt-4">
-            <AtlasButton variant="outline" onClick={() => downloadMd(selected)}>
-              <Download className="h-3.5 w-3.5" /> Download .md
+            <AtlasButton onClick={() => downloadPdf(selected)}>
+              <Download className="h-3.5 w-3.5" /> Download PDF
             </AtlasButton>
             <AtlasButton variant="outline" onClick={() => downloadXlsx(selected)}>
               <Download className="h-3.5 w-3.5" /> Download .xlsx
