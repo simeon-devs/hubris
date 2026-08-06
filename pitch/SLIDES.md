@@ -13,7 +13,7 @@
 - **8 hours → 1 second** per planning question
 - 3 networks · 13 hubs · 10 dark stores · ~1,190 riders — one screen
 
-*(bottom corner: team name + the live link)*
+*(bottom corner: team name + emx-atlas-app.onrender.com)*
 
 ---
 
@@ -55,7 +55,7 @@ Dark stores at **87–102%** · Hubs at **2–12%**.
 
 Two findings: *the 7 AED target is a routing lever, not a buildings lever* · *contract riders: −25% cost, equal output*
 
-**See it running: <link>** *(QR code)*
+**See it running: https://emx-atlas-app.onrender.com** *(QR code)*
 
 ---
 
