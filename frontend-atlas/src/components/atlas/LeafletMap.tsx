@@ -164,7 +164,9 @@ function newHubIcon(maxDaily: number): L.DivIcon {
  * this only makes the inherited ones readable.
  */
 function displayNudge(emirate: string, zone: string, lat: number, lng: number): { lat: number; lng: number } {
-  const onFacility = HUBS.some((h) => Math.abs(h.lat - lat) < 1e-3 && Math.abs(h.lng - lng) < 1e-3);
+  const onFacility =
+    HUBS.some((h) => Math.abs(h.lat - lat) < 1e-3 && Math.abs(h.lng - lng) < 1e-3) ||
+    DARK_STORES.some((s) => Math.abs(s.lat - lat) < 1e-3 && Math.abs(s.lng - lng) < 1e-3);
   if (!onFacility) return { lat, lng };
   let h = 5381;
   const s = `${emirate}|${zone}`;
@@ -195,6 +197,13 @@ const ORIGINAL_SERVING = new Map(
 );
 
 const HUB_BY_ID = new Map(HUBS.map((h) => [h.id, h]));
+/** Dark stores as SimMap-drawable entities (the QComm twin's facilities). */
+const STORE_BY_ID = new Map(
+  DARK_STORES.map((s) => [
+    s.id,
+    { id: s.id, name: s.name, lat: s.lat, lng: s.lng, emirate: s.emirate, maxDaily: s.maxDailyOrders, hubType: "Dark Store" },
+  ]),
+);
 
 /* ------------------------------ controllers ------------------------------ */
 
@@ -558,8 +567,14 @@ export function SimMap({
           // Zones inherit facility coords in this dataset — nudge for display
           // so the flow line is visible and never ends ON a hub pin.
           const z = raw ? { ...raw, ...displayNudge(a.emirate, a.zone, raw.lat, raw.lng) } : null;
-          const hub = HUB_BY_ID.get(a.hubId) ?? (newHub && newHub.id === a.hubId ? newHub : null);
-          const reassigned = ORIGINAL_SERVING.get(`${a.emirate}|${a.zone}|${a.model}`) !== a.hubId;
+          const hub =
+            HUB_BY_ID.get(a.hubId) ??
+            STORE_BY_ID.get(a.hubId) ??
+            (newHub && newHub.id === a.hubId ? newHub : null);
+          // Only flag amber when we KNOW the original server (H&S static map);
+          // unknown zones (QComm twin) must not paint every flow as re-routed.
+          const original = ORIGINAL_SERVING.get(`${a.emirate}|${a.zone}|${a.model}`);
+          const reassigned = original !== undefined && original !== a.hubId;
           return { a, z, hub, reassigned };
         })
         .filter((f) => f.z && f.hub),
@@ -686,31 +701,44 @@ export function SimMap({
         );
       })}
 
-      {/* Hub pins, coloured by SIMULATED utilisation */}
-      {ACTIVE_HUBS.map((hub) => {
-        if (closedId === hub.id) {
+      {/* Facility pins for THIS computation's network — hubs get hub pins,
+          dark stores (QComm twin runs) get bike pins; both wear the
+          simulated utilisation. The closed one gets the ✕ either way. */}
+      {(() => {
+        const drawn = new Set(comp.hubs.map((h) => h.id));
+        if (closedId) drawn.add(closedId);
+        return [...drawn].map((id) => {
+          const entity = HUB_BY_ID.get(id) ?? STORE_BY_ID.get(id);
+          if (!entity || (newHub && newHub.id === id)) return null;
+          if (closedId === id) {
+            return (
+              <Marker key={id} position={[entity.lat, entity.lng]} icon={closedIcon}>
+                <Tooltip>
+                  <span className="font-medium">{entity.name} — CLOSED in this scenario</span>
+                </Tooltip>
+              </Marker>
+            );
+          }
+          const r = hubResult.get(id);
+          const util = r?.util ?? 0;
+          const status = simStatus(util);
+          const isStore = entity.hubType === "Dark Store";
           return (
-            <Marker key={hub.id} position={[hub.lat, hub.lng]} icon={closedIcon}>
+            <Marker
+              key={id}
+              position={[entity.lat, entity.lng]}
+              icon={isStore ? storeIcon(util >= 100) : hubIcon(entity as HubInfo, status, touchedId === id)}
+            >
               <Tooltip>
-                <span className="font-medium">{hub.name} — CLOSED in this scenario</span>
+                <span className="font-medium">
+                  {entity.name} — {fmtInt(Math.round(r?.daily ?? 0))}/day of {fmtInt(Math.round((r?.daily ?? 0) / Math.max(1, util / 100)))} · {util.toFixed(0)}% util
+                  {util > 100 ? " · OVER CAPACITY" : ""}
+                </span>
               </Tooltip>
             </Marker>
           );
-        }
-        const r = hubResult.get(hub.id);
-        const util = r?.util ?? 0;
-        const status = simStatus(util);
-        return (
-          <Marker key={hub.id} position={[hub.lat, hub.lng]} icon={hubIcon(hub, status, touchedId === hub.id)}>
-            <Tooltip>
-              <span className="font-medium">
-                {hub.name} — {fmtInt(Math.round(r?.daily ?? 0))}/day of {fmtInt(Math.round((r?.daily ?? 0) / Math.max(1, util / 100)))} · {util.toFixed(0)}% util
-                {util > 100 ? " · OVER CAPACITY" : ""}
-              </span>
-            </Tooltip>
-          </Marker>
-        );
-      })}
+        });
+      })()}
 
       {/* The new hub, pulsing cyan */}
       {newHub ? (

@@ -10,6 +10,7 @@
  */
 
 import {
+  deleteSavedScenario,
   getKpis,
   getNetwork,
   simulate,
@@ -141,6 +142,9 @@ export interface LiveRunExtras {
   closedId?: string;
   touchedId?: string;
   newHub?: { id: string; name: string; lat: number; lng: number; maxDaily: number; kind: "full" | "micro" | "darkstore" };
+  /** Run the scenario ON a saved base (e.g. "qcomm_twin") instead of the
+   *  H&S baseline — /simulate's own base_scenario_id, engine-side. */
+  base?: string;
 }
 
 /** The engine's own cost decomposition, verbatim from /kpis breakdown. */
@@ -161,27 +165,52 @@ async function liveRun(
   params: Record<string, unknown>,
   extras: LiveRunExtras = {},
 ): Promise<ScenarioRun> {
+  const { base, ...restExtras } = extras;
   const scenarioId = nextScenarioId(prefix);
-  const res = await simulate({ scenario_name: scenarioName, params, save_as: scenarioId });
+  const res = await simulate({
+    scenario_name: scenarioName,
+    params,
+    save_as: scenarioId,
+    base_scenario_id: base ?? null,
+  });
   const [baseNet, scenNet, baseKpis, scenKpis] = await Promise.all([
-    getNetwork(),
+    getNetwork(base ?? null),
     getNetwork(scenarioId),
-    getKpis(),
+    getKpis(base ?? null),
     getKpis(scenarioId),
   ]);
+  // The save existed only so /network could return the re-solved flows.
+  // Drop it now: the watchdog sweeps EVERY saved scenario, and a pile of
+  // run-scoped saves (worse: deliberately-infeasible QComm what-ifs)
+  // would flood the alert feed with cards nobody asked for.
+  deleteSavedScenario(scenarioId).catch(() => {});
   const run: ScenarioRun = {
     res: toSimResponse(res, scenarioId),
     baseline: toComputation(baseNet, null),
     scenario: toComputation(scenNet, res),
     totals: { baseline: toTotals(baseKpis), scenario: toTotals(scenKpis) },
-    ...extras,
+    ...restExtras,
   } as ScenarioRun;
   return run;
 }
 
-// ---- the nine scenarios, real ---------------------------------------------
-export function liveCloseHub(hubId: string): Promise<ScenarioRun> {
-  return liveRun("close", "close_hub", { hub_id: hubId }, { closedId: hubId });
+/** A saved network as a drawable computation + its engine KPIs — the
+ *  Simulate tab's live baseline when working on the QComm twin. */
+export async function liveComputation(
+  scenarioId: string,
+): Promise<{ comp: HsComputation; kpis: ApiKpis }> {
+  const [net, kpis] = await Promise.all([getNetwork(scenarioId), getKpis(scenarioId)]);
+  return { comp: toComputation(net, null), kpis };
+}
+
+// ---- the twelve scenarios, real -------------------------------------------
+export function liveCloseHub(hubId: string, base?: string): Promise<ScenarioRun> {
+  return liveRun(
+    "close",
+    "close_hub",
+    { hub_id: hubId },
+    { closedId: hubId, ...(base ? { base } : {}) },
+  );
 }
 
 /** Absorb: the micro CLOSES and its capacity + rider roster MOVE into the
@@ -201,6 +230,7 @@ export function liveCustomHub(hub: {
   id: string; name: string; lat: number; lng: number; maxDaily: number;
   kind: "full" | "micro" | "darkstore"; emirate: string;
   fixedCost: number; handlingCost: number;
+  base?: string;
 }): Promise<ScenarioRun> {
   const serviceModels =
     hub.kind === "full" ? ["Standard", "Express"] : hub.kind === "micro" ? ["Standard"] : ["QComm"];
@@ -219,16 +249,19 @@ export function liveCustomHub(hub: {
       hub_type: hub.kind === "full" ? "Full Hub" : hub.kind === "micro" ? "Micro Hub" : "Dark Store",
       service_models: serviceModels,
     },
-    { newHub: { id: hub.id, name: hub.name, lat: hub.lat, lng: hub.lng, maxDaily: hub.maxDaily, kind: hub.kind } },
+    {
+      newHub: { id: hub.id, name: hub.name, lat: hub.lat, lng: hub.lng, maxDaily: hub.maxDaily, kind: hub.kind },
+      ...(hub.base ? { base: hub.base } : {}),
+    },
   );
 }
 
-export function liveResizeHub(hubId: string, newCapacity: number): Promise<ScenarioRun> {
+export function liveResizeHub(hubId: string, newCapacity: number, base?: string): Promise<ScenarioRun> {
   return liveRun(
     "resize",
     "change_hub_capacity",
     { hub_id: hubId, new_capacity: newCapacity },
-    { touchedId: hubId },
+    { touchedId: hubId, ...(base ? { base } : {}) },
   );
 }
 
@@ -249,8 +282,8 @@ export function liveRiders(hubId: string, fteDelta: number, ftcDelta: number): P
   );
 }
 
-export function liveDemandScale(factor: number): Promise<ScenarioRun> {
-  return liveRun("demand", "demand_scale", { factor });
+export function liveDemandScale(factor: number, base?: string): Promise<ScenarioRun> {
+  return liveRun("demand", "demand_scale", { factor }, base ? { base } : {});
 }
 
 /** Micro <-> Full conversion: the engine adds/removes the Express

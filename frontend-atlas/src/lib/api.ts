@@ -232,6 +232,9 @@ export function getEventMetrics(): Promise<ApiEventMetrics> {
 export function listSavedScenarios(): Promise<{ id: string; label: string }[]> {
   return request("/scenarios/saved");
 }
+export function deleteSavedScenario(id: string): Promise<void> {
+  return request(`/scenarios/saved/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
 export function exportUrl(path: string): string {
   return `${API_URL}${path}`;
 }
