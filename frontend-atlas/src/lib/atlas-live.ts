@@ -85,6 +85,9 @@ function toComputation(net: ApiNetwork, res: ApiSimulateResponse | null): HsComp
       ridersFtc: h.riders_ftc ?? undefined,
       riderCapacityDaily: h.rider_capacity_daily ?? undefined,
       riderWeeklyCost: h.rider_weekly_cost ?? undefined,
+      fleetVehicles: h.fleet_vehicles ?? undefined,
+      fleetDailyCost: h.fleet_daily_cost ?? undefined,
+      fleetCapacityUnits: h.fleet_capacity_units ?? undefined,
     }));
 
   const kpis = res
@@ -248,6 +251,35 @@ export function liveRiders(hubId: string, fteDelta: number, ftcDelta: number): P
 
 export function liveDemandScale(factor: number): Promise<ScenarioRun> {
   return liveRun("demand", "demand_scale", { factor });
+}
+
+/** Micro <-> Full conversion: the engine adds/removes the Express
+ *  capability and its real OD edges (convert_hub_type plugin). */
+export function liveConvertHub(hubId: string, to: "Full Hub" | "Micro Hub"): Promise<ScenarioRun> {
+  return liveRun("convert", "convert_hub_type", { hub_id: hubId, to }, { touchedId: hubId });
+}
+
+/** Fleet mix at one hub: +/- vehicles of one type; fleet aggregates on
+ *  /network move, the calibrated per-parcel rate deliberately does not. */
+export function liveFleetMix(
+  fleetTypeId: string,
+  hubId: string,
+  countDelta: number,
+): Promise<ScenarioRun> {
+  return liveRun(
+    "fleet",
+    "change_fleet_mix",
+    { fleet_type_id: fleetTypeId, count_delta: countDelta },
+    { touchedId: hubId },
+  );
+}
+
+/** Merge two delivery areas into one consolidated run (merge_zones). */
+export function liveMergeZones(absorbingZoneId: string, mergedZoneId: string): Promise<ScenarioRun> {
+  return liveRun("merge", "merge_zones", {
+    absorbing_zone_id: absorbingZoneId,
+    merged_zone_id: mergedZoneId,
+  });
 }
 
 export function liveAddCustomer(params: {

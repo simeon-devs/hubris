@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   ChevronRight,
   CircleX,
+  Combine,
   MapPinPlus,
   Maximize2,
   Merge,
@@ -10,8 +11,10 @@ import {
   FileText,
   Play,
   Plus,
+  Repeat,
   Save,
   TrendingUp,
+  Truck,
   UserPlus,
   Users,
   X,
@@ -21,7 +24,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AtlasButton, Chip, FeasBadge, PageHead } from "@/components/atlas/ui";
-import { ACTIVE_HUBS, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
+import { ACTIVE_HUBS, DEMAND, FLEET, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
 import {
   nearestZone,
   runBaseline,
@@ -32,8 +35,11 @@ import {
   liveAbsorbHub,
   liveAddCustomer,
   liveCloseHub,
+  liveConvertHub,
   liveCustomHub,
   liveDemandScale,
+  liveFleetMix,
+  liveMergeZones,
   liveResizeHub,
   liveRiders,
   liveSameDaySurge,
@@ -51,7 +57,7 @@ export const Route = createFileRoute("/simulate")({
       {
         name: "description",
         content:
-          "Nine what-if scenarios on the EMX digital twin: close, absorb, open, resize, surge, shift demand and right-size riders — simulated live on the network map.",
+          "Twelve what-if scenarios on the EMX digital twin: close, absorb, open, convert, resize, fleet mix, surge, shift, merge areas, right-size riders, demand and new customers — simulated live on the network map.",
       },
       { property: "og:title", content: "Simulate — EMX ATLAS" },
       { property: "og:description", content: "What-if scenarios simulated live on the EMX network map." },
@@ -64,15 +70,42 @@ export const Route = createFileRoute("/simulate")({
 
 /* ----------------------------- scenario menu ----------------------------- */
 
-type ScenarioKind = "close" | "absorb" | "open" | "resize" | "surge" | "shift" | "riders" | "demand" | "customer";
+type ScenarioKind =
+  | "close"
+  | "absorb"
+  | "open"
+  | "convert"
+  | "resize"
+  | "fleet"
+  | "surge"
+  | "shift"
+  | "merge"
+  | "riders"
+  | "demand"
+  | "customer";
+
+/** Engine id conventions (dataset_g_connector._slug): spaces -> _, / -> -. */
+const slug = (s: string) => s.trim().replace(/ /g, "_").replace(/\//g, "-");
+
+/** H&S delivery areas as the engine knows them, for the merge form. */
+const MERGE_ZONES = DEMAND.filter((d) => d.network === "Hub & Spoke").map((d) => ({
+  id: `${slug(d.emirate)}-${slug(d.zone)}-${slug(d.model)}`,
+  label: `${d.zone} · ${d.model} (${d.emirate})`,
+  emirate: d.emirate,
+  model: d.model,
+  daily: d.daily,
+}));
 
 const SCENARIOS: { kind: ScenarioKind; title: string; hint: string; icon: LucideIcon; runLabel: string }[] = [
   { kind: "close", title: "Close a hub", hint: "capacity redistributes to neighbours", icon: CircleX, runLabel: "Run scenario" },
-  { kind: "absorb", title: "Absorb a micro hub", hint: "fold it into its full hub", icon: Merge, runLabel: "Test absorption" },
+  { kind: "absorb", title: "Absorb a micro hub", hint: "capacity + riders move to a Full hub", icon: Merge, runLabel: "Test absorption" },
   { kind: "open", title: "Open a hub", hint: "type → click the map → capacity", icon: MapPinPlus, runLabel: "Test this site" },
+  { kind: "convert", title: "Convert hub type", hint: "Micro ↔ Full — same-day capability", icon: Repeat, runLabel: "Run conversion" },
   { kind: "resize", title: "Resize a hub", hint: "capacity up or down", icon: Maximize2, runLabel: "Run resize" },
+  { kind: "fleet", title: "Fleet mix", hint: "± vans, cars, bikes at a hub", icon: Truck, runLabel: "Run fleet change" },
   { kind: "surge", title: "Same-day surge", hint: "Express demand only", icon: Zap, runLabel: "Run surge" },
   { kind: "shift", title: "Shift same-day → next-day", hint: "offload Express to Standard", icon: ArrowRightLeft, runLabel: "Run shift" },
+  { kind: "merge", title: "Merge delivery areas", hint: "fold one zone's run into a neighbour's", icon: Combine, runLabel: "Run merge" },
   { kind: "riders", title: "Right-size riders", hint: "FTE / FTC flex", icon: Users, runLabel: "Run staffing" },
   { kind: "demand", title: "Demand surge", hint: "whole network", icon: TrendingUp, runLabel: "Run demand" },
   { kind: "customer", title: "New customer", hint: "opportunity assessor", icon: UserPlus, runLabel: "Assess opportunity" },
@@ -241,9 +274,26 @@ function tilesFor(run: ScenarioRun): TileSpec[] {
       return base;
     case "shift":
     case "surge":
+    case "convert":
       return [
         { label: "Same-day (Express) / day", before: modelDaily(run.baseline, "Express"), after: modelDaily(run.scenario, "Express"), unit: "pcs", goodWhenDown: false, decimals: 0 },
         { label: "Next-day (Standard) / day", before: modelDaily(run.baseline, "Standard"), after: modelDaily(run.scenario, "Standard"), unit: "pcs", goodWhenDown: false, decimals: 0 },
+        ...base,
+      ];
+    case "fleet":
+      if (hb?.fleetVehicles !== undefined && ha?.fleetVehicles !== undefined) {
+        return [
+          { label: "Fleet vehicles (hub)", before: hb.fleetVehicles, after: ha.fleetVehicles, unit: "", goodWhenDown: false, decimals: 0 },
+          { label: "Fleet cost / day", before: hb.fleetDailyCost ?? 0, after: ha.fleetDailyCost ?? 0, unit: "AED", decimals: 0 },
+          { label: "Fleet trip capacity", before: hb.fleetCapacityUnits ?? 0, after: ha.fleetCapacityUnits ?? 0, unit: "units", goodWhenDown: false, decimals: 0 },
+          ...base.filter((t) => t.label === "Cost / parcel" || t.label === "Served"),
+        ];
+      }
+      return base;
+    case "merge":
+      return [
+        { label: "Delivery stops", before: run.baseline.assignments.length, after: run.scenario.assignments.length, unit: "", decimals: 0 },
+        ...demandTile,
         ...base,
       ];
     case "demand":
@@ -287,6 +337,23 @@ function whatChanged(run: ScenarioRun): string | null {
       return "Capacity is the lever; flows were re-solved against the new limit. Watch hub utilisation and network spare.";
     case "shift":
       return "Volume moves between service models inside each zone — total demand is conserved by construction.";
+    case "convert": {
+      const exB = run.baseline.assignments.filter((a) => a.hubId === run.touchedId && a.model === "Express");
+      const exA = run.scenario.assignments.filter((a) => a.hubId === run.touchedId && a.model === "Express");
+      const name = ha?.name ?? run.touchedId ?? "the hub";
+      if (exA.length > exB.length) {
+        const pcs = Math.round(exA.reduce((s, a) => s + a.weekly, 0) / 7);
+        return `${name} is now same-day capable: the engine routed ${exA.length} Express flow${exA.length === 1 ? "" : "s"} (${fmtInt(pcs)} pcs/day) to it that a Micro could not legally serve.`;
+      }
+      if (exB.length > 0 && exA.length === 0) {
+        return `${name} no longer carries same-day: its ${exB.length} Express flow${exB.length === 1 ? "" : "s"} re-routed (amber) — watch the Served tile for whether the rest of the network could take them.`;
+      }
+      return "Capability changed. At today's costs no Express flow chose this hub — the corridors exist now, and a surge or closure can use them.";
+    }
+    case "fleet":
+      return "Only the fleet moves: vehicle count, fleet cost/day and trip capacity are the hub's own Fleet_Roster figures re-totalled by the engine. Cost/parcel stays put deliberately — vehicle running cost is already calibrated inside the file's per-shipment rate.";
+    case "merge":
+      return `One delivery stop disappears (${run.baseline.assignments.length} → ${run.scenario.assignments.length}): the merged area's parcels ride the absorbing run at its corridor cost, and total demand is conserved.`;
     case "surge":
     case "demand": {
       const t = run.totals;
@@ -350,6 +417,14 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   const [closeHubId, setCloseHubId] = useState("HUB_RAK_01");
   const [microHubId, setMicroHubId] = useState("HUB_AJM_01");
   const [absorbIntoId, setAbsorbIntoId] = useState(""); // "" = engine picks nearest Full Hub
+  // Default = the boldest demo: Al Quoz is Dubai's biggest Full hub, so
+  // → Micro visibly forces its same-day flows onto other hubs (amber).
+  const [convertHubId, setConvertHubId] = useState("HUB_DXB_01");
+  const [fleetHubId, setFleetHubId] = useState("HUB_DXB_01");
+  const [fleetVehicle, setFleetVehicle] = useState("Van");
+  const [fleetDelta, setFleetDelta] = useState(2);
+  const [mergeAbsorbId, setMergeAbsorbId] = useState("Dubai-Al_Quoz-Standard");
+  const [mergeMergedId, setMergeMergedId] = useState("Dubai-Business_Bay-Standard");
   const [openType, setOpenType] = useState(0);
   const [openLoc, setOpenLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [openCap, setOpenCap] = useState(1800);
@@ -437,6 +512,29 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
         }
         break;
       }
+      case "convert": {
+        const hub = ACTIVE_HUBS.find((h) => h.id === convertHubId);
+        const to = hub?.hubType === "Micro Hub" ? "Full Hub" : "Micro Hub";
+        execute(`Convert ${hub?.name ?? convertHubId} → ${to}`, () => liveConvertHub(convertHubId, to));
+        break;
+      }
+      case "fleet": {
+        const hub = ACTIVE_HUBS.find((h) => h.id === fleetHubId);
+        execute(
+          `Fleet at ${hub?.name ?? fleetHubId}: ${fleetDelta > 0 ? "+" : ""}${fleetDelta} ${fleetVehicle}`,
+          () => liveFleetMix(`${fleetHubId}-${slug(fleetVehicle)}`, fleetHubId, fleetDelta),
+        );
+        break;
+      }
+      case "merge": {
+        const absorb = MERGE_ZONES.find((z) => z.id === mergeAbsorbId);
+        const merged = MERGE_ZONES.find((z) => z.id === mergeMergedId);
+        execute(
+          `Merge ${merged?.label ?? mergeMergedId} into ${absorb?.label ?? mergeAbsorbId}`,
+          () => liveMergeZones(mergeAbsorbId, mergeMergedId),
+        );
+        break;
+      }
       case "resize":
         execute(`Resize ${resizeHub?.name ?? ""} to ${resizePct}%`, () =>
           liveResizeHub(resizeHubId, Math.round(((resizeHub?.maxDaily ?? 1) * resizePct) / 100)),
@@ -480,7 +578,24 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   };
 
   const canRun =
-    kind === "open" ? Boolean(openLoc) : kind === "customer" ? Boolean(custLoc) : kind === "riders" ? fteDelta !== 0 || ftcDelta !== 0 : true;
+    kind === "open"
+      ? Boolean(openLoc)
+      : kind === "customer"
+        ? Boolean(custLoc)
+        : kind === "riders"
+          ? fteDelta !== 0 || ftcDelta !== 0
+          : kind === "fleet"
+            ? fleetDelta !== 0
+            : kind === "merge"
+              ? mergeAbsorbId !== mergeMergedId &&
+                MERGE_ZONES.some(
+                  (z) =>
+                    z.id === mergeMergedId &&
+                    MERGE_ZONES.some(
+                      (a) => a.id === mergeAbsorbId && a.emirate === z.emirate && a.model === z.model,
+                    ),
+                )
+              : true;
 
   const adoptResult = () => {
     adopt(label, run?.res.delta_pct.cost_to_serve ?? null);
@@ -602,6 +717,96 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
                   </Field>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     Unlike a plain close, the micro's capacity and riders MOVE into the absorbing hub — the building goes, the people and throughput stay.
+                  </p>
+                </>
+              ) : null}
+
+              {kind === "convert" ? (
+                <>
+                  <Field label="Hub to convert">
+                    <HubSelect value={convertHubId} onChange={setConvertHubId} />
+                  </Field>
+                  {(() => {
+                    const hub = ACTIVE_HUBS.find((h) => h.id === convertHubId);
+                    const toFull = hub?.hubType === "Micro Hub";
+                    return (
+                      <p className="rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-2 text-[11px] leading-relaxed text-text-secondary">
+                        {toFull
+                          ? `${hub?.name} is a Micro (next-day only). Converting → FULL adds the same-day capability: the engine derives real delivery corridors to every Express zone, priced exactly like a newly-built site.`
+                          : `${hub?.name} is a Full hub. Converting → MICRO removes the same-day capability — its Express corridors are deleted and the engine shows where that demand goes (or that it can't).`}
+                      </p>
+                    );
+                  })()}
+                </>
+              ) : null}
+
+              {kind === "fleet" ? (
+                <>
+                  <Field label="Hub">
+                    <HubSelect
+                      value={fleetHubId}
+                      onChange={(v) => {
+                        setFleetHubId(v);
+                        const first = FLEET.find((f) => f.id === v && f.network === "Hub & Spoke");
+                        if (first) setFleetVehicle(first.vehicleType);
+                      }}
+                    />
+                  </Field>
+                  <Field label="Vehicle type">
+                    <select
+                      value={fleetVehicle}
+                      onChange={(e) => setFleetVehicle(e.target.value)}
+                      className="w-full rounded-lg border bg-background px-2.5 py-2 text-[12px] text-foreground"
+                    >
+                      {FLEET.filter((f) => f.id === fleetHubId && f.network === "Hub & Spoke").map((f) => (
+                        <option key={f.vehicleType} value={f.vehicleType}>
+                          {f.vehicleType} — {f.count} now · {f.capacityUnits} units each
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Vehicles to add / remove">
+                    <Stepper value={fleetDelta} onChange={setFleetDelta} />
+                  </Field>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Moves the hub's own fleet cost and trip capacity (from Fleet_Roster). The per-parcel rate stays put — vehicle running cost is already inside the file's cost sheet.
+                  </p>
+                </>
+              ) : null}
+
+              {kind === "merge" ? (
+                <>
+                  <Field label="Absorbing run (keeps its corridor)">
+                    <select
+                      value={mergeAbsorbId}
+                      onChange={(e) => setMergeAbsorbId(e.target.value)}
+                      className="w-full rounded-lg border bg-background px-2.5 py-2 text-[12px] text-foreground"
+                    >
+                      {MERGE_ZONES.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.label} · {fmtInt(z.daily)}/day
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Area folded into it (stop disappears)">
+                    <select
+                      value={mergeMergedId}
+                      onChange={(e) => setMergeMergedId(e.target.value)}
+                      className="w-full rounded-lg border bg-background px-2.5 py-2 text-[12px] text-foreground"
+                    >
+                      {MERGE_ZONES.filter((z) => {
+                        const a = MERGE_ZONES.find((x) => x.id === mergeAbsorbId);
+                        return a && z.id !== a.id && z.emirate === a.emirate && z.model === a.model;
+                      }).map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.label} · {fmtInt(z.daily)}/day
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Same emirate, same promise only — the merged area's parcels ride the absorbing run at its corridor cost, and one delivery stop disappears.
                   </p>
                 </>
               ) : null}

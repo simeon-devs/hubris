@@ -246,6 +246,9 @@ export interface HubResult {
   ridersFtc?: number | undefined;
   riderCapacityDaily?: number | undefined;
   riderWeeklyCost?: number | undefined;
+  fleetVehicles?: number | undefined;
+  fleetDailyCost?: number | undefined;
+  fleetCapacityUnits?: number | undefined;
 }
 
 export interface HsComputation {

@@ -39,6 +39,10 @@ export interface ApiHub {
   rider_capacity_daily: number | null; rider_weekly_cost: number | null;
   required_headcount: number; sustainable_headcount: number;
   headcount_gap: number; gap_direction: string;
+  // Engine-computed fleet aggregates (Fleet_Roster x counts) — null when
+  // the dataset carries no fleet for the facility.
+  fleet_vehicles: number | null; fleet_daily_cost: number | null;
+  fleet_capacity_units: number | null;
 }
 export interface ApiZone {
   id: string; name: string; lat: number; lon: number; emirate: string;
