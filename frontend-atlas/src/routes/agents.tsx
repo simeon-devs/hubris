@@ -74,7 +74,9 @@ function AgentsPage() {
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [tools, setTools] = useState<string[]>(["get_kpis", "find_spare_capacity"]);
-  const [mode, setMode] = useState<"on-demand" | "monitoring">("monitoring");
+  // Default on-demand: custom agents answer when asked. The scheduled
+  // sweeps are the two seeded watchdogs' job.
+  const [mode, setMode] = useState<"on-demand" | "monitoring">("on-demand");
 
   const toggleTool = (t: string) => setTools((list) => (list.includes(t) ? list.filter((x) => x !== t) : [...list, t]));
   const canDeploy = name.trim().length > 0 && goal.trim().length > 0 && tools.length > 0;
@@ -200,7 +202,9 @@ function AgentsPage() {
                       <p className="mt-1 text-[11.5px] leading-relaxed text-text-secondary">{a.goal}</p>
                       <p className="mt-1.5 font-mono text-[9.5px] text-muted-foreground">
                         {a.allowed_tools.join(" · ")}
-                        {a.autonomy === "monitoring" && mon?.last_run_at
+                        {/* The sweep line belongs ONLY to the two seeded watchdogs —
+                            they are what the scheduler actually runs. */}
+                        {(a.name === "capacity_watchdog" || a.name === "utilization_sentinel") && mon?.last_run_at
                           ? ` — last sweep ${mon.last_run_at.slice(11, 19)} UTC`
                           : ""}
                       </p>
