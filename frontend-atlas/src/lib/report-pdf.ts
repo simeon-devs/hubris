@@ -15,7 +15,7 @@ const esc = (s: string) =>
 
 interface Section {
   heading: string | null;
-  rows: { label: string; value: string }[];
+  rows: { label: string; before: string; after: string }[];
   bullets: string[];
   paras: string[];
 }
@@ -36,8 +36,14 @@ function parseBody(bodyMd: string): Section[] {
     } else if (line.startsWith("- ")) {
       const item = line.slice(2);
       const idx = item.indexOf(": ");
-      if (idx > 0 && item.includes("→")) {
-        cur.rows.push({ label: item.slice(0, idx), value: item.slice(idx + 2) });
+      const arrow = item.indexOf("→");
+      if (idx > 0 && arrow > idx) {
+        // "- Label: before → after unit" -> a Before/After table row
+        cur.rows.push({
+          label: item.slice(0, idx),
+          before: item.slice(idx + 2, arrow).trim(),
+          after: item.slice(arrow + 1).trim(),
+        });
       } else {
         cur.bullets.push(item);
       }
@@ -58,12 +64,14 @@ function sectionHtml(s: Section): string {
     ? `<ul>${s.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`
     : "";
   const rows = s.rows.length
-    ? `<table><tbody>${s.rows
-        .map(
-          (r) =>
-            `<tr><td class="lbl">${esc(r.label)}</td><td class="val">${esc(r.value)}</td></tr>`,
-        )
-        .join("")}</tbody></table>`
+    ? `<table>
+        <thead><tr><th>Measure</th><th>Before</th><th>After</th></tr></thead>
+        <tbody>${s.rows
+          .map(
+            (r) =>
+              `<tr><td class="lbl">${esc(r.label)}</td><td class="val before">${esc(r.before)}</td><td class="val">${esc(r.after)}</td></tr>`,
+          )
+          .join("")}</tbody></table>`
     : "";
   return `<section>${heading}${paras}${bullets}${rows}</section>`;
 }
@@ -98,10 +106,12 @@ export function reportPdfHtml(report: SavedReport): string {
   ul { padding-left: 16px; margin: 6px 0; }
   li { margin: 3px 0; color: #2a2f3c; }
   table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th { text-align: left; font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #6a6f80; font-weight: 700; padding: 4px 10px; border-bottom: 2px solid ${EMX_BLUE}33; }
   td { padding: 6px 10px; border-bottom: 1px solid #e6e8f0; }
-  td.lbl { color: #3a3f4e; width: 46%; }
+  td.lbl { color: #3a3f4e; width: 44%; }
   td.val { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 11px; color: #16181f; }
-  tr:nth-child(odd) td { background: #f7f8fc; }
+  td.val.before { color: #6a6f80; font-weight: 400; }
+  tbody tr:nth-child(odd) td { background: #f7f8fc; }
   footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e6e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #6a6f80; }
   @media print { body { padding: 0; } }
 </style>

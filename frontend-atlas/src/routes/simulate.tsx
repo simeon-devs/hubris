@@ -671,9 +671,9 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
   const saveResult = () => {
     const reasoning = run?.res.reasoning ?? opp?.reasoning ?? [];
-    // The report carries what the SCREEN showed: the scenario-aware tiles
-    // (every figure engine-returned) + the what-changed sentence — not the
-    // one-line param echo it used to be.
+    // A team-analysis document, not a line log: context, the lever, the
+    // key metrics, the network-wide impact, and computed watch-outs.
+    // Every figure is an engine return; sentences only frame them.
     const changed = run ? whatChanged(run) : null;
     const tileLines = run
       ? tilesFor(run).map(
@@ -681,15 +681,45 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
             `- ${t.label}: ${fmtNum(t.before, t.decimals ?? (t.unit === "%" ? 1 : 2))} → ${fmtNum(t.after, t.decimals ?? (t.unit === "%" ? 1 : 2))} ${t.unit}`.trimEnd(),
         )
       : [];
+
+    const impact: string[] = [];
+    const watchouts: string[] = [];
+    if (run) {
+      const moved = movedFlows(run);
+      impact.push(`- Flows re-routed by the re-solve: ${moved} of ${run.scenario.assignments.length}`);
+      if (run.totals) {
+        impact.push(
+          `- Total network cost: ${fmtInt(Math.round(run.totals.baseline.totalCost))} → ${fmtInt(Math.round(run.totals.scenario.totalCost))} AED/day`,
+          `- Demand carried: ${fmtInt(Math.round(run.totals.baseline.totalDemand))} → ${fmtInt(Math.round(run.totals.scenario.totalDemand))} parcels/day`,
+        );
+      }
+      const busiest = [...run.scenario.hubs].sort((a, b) => b.util - a.util).slice(0, 3);
+      impact.push(
+        `- Busiest facilities after the change: ${busiest
+          .map((h) => `${h.name} ${fmtNum(h.util, 1)}% (${fmtInt(Math.round(h.daily))}/day)`)
+          .join("; ")}`,
+      );
+
+      for (const h of run.scenario.hubs) {
+        if (h.util >= 90) watchouts.push(`- ${h.name} runs at ${fmtNum(h.util, 1)}% after this change — little headroom left before it breaks.`);
+      }
+      const served = run.res.scenario_kpis.coverage.value;
+      if (served < 99.95) watchouts.push(`- Only ${fmtNum(served, 2)}% of demand is served — parcels are being dropped; this change is not deployable as-is.`);
+      if (!run.res.scenario_flow_feasible) watchouts.push(`- The flow is INFEASIBLE: the network cannot serve everything under this change.`);
+      if (!watchouts.length) watchouts.push("- None flagged — the network absorbs this change with headroom.");
+    }
+
     saveReport({
       title: label,
       summary: changed ?? reasoning[0] ?? label,
       bodyMd: [
-        `## ${label}`,
+        "## Context",
         `- Network: ${isQcomm ? "Dark stores (QComm twin)" : "Hub & Spoke"}`,
         ...reasoning.map((r) => `- ${r}`),
         ...(changed ? ["", "## What changed", changed] : []),
-        ...(tileLines.length ? ["", "## Result — engine figures, before → after", ...tileLines] : []),
+        ...(tileLines.length ? ["", "## Key metrics — before → after", ...tileLines] : []),
+        ...(impact.length ? ["", "## Network impact", ...impact] : []),
+        ...(run ? ["", "## Watch-outs", ...watchouts] : []),
       ].join("\n"),
     });
   };
