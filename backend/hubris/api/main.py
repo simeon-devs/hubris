@@ -61,7 +61,15 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    # Presence flags only — never values. `anthropic_key` diagnoses the
+    # deployed chat in one glance (the SDK's "could not resolve
+    # authentication" means the process env simply lacks the variable).
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    return {
+        "status": "ok",
+        "anthropic_key": "present" if key.strip() else "MISSING",
+        "anthropic_key_shape_ok": key.strip().startswith("sk-ant-") if key.strip() else False,
+    }
 
 
 app.include_router(kpis.router)
