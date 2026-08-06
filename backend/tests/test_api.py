@@ -57,7 +57,9 @@ def _isolate_state():
 
 
 def test_health(client):
-    assert client.get("/health").json() == {"status": "ok"}
+    body = client.get("/health").json()
+    assert body["status"] == "ok"
+    assert body["anthropic_key"] in {"present", "MISSING"}  # presence flag, never the value
 
 
 def test_kpis_matches_the_engine(client):
