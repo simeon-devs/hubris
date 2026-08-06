@@ -64,6 +64,20 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
     # per hub so no client ever derives staffing from parcel counts itself.
     workforce = WorkforceRequirementMetric().compute(model, None).breakdown["per_hub"]
 
+    # Per-hub fleet aggregates, computed HERE so the fleet-mix scenario has
+    # engine-owned tiles (count x per-vehicle daily cost / trip capacity is
+    # arithmetic, and arithmetic belongs to the engine, not the browser).
+    fleet_agg: dict[str, dict[str, float]] = {}
+    for f in model.fleet_types:
+        if not f.hub_id:
+            continue
+        agg = fleet_agg.setdefault(
+            f.hub_id, {"vehicles": 0.0, "daily_cost": 0.0, "capacity_units": 0.0}
+        )
+        agg["vehicles"] += f.count_available
+        agg["daily_cost"] += f.count_available * f.fixed_cost
+        agg["capacity_units"] += f.count_available * f.capacity
+
     hubs = [
         HubMapInfo(
             id=hub.id,
@@ -91,6 +105,15 @@ def get_network(scenario_id: str | None = None) -> NetworkMapResponse:
             gap_direction=workforce[hub.id]["gap_direction"],
             required_permanent=workforce[hub.id]["required_permanent"],
             required_outsourced=workforce[hub.id]["required_outsourced"],
+            fleet_vehicles=(
+                int(fleet_agg[hub.id]["vehicles"]) if hub.id in fleet_agg else None
+            ),
+            fleet_daily_cost=(
+                round(fleet_agg[hub.id]["daily_cost"], 2) if hub.id in fleet_agg else None
+            ),
+            fleet_capacity_units=(
+                round(fleet_agg[hub.id]["capacity_units"], 1) if hub.id in fleet_agg else None
+            ),
         )
         for hub in model.hubs
     ]

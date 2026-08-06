@@ -179,6 +179,11 @@ class HubMapInfo(BaseModel):
     gap_direction: str = "balanced"  # understaffed | balanced | overstaffed
     required_permanent: int = 0
     required_outsourced: int = 0
+    # Fleet aggregates (Fleet_Roster rows x counts, computed engine-side) —
+    # None when the dataset carries no fleet for this facility.
+    fleet_vehicles: int | None = None
+    fleet_daily_cost: float | None = None
+    fleet_capacity_units: float | None = None
     spare_capacity: float
     cost_to_serve: float
 

@@ -88,6 +88,8 @@ def test_scenarios_lists_all_nine_registered_modules(client):
         "shift_service_mix",
         "change_workforce",
         "absorb_hub",
+        "convert_hub_type",
+        "merge_zones",
     }
 
 

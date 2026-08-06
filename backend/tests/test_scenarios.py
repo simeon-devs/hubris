@@ -142,6 +142,8 @@ def test_all_nine_scenarios_are_registered_and_agent_usable():
         "shift_service_mix",
         "change_workforce",
         "absorb_hub",
+        "convert_hub_type",
+        "merge_zones",
     }
 
     tools = global_registry.as_agent_tools()
