@@ -148,7 +148,6 @@ function OptimizePage() {
         cps: h.cost_to_serve,
         varAedDay: 0,
         fixedAedDay: 0,
-        totalAedDay: 0,
         rentAedMonth: rentById.get(h.id) ?? 0,
         verdict: h.cost_to_serve >= 90 ? "Fix now" : h.cost_to_serve >= 55 ? "Watch" : "Efficient",
         note: "",
@@ -179,7 +178,7 @@ function OptimizePage() {
   }, [ranked]);
 
   const [emirateFilter, setEmirateFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"cps" | "util" | "cost" | "rent">("cps");
+  const [sortBy, setSortBy] = useState<"cps" | "util" | "rent">("cps");
 
   // The engine's own monthly saving for the recommended shape (ranked row).
   const monthlySave = shapes.shapes.find((s) => s.isRecommended)?.saveAedMonth ?? 0;
@@ -190,7 +189,6 @@ function OptimizePage() {
     const key = {
       cps: (r: (typeof econ)[number]) => -r.cps,
       util: (r: (typeof econ)[number]) => -r.util,
-      cost: (r: (typeof econ)[number]) => -r.totalAedDay,
       rent: (r: (typeof econ)[number]) => -r.rentAedMonth,
     }[sortBy];
     return [...rows].sort((a, b) => key(a) - key(b));
@@ -333,7 +331,7 @@ function OptimizePage() {
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="kicker">Sort</span>
-            {(["cps", "util", "cost", "rent"] as const).map((k) => (
+            {(["cps", "util", "rent"] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => setSortBy(k)}
@@ -342,7 +340,7 @@ function OptimizePage() {
                   sortBy === k ? "border-primary/40 bg-primary/12 text-primary" : "bg-background/50 text-text-secondary hover:text-foreground",
                 )}
               >
-                {k === "cps" ? "Cost/ship" : k === "util" ? "Util" : k === "cost" ? "Cost/day" : "Rent"}
+                {k === "cps" ? "Cost/ship" : k === "util" ? "Util" : "Rent"}
               </button>
             ))}
           </div>
