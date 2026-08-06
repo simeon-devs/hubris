@@ -54,7 +54,9 @@ function OptimizePage() {
   const [bottleneck, setBottleneck] = useState<ApiBottleneck | null>(null);
   const [threshold, setThreshold] = useState<ApiThreshold | null>(null);
   const [net, setNet] = useState<ApiNetwork | null>(null);
-  const [ranked, setRanked] = useState<{ shapes: ApiRankedShape[] } | null>(null);
+  const [ranked, setRanked] = useState<{ shapes: ApiRankedShape[]; evaluated?: number; feasible_count?: number } | null>(null);
+  const [frontierBusy, setFrontierBusy] = useState(false);
+  const [frontierError, setFrontierError] = useState<string | null>(null);
   const [frontierRes, setFrontierRes] = useState<ApiFrontier | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -87,9 +89,19 @@ function OptimizePage() {
   const [maxShare, setMaxShare] = useState(45);
   useEffect(() => {
     let cancelled = false;
+    setFrontierBusy(true);
+    setFrontierError(null);
     optimizeFrontier({ min_hubs_per_emirate: minHubs, max_hub_volume_share: maxShare / 100 })
-      .then((f) => !cancelled && setFrontierRes(f))
-      .catch(() => {});
+      .then((f) => {
+        if (!cancelled) setFrontierRes(f);
+      })
+      .catch((e: Error) => {
+        // Never leave stale numbers standing with no warning.
+        if (!cancelled) setFrontierError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setFrontierBusy(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -144,7 +156,7 @@ function OptimizePage() {
   }, [net]);
 
   const shapes = useMemo(() => {
-    if (!ranked) return { shapes: [], evaluated: 0, feasibleCount: 0, baselineCps: 0 };
+    if (!ranked) return { shapes: [], evaluated: 0, shown: 0, feasibleCount: 0, baselineCps: 0 };
     return {
       shapes: ranked.shapes.map((r) => ({
         rank: r.rank,
@@ -159,8 +171,9 @@ function OptimizePage() {
         isCurrent: r.is_current,
         isRecommended: r.is_recommended,
       })),
-      evaluated: ranked.shapes.length,
-      feasibleCount: ranked.shapes.filter((r) => r.feasible !== false).length,
+      evaluated: ranked.evaluated ?? ranked.shapes.length,
+      shown: ranked.shapes.length,
+      feasibleCount: ranked.feasible_count ?? ranked.shapes.filter((r) => r.feasible !== false).length,
       baselineCps: 0,
     };
   }, [ranked]);
@@ -206,35 +219,44 @@ function OptimizePage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <PageHead
-        kicker="Potential monthly saving"
+        kicker="Recommended saving — the plan you can live with"
         value={fmtInt(Math.round(monthlySave))}
         unit="AED / month"
         sub={
-          opt.changes.length > 0
-            ? `${opt.changes.map((c) => `${c.action} ${entityName(c.hub_id)}`).join(" + ")} — feasible in ${opt.robustness.feasible_pct.toFixed(0)}% of ±20% demand stress tests.`
-            : "No open/close combination beats the current layout while keeping 100% coverage and every hub under 95% utilisation."
+          frontier.recommended.closes.length > 0
+            ? `Close ${frontier.recommended.closes.map((id) => entityName(id)).join(", ")} — a hub stays in every emirate, no hub over ${maxShare}% of volume.`
+            : "With your policy, the current layout is already the best shape."
         }
       />
 
-      {/* 1 · Recommendation */}
+      {/* 1 · Recommendation — the RESILIENT plan (the ★ below). The raw
+          optimum saves more but concentrates the network; it is shown as
+          evidence in the Frontier card, never recommended. */}
       <Card className="p-5">
-        <SectionTitle hint={`evaluated ${shapes.evaluated} network shapes`}>Recommendation</SectionTitle>
-        {opt.changes.length > 0 ? (
+        <SectionTitle hint="what we would actually do">Recommendation</SectionTitle>
+        {frontier.recommended.closes.length + frontier.recommended.opens.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-2">
-            {opt.changes.map((c) => (
-              <Chip key={c.hub_id} tone={c.action === "close_hub" ? "risk" : "ok"}>
-                {c.action} · {entityName(c.hub_id)}
-              </Chip>
+            {frontier.recommended.opens.map((id) => (
+              <Chip key={id} tone="ok">open · {entityName(id)}</Chip>
+            ))}
+            {frontier.recommended.closes.map((id) => (
+              <Chip key={id} tone="risk">close · {entityName(id)}</Chip>
             ))}
             <Chip tone="teal">
-              {fmtNum(opt.cost_to_serve_before, 2)} → {fmtNum(opt.cost_to_serve_after, 2)} AED / shipment
+              {fmtNum(opt.cost_to_serve_before, 2)} → {fmtNum(frontier.recommended.cps, 2)} AED / shipment
             </Chip>
           </div>
         ) : (
           <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-[12px] text-text-secondary">
-            The current 10-hub layout is already the cheapest feasible shape.
+            Under your resilience policy, the current 10-hub layout is already the cheapest feasible shape.
           </p>
         )}
+        <p className="mb-3 rounded-lg border border-warn/25 bg-warn/8 px-3 py-2 text-[11.5px] leading-relaxed text-text-secondary">
+          The <span className="font-semibold text-foreground">raw optimum saves more</span> — close{" "}
+          {frontier.raw.closes.length}, down to {fmtNum(frontier.raw.cps, 2)} AED/shipment — but it concentrates
+          the network into {frontier.raw.hubsOpen} hub{frontier.raw.hubsOpen === 1 ? "" : "s"}. It is shown in the
+          Frontier below as evidence, not recommended.
+        </p>
         <details className="rounded-xl border bg-background/50">
           <summary className="cursor-pointer list-none px-3.5 py-2.5 font-mono text-[9.5px] font-semibold uppercase tracking-[0.16em] text-text-secondary hover:text-foreground">
             Engine reasoning
@@ -242,7 +264,8 @@ function OptimizePage() {
           <ul className="space-y-1.5 px-3.5 pb-3.5 pt-1">
             {[
               "MILP facility-location (CBC) with a wired-in greedy fallback; objective = total cost/day.",
-              `Robustness: ${opt.robustness.trials} Monte-Carlo re-solves at ±${opt.robustness.demand_variation_pct}% demand — feasible in ${opt.robustness.feasible_pct}% of trials.`,
+              `Resilience policy enforced IN the solver: at least ${minHubs} hub(s) per emirate, no hub above ${maxShare}% of network volume.`,
+              `Robustness of the raw optimum: ${opt.robustness.trials} Monte-Carlo re-solves at ±${opt.robustness.demand_variation_pct}% demand — feasible in ${opt.robustness.feasible_pct}% of trials.`,
               "Service capability is enforced: same-day (Express) demand can only route to Full Hubs.",
             ].map((r, i) => (
               <li key={i} className="text-[11.5px] leading-relaxed text-text-secondary">
@@ -256,7 +279,7 @@ function OptimizePage() {
 
       {/* 2 · Ranked shapes — optimizer transparency */}
       <Card className="p-5">
-        <SectionTitle hint={`${shapes.feasibleCount} feasible of ${shapes.evaluated} layouts scored`}>Ranked network shapes</SectionTitle>
+        <SectionTitle hint={`engine evaluated ${shapes.evaluated} layouts · showing top ${shapes.shown} · ${shapes.feasibleCount} feasible`}>Ranked network shapes</SectionTitle>
         <div className="space-y-1.5">
           {shapes.shapes.map((s) => (
             <div
@@ -327,7 +350,7 @@ function OptimizePage() {
 
         <div className="space-y-1.5">
           {econRows.map((r) => (
-            <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-lg bg-background/50 px-3 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto_auto]">
+            <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-lg bg-background/50 px-3 py-2.5 sm:grid-cols-[minmax(0,1.4fr)_auto_auto_auto]">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="truncate text-[12.5px] font-medium text-foreground">{r.name}</p>
@@ -349,10 +372,6 @@ function OptimizePage() {
                 <p className="kicker">Cost/ship</p>
                 <p className={cn("font-mono text-[12px] font-semibold", cpsTone(r.cps))}>{fmtNum(r.cps, 2)}</p>
               </div>
-              <div className="hidden text-right sm:block">
-                <p className="kicker">Loaded/day</p>
-                <p className="font-mono text-[12px] font-semibold text-foreground">{fmtInt(Math.round(r.totalAedDay))}</p>
-              </div>
               <div className="text-right">
                 <Chip tone={r.verdict === "Efficient" ? "ok" : r.verdict === "Watch" ? "warn" : "risk"}>{r.verdict}</Chip>
                 <p className="mt-1 font-mono text-[9px] text-muted-foreground">rent {fmtInt(r.rentAedMonth)}/mo</p>
@@ -361,10 +380,11 @@ function OptimizePage() {
           ))}
         </div>
         <p className="mt-3 rounded-lg bg-muted px-3 py-2 text-[11px] leading-relaxed text-text-secondary">
-          Verdicts come straight from the optimizer: <span className="font-semibold text-foreground">Fix now</span> = over 92%
-          utilisation (breach risk), <span className="font-semibold text-foreground">Watch</span> = cost per shipment ≥ 1.8× the
-          network median or running hot, <span className="font-semibold text-foreground">Efficient</span> = healthy. Check the
-          Limits card before resizing anything that is saturating.
+          Every figure is the engine's; the verdicts are display labels on its cost-to-serve:{" "}
+          <span className="font-semibold text-foreground">Fix now</span> ≥ 90 AED/shipment,{" "}
+          <span className="font-semibold text-foreground">Watch</span> ≥ 55,{" "}
+          <span className="font-semibold text-foreground">Efficient</span> below. Check the Limits card before
+          resizing anything that is saturating.
         </p>
       </Card>
 
@@ -401,7 +421,14 @@ function OptimizePage() {
             />
           </div>
           {frontier.constraintsRelaxed ? <Chip tone="warn">Policy too strict — relaxed</Chip> : null}
+          {frontierBusy ? <Chip tone="teal">re-solving with your policy…</Chip> : null}
         </div>
+        {frontierError ? (
+          <p className="mb-3 rounded-lg border border-risk/30 bg-risk/10 px-3 py-2 text-[11px] text-risk">
+            Policy re-solve failed ({frontierError}) — the numbers below are the LAST successful solve, not your
+            current knobs.
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {([frontier.raw, frontier.recommended] as const).map((col, i) => (
