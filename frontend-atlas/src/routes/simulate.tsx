@@ -24,10 +24,12 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AtlasButton, Chip, FeasBadge, PageHead } from "@/components/atlas/ui";
-import { ACTIVE_HUBS, DEMAND, FLEET, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
+import { ACTIVE_HUBS, DARK_STORES, DEMAND, FLEET, entityName, fmtInt, fmtNum } from "@/lib/atlas-data";
+import type { ApiKpis } from "@/lib/api";
 import {
   nearestZone,
   runBaseline,
+  type HsComputation,
   type OpportunityAssessment,
   type ScenarioRun,
 } from "@/lib/atlas-engine";
@@ -35,6 +37,7 @@ import {
   liveAbsorbHub,
   liveAddCustomer,
   liveCloseHub,
+  liveComputation,
   liveConvertHub,
   liveCustomHub,
   liveDemandScale,
@@ -110,6 +113,26 @@ const SCENARIOS: { kind: ScenarioKind; title: string; hint: string; icon: Lucide
   { kind: "demand", title: "Demand surge", hint: "whole network", icon: TrendingUp, runLabel: "Run demand" },
   { kind: "customer", title: "New customer", hint: "opportunity assessor", icon: UserPlus, runLabel: "Assess opportunity" },
 ];
+
+/** The 12 cards read as QUESTION TYPES first, then scenarios inside one. */
+const SCENARIO_GROUPS: { title: string; kinds: ScenarioKind[] }[] = [
+  { title: "Network shape", kinds: ["close", "absorb", "open", "convert"] },
+  { title: "Capacity & people", kinds: ["resize", "riders", "fleet"] },
+  { title: "Demand & service", kinds: ["surge", "shift", "merge", "demand"] },
+  { title: "Growth", kinds: ["customer"] },
+];
+
+type SimNetwork = "hs" | "qcomm";
+
+/** What can honestly run on the QComm twin from this UI: its facilities
+ *  are dark stores (close / open / resize a store, scale demand). The
+ *  H&S-only levers — Express/Standard mix, rider roster, fleet rows, the
+ *  merge pair list — hide rather than pretend. */
+const QCOMM_KINDS: ScenarioKind[] = ["close", "open", "resize", "demand"];
+
+interface SimFacility { id: string; name: string; emirate: string; maxDaily: number }
+const HS_FACILITIES: SimFacility[] = ACTIVE_HUBS.map((h) => ({ id: h.id, name: h.name, emirate: h.emirate, maxDaily: h.maxDaily }));
+const QCOMM_FACILITIES: SimFacility[] = DARK_STORES.map((s) => ({ id: s.id, name: s.name, emirate: s.emirate, maxDaily: s.maxDailyOrders }));
 
 const OPEN_TYPES = [
   { kind: "full", title: "Full Hub", cap: 1800, riders: 18, line: "Regional sort + line-haul — serves whole zones, lowest cost per shipment." },
@@ -413,6 +436,27 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
     setCompare("scenario");
   }, [kind]);
 
+  // Which twin the workspace runs on. QComm = real what-ifs on the saved
+  // dark-store network via /simulate's base_scenario_id — an engine base,
+  // never a display filter.
+  const [network, setNetwork] = useState<SimNetwork>("hs");
+  const isQcomm = network === "qcomm";
+  const base = isQcomm ? "qcomm_twin" : undefined;
+  const facilities = isQcomm ? QCOMM_FACILITIES : HS_FACILITIES;
+  const [qcommBase, setQcommBase] = useState<{ comp: HsComputation; kpis: ApiKpis } | null>(null);
+  useEffect(() => {
+    if (!isQcomm || qcommBase) return;
+    let cancelled = false;
+    liveComputation("qcomm_twin")
+      .then((r) => {
+        if (!cancelled) setQcommBase(r);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isQcomm, qcommBase]);
+
   // form state
   const [closeHubId, setCloseHubId] = useState("HUB_RAK_01");
   const [microHubId, setMicroHubId] = useState("HUB_AJM_01");
@@ -443,8 +487,31 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   const [custLoc, setCustLoc] = useState<{ lat: number; lng: number } | null>(null);
 
   const microHubs = ACTIVE_HUBS.filter((h) => h.hubType === "Micro Hub");
-  const resizeHub = ACTIVE_HUBS.find((h) => h.id === resizeHubId);
+  const resizeHub = facilities.find((h) => h.id === resizeHubId);
   const openPreset = OPEN_TYPES[openType]!;
+
+  const switchNetwork = (n: SimNetwork) => {
+    if (n === network) return;
+    setNetwork(n);
+    setRun(null);
+    setOpp(null);
+    setLabel("");
+    setRunError(null);
+    setCompare("scenario");
+    if (n === "qcomm") {
+      // The crisis defaults: Al Reem is the store the watchdog's fix names.
+      setCloseHubId("QED_DXB_05");
+      setResizeHubId("QED_AUH_02");
+      setResizePct(110);
+      pickOpenType(2); // a dark store is the only type a QComm site can be
+      if (!QCOMM_KINDS.includes(kind)) onSelectKind("resize");
+    } else {
+      setCloseHubId("HUB_RAK_01");
+      setResizeHubId("HUB_RAK_01");
+      setResizePct(150);
+      pickOpenType(0);
+    }
+  };
   // Form DEFAULTS only (the engine prices the run): median daily fixed cost
   // and the candidates' pool-pure median handling from the dataset itself.
   const rents = ACTIVE_HUBS.map((h) => h.rent).sort((a, b) => a - b);
@@ -478,8 +545,8 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
   const runScenario = () => {
     switch (kind) {
       case "close": {
-        const hub = ACTIVE_HUBS.find((h) => h.id === closeHubId);
-        execute(`Close ${hub?.name ?? closeHubId}`, () => liveCloseHub(closeHubId));
+        const hub = facilities.find((h) => h.id === closeHubId);
+        execute(`Close ${hub?.name ?? closeHubId}`, () => liveCloseHub(closeHubId, base));
         break;
       }
       case "absorb": {
@@ -507,6 +574,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
               // pre-filled from the current network's own medians (engine data)
               fixedCost: Math.round(medianFixedCost),
               handlingCost: medianHandling,
+              ...(base ? { base } : {}),
             }),
           );
         }
@@ -537,7 +605,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
       }
       case "resize":
         execute(`Resize ${resizeHub?.name ?? ""} to ${resizePct}%`, () =>
-          liveResizeHub(resizeHubId, Math.round(((resizeHub?.maxDaily ?? 1) * resizePct) / 100)),
+          liveResizeHub(resizeHubId, Math.round(((resizeHub?.maxDaily ?? 1) * resizePct) / 100), base),
         );
         break;
       case "surge":
@@ -554,7 +622,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
         break;
       }
       case "demand":
-        execute(`Demand ${demandPct > 0 ? "+" : ""}${demandPct}%`, () => liveDemandScale(1 + demandPct / 100));
+        execute(`Demand ${demandPct > 0 ? "+" : ""}${demandPct}%`, () => liveDemandScale(1 + demandPct / 100, base));
         break;
       case "customer": {
         if (!custLoc) return;
@@ -610,7 +678,8 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
     });
   };
 
-  const shownComp = run ? (compare === "baseline" ? run.baseline : run.scenario) : baseline.scenario;
+  const baseComp = isQcomm ? qcommBase?.comp ?? null : baseline.scenario;
+  const shownComp = run ? (compare === "baseline" ? run.baseline : run.scenario) : baseComp;
   const errorBox = runError ? (
     <div className="rounded-lg border border-risk/30 bg-risk/10 px-3 py-2 text-[11px] text-risk">
       Engine error: {runError}
@@ -661,38 +730,89 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
         {/* body */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
-          {/* scenario navigator — all nine simulations share this map */}
+          {/* scenario navigator — the twelve simulations share this map */}
           <nav className="w-full shrink-0 border-b bg-sidebar/60 p-2 lg:w-[208px] lg:overflow-y-auto lg:border-b-0 lg:border-r" aria-label="Simulation scenarios">
-            <p className="kicker px-2 pb-2 pt-1">Scenario library</p>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
-              {SCENARIOS.map((scenario) => (
+            {/* Which twin this workspace simulates — an engine base, not a view */}
+            <p className="kicker px-2 pb-1 pt-1">Network</p>
+            <div className="grid grid-cols-2 gap-1 px-1 pb-1">
+              {(
+                [
+                  ["hs", "Hub & Spoke"],
+                  ["qcomm", "Dark stores"],
+                ] as const
+              ).map(([n, lbl]) => (
                 <button
-                  key={scenario.kind}
-                  onClick={() => onSelectKind(scenario.kind)}
+                  key={n}
+                  onClick={() => switchNetwork(n)}
+                  aria-pressed={network === n}
                   className={cn(
-                    "group flex min-h-12 w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors",
-                    kind === scenario.kind
-                      ? "border-primary/40 bg-primary/12 text-foreground"
-                      : "border-transparent bg-background/25 text-text-secondary hover:border-border hover:bg-muted/60 hover:text-foreground",
+                    "rounded-lg border px-2 py-1.5 font-mono text-[9.5px] font-semibold uppercase tracking-wider transition-colors",
+                    network === n
+                      ? "border-primary/40 bg-primary/12 text-primary"
+                      : "border-transparent bg-background/25 text-muted-foreground hover:text-foreground",
                   )}
-                  aria-current={kind === scenario.kind ? "page" : undefined}
                 >
-                  <scenario.icon className={cn("h-4 w-4 shrink-0", kind === scenario.kind ? "text-primary" : "text-muted-foreground")} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11.5px] font-semibold">{scenario.title}</span>
-                    <span className="block truncate text-[9px] text-muted-foreground">{scenario.hint}</span>
-                  </span>
-                  <ChevronRight className={cn("h-3.5 w-3.5 shrink-0", kind === scenario.kind ? "text-primary" : "text-muted-foreground")} />
+                  {lbl}
                 </button>
               ))}
             </div>
+            <p className="px-2 pb-2 font-mono text-[8.5px] uppercase tracking-wider text-muted-foreground">
+              {isQcomm ? "Live copy · 10 dark stores · 15-min promise" : "Live copy · 10 hubs · 17 zones · 6 emirates"}
+            </p>
+
+            <p className="kicker px-2 pb-1">Scenario library</p>
+            {SCENARIO_GROUPS.map((group) => {
+              const items = SCENARIOS.filter(
+                (s) => group.kinds.includes(s.kind) && (!isQcomm || QCOMM_KINDS.includes(s.kind)),
+              );
+              if (!items.length) return null;
+              return (
+                <div key={group.title} className="pb-1.5">
+                  <p className="px-2 pb-1 pt-1 font-mono text-[8.5px] font-semibold uppercase tracking-[0.16em] text-primary/70">
+                    {group.title}
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
+                    {items.map((scenario) => (
+                      <button
+                        key={scenario.kind}
+                        onClick={() => onSelectKind(scenario.kind)}
+                        className={cn(
+                          "group flex min-h-12 w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors",
+                          kind === scenario.kind
+                            ? "border-primary/40 bg-primary/12 text-foreground"
+                            : "border-transparent bg-background/25 text-text-secondary hover:border-border hover:bg-muted/60 hover:text-foreground",
+                        )}
+                        aria-current={kind === scenario.kind ? "page" : undefined}
+                      >
+                        <scenario.icon className={cn("h-4 w-4 shrink-0", kind === scenario.kind ? "text-primary" : "text-muted-foreground")} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[11.5px] font-semibold">{scenario.title}</span>
+                          <span className="block truncate text-[9px] text-muted-foreground">{scenario.hint}</span>
+                        </span>
+                        <ChevronRight className={cn("h-3.5 w-3.5 shrink-0", kind === scenario.kind ? "text-primary" : "text-muted-foreground")} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </nav>
           {/* left — controls */}
           <aside className="w-full shrink-0 p-4 lg:w-[286px] lg:overflow-y-auto lg:border-r">
             <div className="flex flex-col gap-3.5">
               {kind === "close" ? (
-                <Field label="Hub to close">
-                  <HubSelect value={closeHubId} onChange={setCloseHubId} />
+                <Field label={isQcomm ? "Dark store to close" : "Hub to close"}>
+                  <select
+                    value={closeHubId}
+                    onChange={(e) => setCloseHubId(e.target.value)}
+                    className="w-full rounded-lg border bg-background/60 px-3 py-2 text-[12.5px] font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring"
+                  >
+                    {facilities.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name} — {h.emirate}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               ) : null}
 
@@ -814,20 +934,25 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
               {kind === "open" ? (
                 <>
                   <Field label="Step 1 · Type">
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {OPEN_TYPES.map((t, i) => (
-                        <button
-                          key={t.title}
-                          onClick={() => pickOpenType(i)}
-                          title={t.line}
-                          className={cn(
-                            "rounded-lg border px-2 py-1.5 text-[10.5px] font-semibold transition-colors",
-                            openType === i ? "border-primary bg-primary/12 text-primary" : "bg-background/60 text-text-secondary hover:text-foreground",
-                          )}
-                        >
-                          {t.title}
-                        </button>
-                      ))}
+                    {/* A dark store on the H&S twin would serve ZERO zones (no
+                        QComm demand there) — and vice versa. Only offer types
+                        the selected network can actually use. */}
+                    <div className={cn("grid gap-1.5", isQcomm ? "grid-cols-1" : "grid-cols-2")}>
+                      {OPEN_TYPES.map((t, i) =>
+                        (isQcomm ? t.kind === "darkstore" : t.kind !== "darkstore") ? (
+                          <button
+                            key={t.title}
+                            onClick={() => pickOpenType(i)}
+                            title={t.line}
+                            className={cn(
+                              "rounded-lg border px-2 py-1.5 text-[10.5px] font-semibold transition-colors",
+                              openType === i ? "border-primary bg-primary/12 text-primary" : "bg-background/60 text-text-secondary hover:text-foreground",
+                            )}
+                          >
+                            {t.title}
+                          </button>
+                        ) : null,
+                      )}
                     </div>
                     <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">{openPreset.line}</p>
                   </Field>
@@ -848,8 +973,18 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
               {kind === "resize" ? (
                 <>
-                  <Field label="Hub">
-                    <HubSelect value={resizeHubId} onChange={setResizeHubId} />
+                  <Field label={isQcomm ? "Dark store" : "Hub"}>
+                    <select
+                      value={resizeHubId}
+                      onChange={(e) => setResizeHubId(e.target.value)}
+                      className="w-full rounded-lg border bg-background/60 px-3 py-2 text-[12.5px] font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring"
+                    >
+                      {facilities.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name} — {h.emirate}
+                        </option>
+                      ))}
+                    </select>
                   </Field>
                   <div className="flex items-baseline justify-between">
                     <span className="font-mono text-[9.5px] font-semibold uppercase tracking-wider text-text-secondary">New capacity</span>
@@ -858,6 +993,11 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
                     </span>
                   </div>
                   <Slider min={40} max={200} step={10} value={resizePct} onChange={setResizePct} />
+                  {isQcomm && resizeHubId === "QED_AUH_02" ? (
+                    <p className="rounded-lg border border-risk/30 bg-risk/8 px-2.5 py-2 text-[11px] leading-relaxed text-text-secondary">
+                      This is the store the watchdog's verified fix names: Al Reem today drops 12/day. Any capacity ≥104% clears the whole Abu Dhabi shortfall — watch the Served tile.
+                    </p>
+                  ) : null}
                 </>
               ) : null}
 
@@ -952,7 +1092,7 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
 
           {/* center — the simulated map */}
           <main className="relative min-h-[440px] min-w-0 flex-1">
-            {SimMap ? (
+            {SimMap && shownComp ? (
               <SimMap
                 comp={shownComp}
                 closedId={showingScenario ? (run?.closedId ?? null) : null}
@@ -988,8 +1128,9 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
                   </button>
                 ))}
               </div>
-              {/* View filter only — hides flows of the other service model */}
-              <div className="flex items-center gap-1.5 rounded-full border bg-card/90 py-0.5 pl-2.5 pr-0.5 shadow-card backdrop-blur">
+              {/* View filter only — hides flows of the other service model.
+                  H&S-only: the QComm twin has one service (15-min). */}
+              <div className={cn("flex items-center gap-1.5 rounded-full border bg-card/90 py-0.5 pl-2.5 pr-0.5 shadow-card backdrop-blur", isQcomm && "hidden")}>
                 <span className="font-mono text-[8.5px] uppercase tracking-[0.14em] text-muted-foreground">Service</span>
                 {(["all", "Standard", "Express"] as const).map((m) => (
                   <button
@@ -1024,17 +1165,38 @@ function ScenarioWorkspace({ kind, baseline, onSelectKind }: { kind: ScenarioKin
             {errorBox}
             {!run && !opp ? (
               <div className="space-y-3">
-                <p className="kicker">Baseline · week 13</p>
+                <p className="kicker">{isQcomm ? "Dark stores · live twin" : "Baseline · week 13"}</p>
                 <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-                  This is the live network today. Configure the scenario on the left, run it — the map redraws with the simulated
-                  flows and this panel shows the full impact.
+                  {isQcomm
+                    ? "The QComm network as it runs today — note Served below 100%: this twin genuinely cannot deliver every order. Fix it with a scenario."
+                    : "This is the live network today. Configure the scenario on the left, run it — the map redraws with the simulated flows and this panel shows the full impact."}
                 </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <DeltaTile label="Cost / parcel" before={baseline.res.baseline_kpis.cost_to_serve.value} after={baseline.res.baseline_kpis.cost_to_serve.value} unit="AED" />
-                  <DeltaTile label="Utilisation" before={baseline.res.baseline_kpis.utilization.value} after={baseline.res.baseline_kpis.utilization.value} unit="%" goodWhenDown={false} />
-                  <DeltaTile label="Served" before={baseline.res.baseline_kpis.coverage.value} after={baseline.res.baseline_kpis.coverage.value} unit="%" goodWhenDown={false} />
-                  <DeltaTile label="Spare / day" before={baseline.res.baseline_kpis.spare_capacity.value} after={baseline.res.baseline_kpis.spare_capacity.value} unit="pcs" goodWhenDown={false} />
-                </div>
+                {(() => {
+                  const k = isQcomm ? qcommBase?.kpis : null;
+                  const tiles = k
+                    ? [
+                        { label: "Cost / parcel", v: k.cost_to_serve.value, unit: "AED", down: true },
+                        { label: "Utilisation", v: k.utilization.value, unit: "%", down: false },
+                        { label: "Served", v: k.demand_served.value, unit: "%", down: false },
+                        { label: "Spare / day", v: k.spare_capacity.value, unit: "pcs", down: false },
+                      ]
+                    : [
+                        { label: "Cost / parcel", v: baseline.res.baseline_kpis.cost_to_serve.value, unit: "AED", down: true },
+                        { label: "Utilisation", v: baseline.res.baseline_kpis.utilization.value, unit: "%", down: false },
+                        { label: "Served", v: baseline.res.baseline_kpis.coverage.value, unit: "%", down: false },
+                        { label: "Spare / day", v: baseline.res.baseline_kpis.spare_capacity.value, unit: "pcs", down: false },
+                      ];
+                  if (isQcomm && !k) {
+                    return <p className="text-[11px] text-muted-foreground">Loading the dark-store twin…</p>;
+                  }
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {tiles.map((t) => (
+                        <DeltaTile key={t.label} label={t.label} before={t.v} after={t.v} unit={t.unit} goodWhenDown={t.down} />
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             ) : null}
 
