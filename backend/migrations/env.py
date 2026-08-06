@@ -19,10 +19,12 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # DATABASE_URL from the environment overrides alembic.ini — never hard-coded
-# (CLAUDE.md §7).
+# (CLAUDE.md §7). Normalized so managed-Postgres `postgres://` URLs work.
+from hubris.core.db import normalize_database_url  # noqa: E402
+
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", normalize_database_url(database_url))
 
 target_metadata = Base.metadata
 

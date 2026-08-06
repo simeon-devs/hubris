@@ -9,4 +9,5 @@ COPY hubris ./hubris
 COPY migrations ./migrations
 COPY alembic.ini .
 
-CMD ["uvicorn", "hubris.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render (and most PaaS) inject PORT; compose/local keeps 8000.
+CMD ["sh", "-c", "uvicorn hubris.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

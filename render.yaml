@@ -1,0 +1,57 @@
+# EMX ATLAS — one-click judges' deployment (Render Blueprint, all FREE tier).
+#
+# Deploy: render.com → New → Blueprint → pick this repo → Apply.
+# The ONLY thing to enter by hand is ANTHROPIC_API_KEY on emx-atlas-engine.
+#
+# If Render renames a service (name already taken → suffix added), update
+# the TWO cross-references to match the real URLs:
+#   emx-atlas-engine → CORS_ALLOW_ORIGINS  (the frontend's real URL)
+#   emx-atlas-app    → VITE_API_URL        (the backend's real URL)
+#
+# Free-tier reality: services sleep after 15 idle minutes (~50s wake).
+# Keep them warm during judging with cron-job.org pinging BOTH URLs
+# every 10 minutes:  <engine>/health  and  <app>/
+#
+# The stage demo still runs on localhost — this link is for the judges'
+# own hands.
+
+databases:
+  - name: emx-atlas-db
+    plan: free
+    databaseName: hubris
+    user: hubris
+
+services:
+  - type: web
+    name: emx-atlas-engine
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: emx-atlas-db
+          property: connectionString
+      - key: ANTHROPIC_API_KEY
+        sync: false # paste in the dashboard — never in the repo
+      - key: CORS_ALLOW_ORIGINS
+        value: https://emx-atlas-app.onrender.com
+
+  - type: web
+    name: emx-atlas-app
+    runtime: node
+    plan: free
+    rootDir: frontend-atlas
+    buildCommand: npm ci && npm run build
+    startCommand: node .output/server/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      # The scaffold's default build target is a Cloudflare Worker (exports
+      # fetch, no listener) — force the Node server preset for Render.
+      - key: NITRO_PRESET
+        value: node-server
+      - key: VITE_API_URL
+        value: https://emx-atlas-engine.onrender.com

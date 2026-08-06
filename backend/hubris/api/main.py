@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -40,9 +41,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Hubris API", lifespan=lifespan)
 
+# Deployed origins (e.g. the Render frontend) come from the environment,
+# comma-separated; localhost dev origins always work.
+_extra_origins = [
+    o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        *_extra_origins,
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
