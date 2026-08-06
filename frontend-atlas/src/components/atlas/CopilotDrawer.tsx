@@ -1,7 +1,7 @@
 import { MapPin, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { EmxLockup } from "@/components/atlas/EmxLockup";
+
 import { PRESET_QUESTIONS, answerQuestion } from "@/lib/atlas-copilot";
 import { useAtlas } from "@/lib/atlas-store";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ interface ChatMsg {
 function BotMark({ className }: { className?: string }) {
   return (
     <span className={cn("logo-chip inline-flex shrink-0 items-center rounded-lg px-1.5 py-1 shadow-card", className)}>
-      <EmxLockup label="EMX Atlas AI" fontPx={13} />
+      <img src="/emx-logo.jpeg" alt="EMX Atlas AI" className="h-3.5 w-auto" />
     </span>
   );
 }

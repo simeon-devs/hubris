@@ -118,7 +118,11 @@ export function reportPdfHtml(report: SavedReport): string {
 </head>
 <body>
   <header>
-    ${emxLockupHtml(30)}
+    ${
+      typeof location !== "undefined"
+        ? `<img src="${location.origin}/emx-logo.jpeg" alt="EMX" style="height:38px;width:auto" />`
+        : emxLockupHtml(30)
+    }
     <div class="doc-meta">
       <p class="k">EMX Atlas · Decision brief</p>
       <p class="d">${esc(date)}</p>

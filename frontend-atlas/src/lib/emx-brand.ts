@@ -11,11 +11,11 @@
 
 export const EMX_BLUE = "#2431ae";
 
-/** Drop the official files here to replace the recreated lockup:
- *  frontend-atlas/public/emx-logo.svg  (latin, blue on transparent)
- *  frontend-atlas/public/emx-logo-ar.svg (arabic, optional)
- *  Then swap `emxLockupHtml`/<EmxLockup> call sites for <img src="/emx-logo.svg">. */
-export const OFFICIAL_LOGO_PATH = "/emx-logo.svg";
+/** The OFFICIAL logo landed (2026-08-06): public/emx-logo.jpeg (blue latin,
+ *  from /images at the repo root, where the black + Arabic variants also
+ *  live). The chrome and the PDF use it; the recreated lockup below stays
+ *  only as the PDF's non-browser fallback. */
+export const OFFICIAL_LOGO_PATH = "/emx-logo.jpeg";
 
 /** The X device: two offset bars that never touch — as an SVG fragment. */
 export function emxXSvg(color: string, heightPx: number): string {
