@@ -39,19 +39,6 @@ services:
     volumes:
       - ./backend/hubris:/app/hubris
 
-  frontend:
-    build: ./frontend
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-
   atlas:
     build: ./frontend-atlas
     environment:

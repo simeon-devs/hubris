@@ -7,3 +7,10 @@ venv/
 .env
 
 .DS_Store
+
+# internal working docs — not for the public repo
+CLAUDE.md
+pitch/
+STATUS.md
+TASKS.md
+.DS_Store

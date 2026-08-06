@@ -1,41 +1,49 @@
-# Hubris — an agentic control tower for the logistics network
+# EMX ATLAS — the network digital twin
 
-> Next Mile Hackathon · 7X × 42 Abu Dhabi · Track: **Predictive Network Optimisation**
-> Team: **Hubris** · Build window: 5–6 Aug 2026 (24h, dataset revealed at event start)
+> Next Mile Hackathon · 7X × 42 Abu Dhabi · Track: **Predictive Network Optimisation** · Team **Hubris**
 
-*(The name "Hubris" is used for both the team and the product. To rename the product, change it here and in `VISION.md`; nothing in the code depends on it.)*
+**Try it now: https://emx-atlas-app.onrender.com** *(free-tier instance — first load after idle can take ~50s)*
+
+EMX's network lives in siloed spreadsheets: answering "can we absorb this customer?" takes ~8 hours, and "should we close a hub?" never gets asked because there is no safe way to try. ATLAS rebuilds the network — hubs, dark stores, on-demand, riders, fleet — as a **live working copy of EMX's own dataset**, simulates any change before it happens, and recommends the best network shape with the price of every trade-off computed.
 
 ---
 
-## What this is, in one line
+## The one rule
 
-**A web-based control tower for EMX's network planners: see the whole network in one view, test any change before making it, and get an explained, quantified recommendation on what to do next — driven by a team of AI agents you can extend and customise.**
+**The maths computes. The AI explains. Neither crosses the line.**
 
-## The 20-second version
-
-EMX's network (hubs, fleets, service models) lives in siloed systems, so no one sees the whole picture. Answering a single planning question ("can we absorb this customer? which hub has spare capacity? what does it cost to serve emirate A vs B?") takes ~8 hours of manual spreadsheet work. The strategic questions ("move a hub? change the fleet mix?") never get asked because there is no safe way to test a change.
-
-Hubris is a **network digital twin**: a live model that unifies the data, **simulates changes before they happen**, and **recommends the most efficient network shape** — with a deterministic optimisation engine doing the real maths and an agent layer orchestrating and explaining it.
-
-## Why we win (not just "a twin with a chatbot")
-
-1. **Real computation, provable value.** A genuine operations-research core (capacitated facility location + min-cost flow) produces a measurable ~5% cost-to-serve reduction — not an LLM guessing numbers.
-2. **An agentic platform, not a single-agent app.** A customisable multi-agent workforce, a no-code **Agent Builder**, and a **goal-driven optimisation loop** where agents drive the solver toward a plain-English objective.
-3. **Operator-useful features nobody else builds.** An opportunity scanner, a threshold/break-even finder, a prescriptive bottleneck unlock, and an auto-generated decision brief — features a real planner calls genuinely useful, not just impressive.
-4. **Extensible by design.** Every capability is a plugin. Adding a metric, a scenario, an optimiser, or a whole new agent takes minutes and requires no core changes.
-
-## Running it locally
-
-```bash
-cp .env.example .env      # then paste your ANTHROPIC_API_KEY into it
-docker compose up -d      # db + backend + frontend; migrations run automatically
+```
+your question → ① AI picks the calculation → ② deterministic engine computes
+             → ③ AI phrases the answer     → ④ verifier traces every number to a tool result
+             → your screen (badge: verified / self-corrected / flagged)
 ```
 
-- **UI:** http://localhost:3000 · **API docs:** http://localhost:8000/docs
-- The app seeds itself from the synthetic EMX-shaped dataset on boot — there is no manual seed step.
-- Without an `ANTHROPIC_API_KEY` everything still runs; only the agent chat / goal loop go quiet (every engine number, scenario, optimiser run, scanner finding and decision brief is computed without an LLM).
+The LLM appears exactly twice — choosing tools and phrasing answers. It never touches the solvers, the KPIs, or the alerts. Step ④ is measured, not assumed: without it, the model invented a figure in 3 of 5 live runs; with it, an untraceable number cannot reach the screen — it gets flagged, by name.
 
-Run the tests (the DB test needs the compose db up):
+## What it does
+
+- **Map** — all three networks live, with the real crisis the engine found on its own: 17 orders/day in Abu Dhabi that cannot be served (their own demand vs their own store capacity).
+- **Simulate** — 12 what-if scenarios (close / absorb / open / convert a hub, resize, fleet mix, surge, service-mix shift, merge delivery areas, riders, demand, new customer) on either twin — Hub & Spoke or the QComm dark-store network. Every run is a real re-solve.
+- **Optimize** — MILP facility location with a resilience frontier: the raw optimum (close 8, −34%) shown as evidence, the resilient plan (close 4, −28%, a hub in every emirate) recommended, and the premium between them — ≈2,700 AED/day — computed, not guessed.
+- **Agents** — two self-running watchdogs sweep the twin every 5 minutes and raise attributed alerts; a builder deploys new agents that can only hold registry tools — so no agent can ever answer with a number that didn't come from the engine.
+- **Reports** — adopted decisions, team-analysis briefs of every saved run, branded PDF export.
+- **MCP** — the same engine tools are exposed over MCP: the twin is operable from Claude on your own machine.
+
+## Trust, demonstrated
+
+We rebuilt EMX's cost model and reconciled it against their own report: **10.91 vs 10.91** AED/parcel variable, **60.11 vs 60.11** fully loaded, on both networks ([examples/reconciliation.md](examples/reconciliation.md)). The same pass surfaced a real inconsistency in the source workbook — the cost sheet and the demand sheet disagree about daily volume by 1.55× — which we report labelled on both bases rather than averaging away.
+
+## Run it locally
+
+```bash
+cp .env.example .env      # paste your ANTHROPIC_API_KEY (chat works without it; numbers always do)
+docker compose up -d      # Postgres + engine + app — migrations run, the twin seeds itself
+```
+
+- **App:** http://localhost:3001 · **API docs:** http://localhost:8000/docs
+- Boot is self-contained: the real dataset ships in the package, the baseline and the QComm crisis twin load themselves, the watchdog raises the first alerts on its own schedule.
+
+Tests (hand-checkable fixtures for every engine function; agent tests skip without a key):
 
 ```bash
 docker build -t hubris-backend-test ./backend
@@ -44,63 +52,19 @@ docker run --rm --network hubris_default \
   -v "$(pwd)/backend:/app" -w /app hubris-backend-test python -m pytest tests/ -q
 ```
 
-Tests that need a live `ANTHROPIC_API_KEY` or network access skip themselves automatically, so a clean checkout is always green.
+## Stack
 
-> **Demo ordering rule:** run the demo flow AFTER any test run, never before — the suite
-> shares the compose db and leaves plausible-looking episodes behind. Seed/refresh the demo
-> (including the learning story) as the LAST step before presenting.
+| Layer | What | Its one job |
+|---|---|---|
+| Engine | Python · scipy (HiGHS LP) · PuLP/CBC (MILP) · pandas | every number on every screen |
+| Memory | Postgres | episodes, alerts, heuristics — each row carries provenance |
+| Agents | LangGraph + Claude (Anthropic) | choose tools, phrase answers — nothing else |
+| Guardrail | pure-Python provenance verifier | trace every figure before the screen |
+| App | React · TanStack Start · Leaflet | formats numbers, computes none |
+| Surface | FastAPI · MCP · Docker · Render | register a plugin once → UI, chat and MCP get it automatically |
 
-**The live gate (required for every ticket's REVIEW from T-44 onward):**
+Everything extensible is a plugin behind one registry — a new scenario or metric needs zero wiring to appear in the UI, the chat, and MCP.
 
-```bash
-./scripts/test-live.sh
-```
+## Team
 
-One command; runs the FULL suite including the 9 live LLM tests — the no-fabrication
-guardrail's only live-fire regression. It fails fast (seconds, with the reason) if the key
-is missing, dead, or out of credits, and fails if the live tests were skipped rather than
-run. It contains **no retry logic on purpose**: a fabrication failure is a real failure and
-goes in the ticket log as a red run — never re-rolled into green. In CI, the same command
-works with `ANTHROPIC_API_KEY` supplied as a secret.
-
-## Hubris as an MCP server (operate the twin from any AI)
-
-Every registry tool is published over the Model Context Protocol — implement a plugin,
-register it, and it appears on the MCP surface with no wiring. Point any MCP client
-(Claude Desktop, MCP Inspector, your own script) at:
-
-```jsonc
-// e.g. Claude Desktop config
-{ "mcpServers": { "hubris": {
-    "command": "docker",
-    "args": ["run","--rm","-i","--network","hubris_default",
-             "-e","DATABASE_URL=postgresql+psycopg2://hubris:hubris@db:5432/hubris",
-             "-v","<repo>/backend:/app","-w","/app",
-             "hubris-backend-test","python","-m","hubris.mcp_server"] } } }
-```
-
-Every result is the engine's computed JSON (identical to the internal path); episodes and
-heuristic annotations apply to external callers too. The MCP process runs its own twin
-instance (baseline + the seeded `demo_surge`; pass `_scenario_id`). A captured external
-call lives in `examples/mcp-external-call.json`.
-
-## The documents (read in this order)
-
-| File | For whom | What it gives you |
-|------|----------|-------------------|
-| **[VISION.md](./VISION.md)** | The team (and the judges) | The product story, who it's for, why it wins, how to contribute, and full **Q&A prep** for the pitch. |
-| **[BUILD_SPEC.md](./BUILD_SPEC.md)** | Builders | The master spec: features tiered (core / accuracy / stretch), the plugin + agent contracts, KPI strategy, and the pre-build vs 24-hour plan. |
-| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Builders | The layered architecture, data flow, and how the pieces connect. |
-| **[SCHEMA.md](./SCHEMA.md)** | Builders | The canonical data model everything maps onto, and the schema-agnostic ingestion strategy. |
-| **[CLAUDE.md](./CLAUDE.md)** | Claude Code & any AI contributor | Conventions, the non-negotiable guardrail, and **exactly how to add a new plugin or agent**. |
-
-## The one rule that never moves
-
-**Agents orchestrate and explain. The deterministic engine computes. No agent ever invents a number.**
-
-Every figure an agent reports is traceable to a real tool call against the engine. This is what keeps the AI genuinely load-bearing instead of decorative — and it is the single most important thing separating a winning build from a losing one on this track.
-
-## Status
-
-Strategy and architecture: **locked** (cross-checked against six independent LLM analyses).
-Build: **starting now**, pre-event, on synthetic EMX-shaped data. The real dataset arrives at event start and plugs into the schema-agnostic ingestion layer.
+**Hubris** — built in 24 hours on the event dataset, deployed the same day.
