@@ -82,8 +82,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      {/* Left nav rail */}
-      <aside className="app-chrome fixed inset-y-0 left-0 z-40 flex w-[216px] flex-col border-r bg-sidebar">
+      {/* Left nav rail — desktop only; phones get the bottom tab bar */}
+      <aside className="app-chrome fixed inset-y-0 left-0 z-40 hidden w-[216px] flex-col border-r bg-sidebar lg:flex">
         <div className="border-b px-5 py-4">
           <div className="logo-chip inline-flex rounded-lg px-2.5 py-1.5">
             <img src="/emx-logo.jpeg" alt="EMX — a 7X company" className="h-6 w-auto" />
@@ -111,15 +111,17 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* Main column */}
-      <div className="pl-[216px]">
-        <header className="app-chrome sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/85 px-6 backdrop-blur">
-          <div className="flex items-center gap-2 text-[12.5px]">
+      <div className="lg:pl-[216px]">
+        <header className="app-chrome sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/85 px-4 backdrop-blur lg:px-6">
+          <div className="flex min-w-0 items-center gap-2 text-[12.5px]">
             <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">EMX ATLAS</span>
-            <span className="text-muted-foreground">/</span>
-            <span className="font-semibold text-foreground">{pageName}</span>
+            <span className="hidden text-muted-foreground sm:inline">/</span>
+            <span className="hidden truncate font-semibold text-foreground sm:inline">{pageName}</span>
           </div>
-          <div className="flex items-center gap-4">
-            <LiveClock />
+          <div className="flex items-center gap-3 lg:gap-4">
+            <div className="hidden sm:block">
+              <LiveClock />
+            </div>
             <span className="hidden rounded-full border bg-muted px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-text-secondary md:inline-block">
               3 networks · 22 entities · 13 weeks
             </span>
@@ -128,8 +130,30 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-        <main className="min-h-[calc(100vh-3.5rem)] print:p-0">{children}</main>
+        {/* pb clears the mobile tab bar; zero on desktop */}
+        <main className="min-h-[calc(100vh-3.5rem)] pb-16 print:p-0 lg:pb-0">{children}</main>
       </div>
+
+      {/* Phone bottom tab bar — the judges-on-their-phone navigation */}
+      <nav
+        className="app-chrome fixed inset-x-0 bottom-0 z-[1300] flex items-stretch justify-around border-t bg-background/95 backdrop-blur lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="Primary"
+      >
+        {NAV.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            activeOptions={{ exact: item.to === "/" }}
+            activeProps={{ className: "text-primary" }}
+            inactiveProps={{ className: "text-muted-foreground" }}
+            className="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[9px] font-semibold uppercase tracking-wider"
+          >
+            <item.icon className="h-4.5 w-4.5" />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

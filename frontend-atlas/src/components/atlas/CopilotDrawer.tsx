@@ -95,7 +95,7 @@ export function CopilotDrawer({ onShowOnMap }: { onShowOnMap?: (f: MapFocus) => 
           </span>
         </button>
       ) : (
-        <aside className="glass-panel no-print fixed bottom-0 right-0 top-14 z-[1260] flex w-[382px] flex-col border-l backdrop-blur-xl animate-slide-in">
+        <aside className="glass-panel no-print fixed bottom-14 right-0 top-14 z-[1260] flex w-full max-w-[382px] flex-col lg:bottom-0 border-l backdrop-blur-xl animate-slide-in">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="flex items-center gap-2.5">
               <BotMark className="px-2 py-1.5" />

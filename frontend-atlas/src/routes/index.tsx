@@ -137,7 +137,7 @@ function MapHomePage() {
   return (
     <div className="relative h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* Legend — the colors mean something now */}
-      <div className="absolute bottom-4 left-4 z-[1000] flex flex-wrap items-center gap-2 rounded-full border bg-card/85 px-3 py-1.5 backdrop-blur-md">
+      <div className="absolute bottom-20 left-4 z-[1000] flex flex-wrap items-center gap-2 rounded-full border bg-card/85 px-3 py-1.5 backdrop-blur-md lg:bottom-4">
         {(
           [
             ["#5b9dff", "Full hub (same-day)"],
@@ -349,7 +349,7 @@ function MapHomePage() {
 
       {/* Hub side card */}
       {snapshot ? (
-        <div className="absolute bottom-4 left-4 z-[1100] max-h-[74%] w-[336px] animate-rise overflow-y-auto">
+        <div className="absolute bottom-20 left-4 z-[1100] max-h-[70%] w-[min(336px,calc(100vw-2rem))] animate-rise overflow-y-auto lg:bottom-4">
           <Card>
             <div className="flex items-start justify-between gap-2 border-b px-4 pb-3 pt-3.5">
               <div>
