@@ -185,6 +185,25 @@ export function queryAgent(question: string, scenarioId?: string | null): Promis
   );
 }
 
+// ---- agents (the REAL registry — seeded specs + custom-built) --------------
+export interface ApiAgentSpec {
+  name: string; goal: string; allowed_tools: string[];
+  autonomy: "monitoring" | "on-demand";
+}
+export function getAgents(): Promise<ApiAgentSpec[]> {
+  return request("/agents", undefined, 10_000);
+}
+export function createAgent(spec: ApiAgentSpec): Promise<ApiAgentSpec> {
+  return request("/agents", { method: "POST", body: JSON.stringify(spec) });
+}
+export interface ApiMonitoringStatus {
+  enabled: boolean; interval_seconds: number; runs: number;
+  last_run_at: string | null;
+}
+export function getMonitoringStatus(): Promise<ApiMonitoringStatus> {
+  return request("/monitoring/status", undefined, 10_000);
+}
+
 // ---- alerts ----------------------------------------------------------------
 export interface ApiAlert {
   id: string; agent_name: string; severity: "critical" | "warning";

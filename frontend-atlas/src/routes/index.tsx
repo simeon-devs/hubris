@@ -314,6 +314,7 @@ function MapHomePage() {
                       {isAcked ? <Chip tone="ok">Acked</Chip> : null}
                     </div>
                     <p className="mt-2 text-[12.5px] font-semibold leading-snug text-foreground">{a.title}</p>
+                    <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">by {a.agentName}</p>
                     <p className="mt-1 text-[11px] leading-relaxed text-text-secondary">{a.finding}</p>
                     <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
                       <span className="font-semibold text-foreground">Action: </span>

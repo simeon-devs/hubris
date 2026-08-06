@@ -97,6 +97,16 @@ DEFAULT_TEMPLATES: list[CustomAgentSpec] = [
         autonomy="monitoring",
     ),
     CustomAgentSpec(
+        name="utilization_sentinel",
+        goal=(
+            "Watch every facility's flow utilisation on the live twin and its "
+            "saved scenarios; raise a warning the moment any facility runs at "
+            "90% or more — before it becomes the next crisis."
+        ),
+        allowed_tools=["get_kpis", "find_spare_capacity"],
+        autonomy="monitoring",
+    ),
+    CustomAgentSpec(
         name="cost_advisor",
         goal=(
             "Answer cost-to-serve questions and recommend cost-saving "

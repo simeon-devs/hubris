@@ -78,8 +78,16 @@ def test_seeded_crisis_produces_critical_alert_with_recommended_action():
             for a in memory.list_alerts(include_acknowledged=False, limit=100)
             if a["id"] in created and a["finding"]["target"] == "qcomm_twin"
         ]
-        assert len(alerts) == 1
-        alert = alerts[0]
+        # TWO rules, two agents, two honest findings on the same twin:
+        # infeasibility (capacity_watchdog) + hot utilisation (sentinel).
+        assert len(alerts) == 2
+        by_agent = {a["agent_name"]: a for a in alerts}
+        assert set(by_agent) == {"capacity_watchdog", "utilization_sentinel"}
+        sentinel = by_agent["utilization_sentinel"]
+        assert sentinel["severity"] == "warning"
+        assert sentinel["finding"]["hottest_utilization_pct"] >= 90.0
+        assert sentinel["finding"]["unmet_demand"] == {}
+        alert = by_agent["capacity_watchdog"]
         # the crisis is real: infeasible -> critical, with the shortfall
         # listed per zone straight from the flow solve
         assert alert["severity"] == "critical"
@@ -120,9 +128,11 @@ def test_infeasible_stress_is_critical():
         # x50 demand: total ~214k vs ~27k capacity -> genuinely unservable
         result = watchdog.run_sweep(state, stress_factor=50.0)
         created = [a["id"] for a in result["alerts_created"]]
-        assert len(created) == 1
-        alert = [a for a in memory.list_alerts(limit=100) if a["id"] == created[0]][0]
-        assert alert["severity"] == "critical"
+        stored = [a for a in memory.list_alerts(limit=100) if a["id"] in created]
+        critical = [a for a in stored if a["severity"] == "critical"]
+        assert len(critical) == 1
+        alert = critical[0]
+        assert alert["agent_name"] == "capacity_watchdog"
         assert alert["finding"]["unmet_demand"]  # real shortfall, listed per zone
     finally:
         _delete_alerts(created)

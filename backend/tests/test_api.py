@@ -490,16 +490,20 @@ def test_monitoring_status_run_once_alerts_and_ack(client):
     result = client.post("/monitoring/run-once", json={"stress_factor": 50.0}).json()
     created = [a["id"] for a in result["alerts_created"]]
     try:
-        assert len(created) == 1
+        # x50 stress is both infeasible AND hot -> the two rule-agents each
+        # raise their own finding (capacity_watchdog + utilization_sentinel).
+        assert len(created) == 2
         feed = client.get("/memory/alerts").json()
         assert feed["available"] is True
-        mine = [a for a in feed["alerts"] if a["id"] == created[0]]
-        assert mine and mine[0]["severity"] == "critical"
+        mine = [a for a in feed["alerts"] if a["id"] in created]
+        assert {a["severity"] for a in mine} == {"critical", "warning"}
+        assert {a["agent_name"] for a in mine} == {"capacity_watchdog", "utilization_sentinel"}
+        critical_id = next(a["id"] for a in mine if a["severity"] == "critical")
 
         # acknowledge -> leaves the default feed, stays under include_acknowledged
-        assert client.post(f"/memory/alerts/{created[0]}/ack").status_code == 200
-        assert created[0] not in [a["id"] for a in client.get("/memory/alerts").json()["alerts"]]
-        assert created[0] in [
+        assert client.post(f"/memory/alerts/{critical_id}/ack").status_code == 200
+        assert critical_id not in [a["id"] for a in client.get("/memory/alerts").json()["alerts"]]
+        assert critical_id in [
             a["id"]
             for a in client.get("/memory/alerts", params={"include_acknowledged": "true"}).json()["alerts"]
         ]

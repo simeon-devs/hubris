@@ -25,6 +25,8 @@ export interface AtlasAlert {
   title: string;
   finding: string;
   action: string;
+  /** Which agent raised it (capacity_watchdog, utilization_sentinel, …). */
+  agentName: string;
   target?: AlertTarget | undefined;
   acknowledged: boolean;
   provenance: string;
@@ -56,15 +58,18 @@ function targetFor(id: string): AlertTarget | undefined {
   return undefined;
 }
 
+/** Sentence keyed by the RULE that fired (severity), not by feasibility —
+ *  the sentinel's hot-utilisation warning on an infeasible twin must not
+ *  wear the crisis text (both alerts can exist for one target). */
 function findingSentence(alert: ApiAlert): string {
   const f = alert.finding;
-  if (!f.feasible) {
+  if (alert.severity === "critical" && Object.keys(f.unmet_demand).length > 0) {
     const unmet = Object.entries(f.unmet_demand)
       .map(([zone, qty]) => `${zone.replace(/_/g, " ")} — ${qty}/day unserved`)
       .join("; ");
     return `The re-solved flow CANNOT serve all demand on ${f.target}: ${unmet}.`;
   }
-  return `${f.hottest_hub ?? "A facility"} runs at ${f.hottest_utilization_pct}% — above the ${f.hot_threshold_pct}% line (target: ${f.target}${f.stress_factor ? `, stressed x${f.stress_factor}` : ""}).`;
+  return `${f.hottest_hub ?? "A facility"} runs at ${f.hottest_utilization_pct}% — at or above the ${f.hot_threshold_pct}% line (target: ${f.target}${f.stress_factor ? `, stressed x${f.stress_factor}` : ""}).`;
 }
 
 /** Two kinds of fix, two different sentences. A `restore_feasibility`
@@ -114,24 +119,26 @@ function actionSentence(alert: ApiAlert): string {
 export async function fetchAlerts(): Promise<AtlasAlert[]> {
   try {
     const alerts = await getAlerts();
-    return alerts.map((a) => ({
-      id: a.id,
-      severity: a.severity,
-      title: a.finding.feasible
-        ? `${a.finding.hottest_hub ?? a.finding.target} running hot`
-        : `${a.finding.target}: cannot serve all demand`,
-      finding: findingSentence(a),
-      action: actionSentence(a),
-      target:
-        (!a.finding.feasible
-          ? targetForZone(Object.keys(a.finding.unmet_demand)[0] ?? "")
-          : undefined) ??
-        targetFor(a.finding.hottest_hub ?? "") ??
-        undefined,
-      acknowledged: a.acknowledged,
-      provenance: a.provenance,
-      createdAt: a.created_at,
-    }));
+    return alerts.map((a) => {
+      const isCrisis = a.severity === "critical" && Object.keys(a.finding.unmet_demand).length > 0;
+      return {
+        id: a.id,
+        severity: a.severity,
+        agentName: a.agent_name,
+        title: isCrisis
+          ? `${a.finding.target}: cannot serve all demand`
+          : `${a.finding.hottest_hub ?? a.finding.target} running hot`,
+        finding: findingSentence(a),
+        action: actionSentence(a),
+        target:
+          (isCrisis ? targetForZone(Object.keys(a.finding.unmet_demand)[0] ?? "") : undefined) ??
+          targetFor(a.finding.hottest_hub ?? "") ??
+          undefined,
+        acknowledged: a.acknowledged,
+        provenance: a.provenance,
+        createdAt: a.created_at,
+      };
+    });
   } catch {
     return []; // engine offline -> quiet bell, never a broken panel
   }
